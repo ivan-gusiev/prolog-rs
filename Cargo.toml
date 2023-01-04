@@ -1,0 +1,6 @@
+[package]
+name = "prolog-rs"
+version = "0.1.0"
+authors = ["Ivan Gusiev <ivan.gusiev@gmail.com>"]
+
+[dependencies]
