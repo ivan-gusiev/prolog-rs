@@ -1,5 +1,5 @@
-use std::ops;
 use std::fmt::{Display, Formatter};
+use std::ops;
 
 type FunctorName = char;
 type Arity = u32;
@@ -22,7 +22,7 @@ impl ops::AddAssign<usize> for HeapPtr {
 }
 
 impl Display for HeapPtr {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> { 
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(f, "HEAP[{}]", self.0)
     }
 }
@@ -31,7 +31,7 @@ impl Display for HeapPtr {
 pub struct RegPtr(pub usize);
 
 impl Display for RegPtr {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> { 
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(f, "X{}", self.0)
     }
 }
@@ -40,8 +40,8 @@ impl Display for RegPtr {
 pub struct Ref(pub HeapPtr);
 
 impl Display for Ref {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> { 
-        write!(f, "<REF,{}>", self.0.0)
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "<REF,{}>", self.0 .0)
     }
 }
 
@@ -49,8 +49,8 @@ impl Display for Ref {
 pub struct Str(pub HeapPtr);
 
 impl Display for Str {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> { 
-        write!(f, "<STR,{}>", self.0.0)
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "<STR,{}>", self.0 .0)
     }
 }
 
@@ -58,7 +58,7 @@ impl Display for Str {
 pub struct Functor(pub FunctorName, pub Arity);
 
 impl Display for Functor {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> { 
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(f, "{}/{}", self.0, self.1)
     }
 }
@@ -72,7 +72,7 @@ pub enum Data {
 }
 
 impl Display for Data {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> { 
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         match self {
             Data::Empty => write!(f, "<EMPTY>"),
             Data::Ref(r) => write!(f, "{}", r),
@@ -90,14 +90,13 @@ pub enum Instruction {
 }
 
 impl Display for Instruction {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> { 
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         match self {
-            Instruction::PutStructure(functor, reg) => 
-                write!(f, "put_structure {}, {}", functor, reg),
-            Instruction::SetVariable(reg) => 
-                write!(f, "set_variable {}", reg),
-            Instruction::SetValue(reg) => 
-                write!(f, "set_value {}", reg),
+            Instruction::PutStructure(functor, reg) => {
+                write!(f, "put_structure {}, {}", functor, reg)
+            }
+            Instruction::SetVariable(reg) => write!(f, "set_variable {}", reg),
+            Instruction::SetValue(reg) => write!(f, "set_value {}", reg),
         }
     }
 }
