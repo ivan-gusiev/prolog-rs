@@ -1,11 +1,13 @@
+pub mod asm;
+
 use std::fmt::{Display, Formatter};
 use std::ops;
 
 type FunctorName = char;
 type Arity = u32;
 
-#[derive(Clone, Copy, Debug)]
-pub struct HeapPtr(usize);
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct HeapPtr(pub usize);
 
 impl ops::Add<usize> for HeapPtr {
     type Output = HeapPtr;
@@ -27,7 +29,7 @@ impl Display for HeapPtr {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RegPtr(pub usize);
 
 impl Display for RegPtr {
@@ -36,7 +38,7 @@ impl Display for RegPtr {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Ref(pub HeapPtr);
 
 impl Display for Ref {
@@ -45,7 +47,7 @@ impl Display for Ref {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Str(pub HeapPtr);
 
 impl Display for Str {
@@ -54,7 +56,7 @@ impl Display for Str {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Functor(pub FunctorName, pub Arity);
 
 impl Display for Functor {
@@ -63,7 +65,7 @@ impl Display for Functor {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Data {
     Empty,
     Ref(Ref),
