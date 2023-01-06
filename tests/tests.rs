@@ -4,8 +4,9 @@ extern crate prolog_rs;
 mod tests {
     use prolog_rs::{
         asm::{parse_program, Arg, Line},
-        data::{Data, Functor, HeapPtr, Ref, RegPtr, Str},
+        data::{Data, HeapPtr, Ref, RegPtr, Str},
         instr::Instruction,
+        lang::Functor,
         run_code, Machine,
     };
 

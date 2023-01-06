@@ -1,10 +1,6 @@
 extern crate prolog_rs;
 
-use prolog_rs::{
-    data::{Functor, RegPtr},
-    instr::Instruction,
-    printout, run_code, Machine,
-};
+use prolog_rs::{data::RegPtr, instr::Instruction, lang::Functor, printout, run_code, Machine};
 
 fn main() {
     let h2 = Functor('h', 2);

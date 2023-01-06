@@ -1,8 +1,6 @@
+use lang::Functor;
 use std::fmt::{Display, Formatter};
 use std::ops;
-
-type FunctorName = char;
-type Arity = u32;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct HeapPtr(pub usize);
@@ -51,15 +49,6 @@ pub struct Str(pub HeapPtr);
 impl Display for Str {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(f, "<STR,{}>", self.0 .0)
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Functor(pub FunctorName, pub Arity);
-
-impl Display for Functor {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "{}/{}", self.0, self.1)
     }
 }
 

@@ -1,5 +1,6 @@
 use asm::{parse_program, Arg, Line};
-use data::{Functor, RegPtr};
+use data::RegPtr;
+use lang::Functor;
 use std::fmt::{Display, Formatter};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

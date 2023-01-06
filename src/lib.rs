@@ -1,9 +1,11 @@
 pub mod asm;
 pub mod data;
 pub mod instr;
+pub mod lang;
 
-use data::{Data, Functor, HeapPtr, Ref, RegPtr, Str};
+use data::{Data, HeapPtr, Ref, RegPtr, Str};
 use instr::Instruction;
+use lang::Functor;
 use std::fmt::Display;
 
 #[derive(Debug)]
