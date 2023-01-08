@@ -1,0 +1,48 @@
+---
+source: tests/langtests.rs
+expression: parse_term(input)
+---
+Ok(
+    Struct(
+        Struct(
+            Functor(
+                'p',
+                3,
+            ),
+            [
+                Variable(
+                    'Z',
+                ),
+                Struct(
+                    Struct(
+                        Functor(
+                            'h',
+                            2,
+                        ),
+                        [
+                            Variable(
+                                'Z',
+                            ),
+                            Variable(
+                                'W',
+                            ),
+                        ],
+                    ),
+                ),
+                Struct(
+                    Struct(
+                        Functor(
+                            'f',
+                            1,
+                        ),
+                        [
+                            Variable(
+                                'W',
+                            ),
+                        ],
+                    ),
+                ),
+            ],
+        ),
+    ),
+)
