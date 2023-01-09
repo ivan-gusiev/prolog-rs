@@ -25,7 +25,7 @@ impl Display for HeapPtr {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct RegPtr(pub usize);
 
 impl Display for RegPtr {

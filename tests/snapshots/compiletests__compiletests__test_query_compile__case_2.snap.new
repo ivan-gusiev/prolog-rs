@@ -1,0 +1,14 @@
+---
+source: tests/compiletests.rs
+assertion_line: 27
+expression: "format!(\"{}\\n-----\\n{}\", input, result)"
+---
+f(X, g(X,a))
+-----
+put_structure f/2, X1
+set_variable X2
+set_variable X3
+put_structure a/0, X4
+put_structure g/2, X3
+set_value X2
+set_value X4

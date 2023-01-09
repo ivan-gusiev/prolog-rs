@@ -4,9 +4,10 @@ extern crate prolog_rs;
 mod tests {
     use prolog_rs::{
         asm::{parse_program, Arg, Line},
+        compile::compile_query,
         data::{Data, HeapPtr, Ref, RegPtr, Str},
         instr::Instruction,
-        lang::Functor,
+        lang::{parse_term, Functor},
         run_code, Machine,
     };
 
@@ -22,16 +23,14 @@ mod tests {
         set_value X4          %              X4)
         "#;
 
-    fn str(heap: usize) -> Data {
-        Data::Str(Str(HeapPtr(heap)))
-    }
+    const QUERY: &str = "p(Z,h(Z,W), f(W))";
 
-    fn func(f: Functor) -> Data {
-        Data::Functor(f)
-    }
-
-    fn refr(heap: usize) -> Data {
-        Data::Ref(Ref(HeapPtr(heap)))
+    #[test]
+    fn program_compiles_to_bytecode() {
+        let query = parse_term(QUERY).unwrap();
+        let instructions = compile_query(query);
+        let expected = Instruction::from_program(PROGRAM).unwrap();
+        assert_eq!(expected.as_slice(), instructions.as_slice());
     }
 
     #[test]
@@ -61,6 +60,18 @@ mod tests {
         let mut machine = Machine::new();
         machine.set_code(&code);
         run_code(&mut machine);
+
+        fn str(heap: usize) -> Data {
+            Data::Str(Str(HeapPtr(heap)))
+        }
+
+        fn func(f: Functor) -> Data {
+            Data::Functor(f)
+        }
+
+        fn refr(heap: usize) -> Data {
+            Data::Ref(Ref(HeapPtr(heap)))
+        }
 
         let expected_heap = vec![
             str(1),

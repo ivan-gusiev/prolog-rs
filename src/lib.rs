@@ -1,4 +1,5 @@
 pub mod asm;
+pub mod compile;
 pub mod data;
 pub mod instr;
 pub mod lang;

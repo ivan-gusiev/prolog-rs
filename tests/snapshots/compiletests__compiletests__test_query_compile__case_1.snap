@@ -1,0 +1,7 @@
+---
+source: tests/compiletests.rs
+expression: "format!(\"{}\\n-----\\n{}\", input, result)"
+---
+D
+-----
+
