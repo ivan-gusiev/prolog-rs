@@ -4,7 +4,7 @@ pub type VarName = char;
 pub type FunctorName = char;
 pub type Arity = u32;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct Functor(pub FunctorName, pub Arity);
 
 impl Functor {

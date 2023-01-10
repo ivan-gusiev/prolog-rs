@@ -122,9 +122,7 @@ pub fn run_code(machine: &mut Machine) {
 }
 
 pub fn printout<T: Display>(items: &[T]) {
-    let mut idx = 0;
-    for item in items {
+    for (idx, item) in items.iter().enumerate() {
         println!("{:#03}\t{}", idx, item);
-        idx += 1;
     }
 }

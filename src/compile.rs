@@ -1,8 +1,11 @@
-use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::fmt::{Display, Formatter};
 
 use instr::Instruction;
 use lang::{Term, VarName};
+
+extern crate topological_sort; // TODO: fix this
+use self::topological_sort::TopologicalSort;
 
 use crate::{data::RegPtr, lang::Functor};
 
@@ -15,19 +18,53 @@ impl TermId {
     }
 }
 
+impl Display for TermId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "t{}", self.0)
+    }
+}
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 enum FlatRef {
     Term(TermId), // TODO: this shouldn't exist after flatten_term returns
     Register(RegPtr),
 }
 
-#[derive(Debug)]
+impl Display for FlatRef {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FlatRef::Term(id) => id.fmt(f),
+            FlatRef::Register(ptr) => ptr.fmt(f),
+        }
+    }
+}
+
+#[derive(Debug, Hash, PartialEq, Eq)]
 struct FlatStruct(Functor, Vec<FlatRef>);
 
-#[derive(Debug)]
+impl Display for FlatStruct {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}(", self.0)?;
+        for term in self.1.iter() {
+            write!(f, "{},", term)?
+        }
+        write!(f, ")")
+    }
+}
+
+#[derive(Debug, Hash, PartialEq, Eq)]
 enum FlattenedTerm {
     Variable(VarName),
     Struct(FlatStruct),
+}
+
+impl Display for FlattenedTerm {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FlattenedTerm::Variable(n) => n.fmt(f),
+            FlattenedTerm::Struct(s) => s.fmt(f),
+        }
+    }
 }
 
 impl FlattenedTerm {
@@ -142,30 +179,43 @@ fn order_structs(terms: &[FlattenedTerm]) -> Vec<RegPtr> {
         result
     }
 
-    let mut result = vec![];
+    let mut structs_to_sort = vec![];
     for (i, term) in terms.iter().enumerate() {
-        let ptr = itop(i);
         match term {
-            FlattenedTerm::Struct(_) => result.push(ptr),
+            FlattenedTerm::Struct(_) => structs_to_sort.push(itop(i)),
             FlattenedTerm::Variable(_) => (),
         }
     }
 
-    result.sort_by(|l, r| {
-        let lhs = &terms[ptoi(*l)];
-        let rhs = &terms[ptoi(*r)];
+    let mut ts = TopologicalSort::<RegPtr>::new();
+    for l in 0..structs_to_sort.len() {
+        for r in (l + 1)..structs_to_sort.len() {
+            let lp = structs_to_sort[l];
+            let rp = structs_to_sort[r];
+            let lhs = &terms[ptoi(lp)];
+            let rhs = &terms[ptoi(rp)];
 
-        let regs_lhs = regs(lhs);
-        let regs_rhs = regs(rhs);
+            let regs_lhs = regs(lhs);
+            let regs_rhs = regs(rhs);
 
-        if regs_lhs.contains(r) {
-            Ordering::Greater
-        } else if regs_rhs.contains(l) {
-            Ordering::Less
-        } else {
-            Ordering::Equal
+            if regs_lhs.contains(&rp) {
+                ts.add_dependency(rp, lp);
+            } else if regs_rhs.contains(&lp) {
+                ts.add_dependency(lp, rp);
+            }
         }
-    });
+    }
+
+    let mut result = vec![];
+    loop {
+        let mut batch = ts.pop_all(); // use pop_all to preserve the original ordering
+        if batch.len() == 0 {
+            break;
+        }
+
+        batch.sort();
+        result.append(&mut batch)
+    }
     result
 }
 
@@ -238,6 +288,25 @@ fn test_compile_query() {
         set_value X2         
         set_value X3         
         set_value X4         
+        "#,
+    )
+    .unwrap();
+    assert_eq!(compile_query(query), instructions)
+}
+
+#[test]
+fn test_compile_query2() {
+    use lang::parse_term;
+    let query = parse_term("f(X, g(X,a))").unwrap();
+    let instructions = Instruction::from_program(
+        r#"
+        put_structure a/0, X4
+        put_structure g/2, X3
+        set_variable X2
+        set_value X4
+        put_structure f/2, X1
+        set_value X2
+        set_value X3
         "#,
     )
     .unwrap();
