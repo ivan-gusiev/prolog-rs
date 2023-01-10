@@ -10,3 +10,4 @@
 - [x] WAM assembly parser
 - [x] Prolog query parser 
 - [x] seems that integration tests are not working (fixed)
+- [x] justfile instead of makefile

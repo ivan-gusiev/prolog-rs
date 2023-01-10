@@ -1,40 +1,13 @@
-.PHONY: all
-all: clean vendor style test
+## We don't use Make, this machinery just forwards everything to just
+## See justfile for more information
 
+# Use everything as arguments for wildcard
+RUN_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+# ...and turn them into do-nothing targets
+$(eval $(RUN_ARGS):;@:)
 
-.PHONY: help
-help:
-	@echo 'Management commands for prolog-rs:'
-	@echo
-	@echo 'Usage:'
-	@echo '    make clean           Clean the directory tree.'
-	@echo '    make test            Run tests on the project.'
-	@echo '    make test/benchmark  Run benchmark tests on the project.'
-	@echo '    make vendor          ensures dependencies are installed.'
-	@echo
+.PHONY: makedefault
+makedefault: default;
 
-##############################################################################
-# The following targets are used for aiding in development and CI for the 
-# prolog-rs source code
-##############################################################################
-.PHONY: clean
-clean:
-	cargo clean
-
-.PHONY: style
-style:
-	rustfmt --version
-    cargo fmt -- --write-mode=diff
-
-.PHONY: test
-test:
-	cargo test
-
-.PHONY: test/benchmark
-test/benchmark:
-	cargo bench
-
-.PHONY: vendor
-vendor:
-	cargo update
-
+%:
+	just $@ $(RUN_ARGS)
