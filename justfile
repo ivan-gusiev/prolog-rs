@@ -8,6 +8,10 @@ default:
 watch what="":
     cargo watch --exec "test {{ what }}" --ignore "**/snapshots/**" --clear
 
+# reviews golden tests
+review:
+    cargo insta review
+
 # formats all the code plus scripts
 fmt:
     cargo fmt

@@ -160,7 +160,18 @@ fn itop(idx: usize) -> RegPtr {
     RegPtr(idx + 1)
 }
 
-fn order_structs(terms: &[FlattenedTerm]) -> Vec<RegPtr> {
+fn extract_structs(terms: &[FlattenedTerm]) -> Vec<RegPtr> {
+    let mut structs = vec![];
+    for (i, term) in terms.iter().enumerate() {
+        match term {
+            FlattenedTerm::Struct(_) => structs.push(itop(i)),
+            FlattenedTerm::Variable(_) => (),
+        }
+    }
+    structs
+}
+
+fn order_query_structs(terms: &[FlattenedTerm], structs_to_sort: &[RegPtr]) -> Vec<RegPtr> {
     fn regs(term: &FlattenedTerm) -> HashSet<RegPtr> {
         let mut result = HashSet::new();
         match term {
@@ -177,14 +188,6 @@ fn order_structs(terms: &[FlattenedTerm]) -> Vec<RegPtr> {
             _ => (),
         }
         result
-    }
-
-    let mut structs_to_sort = vec![];
-    for (i, term) in terms.iter().enumerate() {
-        match term {
-            FlattenedTerm::Struct(_) => structs_to_sort.push(itop(i)),
-            FlattenedTerm::Variable(_) => (),
-        }
     }
 
     let mut ts = TopologicalSort::<RegPtr>::new();
@@ -227,7 +230,7 @@ fn order_structs(terms: &[FlattenedTerm]) -> Vec<RegPtr> {
 
 pub fn compile_query(query: Term) -> Vec<Instruction> {
     let registers = flatten_query(query);
-    let structs = order_structs(&registers);
+    let structs = order_query_structs(&registers, &extract_structs(&registers));
     let mut seen = HashSet::<RegPtr>::new();
     let mut result = vec![];
 
@@ -253,15 +256,44 @@ pub fn compile_query(query: Term) -> Vec<Instruction> {
     return result;
 }
 
+pub fn compile_program(program: Term) -> Vec<Instruction> {
+    let registers = flatten_query(program);
+    let structs = extract_structs(&registers);
+    let mut seen = HashSet::<RegPtr>::new();
+    let mut result = vec![];
+
+    for struct_ptr in structs {
+        let FlatStruct(f, refs) = registers[ptoi(struct_ptr)].get_str();
+        result.push(Instruction::GetStructure(*f, struct_ptr));
+        seen.insert(struct_ptr);
+        for flat_ref in refs {
+            match flat_ref {
+                FlatRef::Register(ref_ptr) => {
+                    if seen.contains(ref_ptr) {
+                        result.push(Instruction::UnifyValue(*ref_ptr))
+                    } else {
+                        seen.insert(*ref_ptr);
+                        result.push(Instruction::UnifyVariable(*ref_ptr))
+                    }
+                }
+                _ => (),
+            }
+        }
+    }
+
+    return result;
+}
+
 #[test]
 fn test_order_structs() {
     use lang::parse_term;
     let query = parse_term("p(Z,h(Z,W),f(W))").unwrap();
     let terms = flatten_query(query);
+    let structs = extract_structs(&terms);
 
     assert_eq!(
-        order_structs(terms.as_slice()).as_slice(),
-        [RegPtr(3), RegPtr(4), RegPtr(1)]
+        &order_query_structs(&terms, &structs),
+        &[RegPtr(3), RegPtr(4), RegPtr(1)]
     );
 }
 
@@ -298,4 +330,28 @@ fn test_compile_query() {
     )
     .unwrap();
     assert_eq!(compile_query(query), instructions)
+}
+
+#[test]
+fn test_compile_program() {
+    use lang::parse_term;
+    let program = parse_term("p(f(X), h(Y,f(a)), Y)").unwrap();
+    let instructions = Instruction::from_program(
+        r#"
+        get_structure p/3, X1
+        unify_variable X2
+        unify_variable X3
+        unify_variable X4
+        get_structure f/1, X2
+        unify_variable X5
+        get_structure h/2, X3
+        unify_value X4
+        unify_variable X6
+        get_structure f/1, X6
+        unify_variable X7
+        get_structure a/0, X7
+        "#,
+    )
+    .unwrap();
+    assert_eq!(compile_program(program), instructions)
 }

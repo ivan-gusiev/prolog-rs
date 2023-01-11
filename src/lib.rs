@@ -112,6 +112,7 @@ fn execute_instruction(machine: &mut Machine, instruction: Instruction) {
         Instruction::PutStructure(functor, register) => put_structure(machine, functor, register),
         Instruction::SetVariable(register) => set_variable(machine, register),
         Instruction::SetValue(register) => set_value(machine, register),
+        x => panic!("Cannot execute instruction [{}]", x),
     }
 }
 

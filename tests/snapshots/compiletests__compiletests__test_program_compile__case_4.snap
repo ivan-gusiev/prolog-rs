@@ -1,0 +1,18 @@
+---
+source: tests/compiletests.rs
+expression: "format!(\"{}\\n-----\\n{}\", input, result)"
+---
+p(f(X), h(Y, f(a)), Y)
+-----
+get_structure p/3, X1
+unify_variable X2
+unify_variable X3
+unify_variable X4
+get_structure f/1, X2
+unify_variable X5
+get_structure h/2, X3
+unify_value X4
+unify_variable X6
+get_structure f/1, X6
+unify_variable X7
+get_structure a/0, X7

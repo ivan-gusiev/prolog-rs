@@ -8,6 +8,9 @@ pub enum Instruction {
     PutStructure(Functor, RegPtr),
     SetVariable(RegPtr),
     SetValue(RegPtr),
+    GetStructure(Functor, RegPtr),
+    UnifyVariable(RegPtr),
+    UnifyValue(RegPtr),
 }
 
 impl Display for Instruction {
@@ -18,6 +21,11 @@ impl Display for Instruction {
             }
             Instruction::SetVariable(reg) => write!(f, "set_variable {}", reg),
             Instruction::SetValue(reg) => write!(f, "set_value {}", reg),
+            Instruction::GetStructure(functor, reg) => {
+                write!(f, "get_structure {}, {}", functor, reg)
+            }
+            Instruction::UnifyVariable(reg) => write!(f, "unify_variable {}", reg),
+            Instruction::UnifyValue(reg) => write!(f, "unify_value {}", reg),
         }
     }
 }
@@ -65,6 +73,15 @@ fn line_to_instr(line: Line) -> Result<Instruction, String> {
             (nm @ "set_variable", args) => bad_args(nm, args),
             ("set_value", [r]) => Ok(Instruction::SetValue(arg_to_reg(*r)?)),
             (nm @ "set_value", args) => bad_args(nm, args),
+            ("get_structure", [f, r]) => Ok(Instruction::GetStructure(
+                arg_to_functor(*f)?,
+                arg_to_reg(*r)?,
+            )),
+            (nm @ "get_structure", args) => bad_args(nm, args),
+            ("unify_variable", [r]) => Ok(Instruction::UnifyVariable(arg_to_reg(*r)?)),
+            (nm @ "unify_variable", args) => bad_args(nm, args),
+            ("unify_value", [r]) => Ok(Instruction::UnifyValue(arg_to_reg(*r)?)),
+            (nm @ "unify_value", args) => bad_args(nm, args),
             (x, _) => Err(format!("Unknown command {}", x)),
         },
         Line::Empty => Err("Cannot make an instruction from empty line".to_string()),

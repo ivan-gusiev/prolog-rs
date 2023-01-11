@@ -1,0 +1,10 @@
+---
+source: tests/compiletests.rs
+expression: "format!(\"{}\\n-----\\n{}\", input, result)"
+---
+f(b, Y)
+-----
+get_structure f/2, X1
+unify_variable X2
+unify_variable X3
+get_structure b/0, X2
