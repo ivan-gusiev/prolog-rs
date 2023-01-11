@@ -7,7 +7,7 @@ use lang::{Term, VarName};
 extern crate topological_sort; // TODO: fix this
 use self::topological_sort::TopologicalSort;
 
-use crate::{data::RegPtr, lang::Functor, util::printout};
+use crate::{data::RegPtr, lang::Functor};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 struct TermId(usize);
@@ -186,7 +186,6 @@ fn order_structs(terms: &[FlattenedTerm]) -> Vec<RegPtr> {
             FlattenedTerm::Variable(_) => (),
         }
     }
-    printout("structs_to_sort", &structs_to_sort);
 
     let mut ts = TopologicalSort::<RegPtr>::new();
     for l in 0..structs_to_sort.len() {
@@ -228,9 +227,7 @@ fn order_structs(terms: &[FlattenedTerm]) -> Vec<RegPtr> {
 
 pub fn compile_query(query: Term) -> Vec<Instruction> {
     let registers = flatten_query(query);
-    printout("registers:", &registers);
     let structs = order_structs(&registers);
-    printout("structs:", &structs);
     let mut seen = HashSet::<RegPtr>::new();
     let mut result = vec![];
 
