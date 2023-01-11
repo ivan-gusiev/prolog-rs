@@ -7,7 +7,7 @@ use lang::{Term, VarName};
 extern crate topological_sort; // TODO: fix this
 use self::topological_sort::TopologicalSort;
 
-use crate::{data::RegPtr, lang::Functor};
+use crate::{data::RegPtr, lang::Functor, util::printout};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 struct TermId(usize);
@@ -186,6 +186,7 @@ fn order_structs(terms: &[FlattenedTerm]) -> Vec<RegPtr> {
             FlattenedTerm::Variable(_) => (),
         }
     }
+    printout("structs_to_sort", &structs_to_sort);
 
     let mut ts = TopologicalSort::<RegPtr>::new();
     for l in 0..structs_to_sort.len() {
@@ -216,12 +217,20 @@ fn order_structs(terms: &[FlattenedTerm]) -> Vec<RegPtr> {
         batch.sort();
         result.append(&mut batch)
     }
+
+    // special case when there are no dependencies between terms, e.g. only one term to sort
+    if result.len() == 0 && structs_to_sort.len() == 1 {
+        result.push(structs_to_sort[0]);
+    }
+
     result
 }
 
 pub fn compile_query(query: Term) -> Vec<Instruction> {
     let registers = flatten_query(query);
+    printout("registers:", &registers);
     let structs = order_structs(&registers);
+    printout("structs:", &structs);
     let mut seen = HashSet::<RegPtr>::new();
     let mut result = vec![];
 
@@ -288,25 +297,6 @@ fn test_compile_query() {
         set_value X2         
         set_value X3         
         set_value X4         
-        "#,
-    )
-    .unwrap();
-    assert_eq!(compile_query(query), instructions)
-}
-
-#[test]
-fn test_compile_query2() {
-    use lang::parse_term;
-    let query = parse_term("f(X, g(X,a))").unwrap();
-    let instructions = Instruction::from_program(
-        r#"
-        put_structure a/0, X4
-        put_structure g/2, X3
-        set_variable X2
-        set_value X4
-        put_structure f/2, X1
-        set_value X2
-        set_value X3
         "#,
     )
     .unwrap();

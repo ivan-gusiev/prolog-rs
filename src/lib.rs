@@ -3,11 +3,11 @@ pub mod compile;
 pub mod data;
 pub mod instr;
 pub mod lang;
+pub mod util;
 
 use data::{Data, HeapPtr, Ref, RegPtr, Str};
 use instr::Instruction;
 use lang::Functor;
-use std::fmt::Display;
 
 #[derive(Debug)]
 pub struct Machine {
@@ -118,11 +118,5 @@ fn execute_instruction(machine: &mut Machine, instruction: Instruction) {
 pub fn run_code(machine: &mut Machine) {
     for instruction in machine.get_code() {
         execute_instruction(machine, instruction)
-    }
-}
-
-pub fn printout<T: Display>(items: &[T]) {
-    for (idx, item) in items.iter().enumerate() {
-        println!("{:#03}\t{}", idx, item);
     }
 }

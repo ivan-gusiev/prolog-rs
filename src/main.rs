@@ -1,36 +1,42 @@
 extern crate prolog_rs;
 
-use prolog_rs::{data::RegPtr, instr::Instruction, lang::Functor, printout, run_code, Machine};
-
 fn main() {
-    let h2 = Functor('h', 2);
-    let f1 = Functor('f', 1);
-    let p3 = Functor('p', 3);
+    use std::io::{stdin, stdout, Write};
 
-    let x1 = RegPtr(1);
-    let x2 = RegPtr(2);
-    let x3 = RegPtr(3);
-    let x4 = RegPtr(4);
-    let x5 = RegPtr(5);
+    fn input(prompt: &str) -> String {
+        print!("{}", prompt);
+        let _ = stdout().flush();
+        let mut s = String::new();
+        stdin().read_line(&mut s).expect("Failed to read!");
+        s
+    }
 
-    let code = vec![
-        Instruction::PutStructure(h2, x3),
-        Instruction::SetVariable(x2),
-        Instruction::SetVariable(x5),
-        Instruction::PutStructure(f1, x4),
-        Instruction::SetValue(x5),
-        Instruction::PutStructure(p3, x1),
-        Instruction::SetValue(x2),
-        Instruction::SetValue(x3),
-        Instruction::SetValue(x4),
-    ];
+    loop {
+        match input("?- ").trim() {
+            "exit" => break,
+            "" => (),
+            query => match parse_and_run_query(query) {
+                Ok(()) => (),
+                Err(err) => println!("{}", err),
+            },
+        }
+    }
+}
+
+fn parse_and_run_query(input: &str) -> Result<(), String> {
+    use prolog_rs::{compile::compile_query, lang::parse_term, run_code, util::printout, Machine};
+
+    let query = parse_term(input)?;
+
+    let code = compile_query(query);
+    printout("CODE:", &code);
+
     let mut machine = Machine::new();
     machine.set_code(&code);
-    println!("CODE:");
-    printout(&code);
     run_code(&mut machine);
-    println!("\n REGISTERS:");
-    printout(machine.iter_reg().as_slice());
-    println!("\n HEAP:");
-    printout(machine.iter_heap().as_slice());
+
+    printout("REGISTERS:", &machine.iter_reg().collect::<Vec<_>>());
+    printout("DATA:", &machine.iter_heap().collect::<Vec<_>>());
+
+    Ok(())
 }

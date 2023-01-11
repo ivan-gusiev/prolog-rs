@@ -13,7 +13,8 @@ mod compiletests {
         "p(Z, h(Z,W), f(W))",
         "D",
         "f(X, g(X,a))",
-        "f(b, Y)"
+        "f(b, Y)",
+        "a"
     })]
     fn test_query_compile(input: &str) {
         let query = parse_term(input).unwrap();

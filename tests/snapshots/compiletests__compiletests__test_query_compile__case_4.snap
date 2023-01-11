@@ -1,0 +1,7 @@
+---
+source: tests/compiletests.rs
+expression: "format!(\"{}\\n-----\\n{}\", input, result)"
+---
+a
+-----
+put_structure a/0, X1
