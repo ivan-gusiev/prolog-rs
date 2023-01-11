@@ -1,10 +1,11 @@
 ---
 source: tests/compiletests.rs
-expression: "format!(\"{}\\n-----\\n{}\", input, result)"
+expression: "case(input, writeout(&instructions))"
 ---
 f(b, Y)
 -----
-put_structure b/0, X2
-put_structure f/2, X1
-set_value X2
-set_variable X3
+000	put_structure b/0, X2
+001	put_structure f/2, X1
+002	set_value X2
+003	set_variable X3
+

@@ -1,15 +1,16 @@
 ---
 source: tests/compiletests.rs
-expression: "format!(\"{}\\n-----\\n{}\", input, result)"
+expression: "case(input, writeout(&instructions))"
 ---
 p(Z, h(Z,W), f(W))
 -----
-get_structure p/3, X1
-unify_variable X2
-unify_variable X3
-unify_variable X4
-get_structure h/2, X3
-unify_value X2
-unify_variable X5
-get_structure f/1, X4
-unify_value X5
+000	get_structure p/3, X1
+001	unify_variable X2
+002	unify_variable X3
+003	unify_variable X4
+004	get_structure h/2, X3
+005	unify_value X2
+006	unify_variable X5
+007	get_structure f/1, X4
+008	unify_value X5
+

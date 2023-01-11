@@ -1,0 +1,9 @@
+---
+source: tests/executetests.rs
+expression: "case(input, output)"
+---
+a
+-----
+000	<STR,1>
+001	a/0
+

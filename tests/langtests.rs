@@ -6,7 +6,7 @@ extern crate prolog_rs;
 mod langtests {
     use insta::{assert_debug_snapshot, assert_display_snapshot};
     use parameterized::parameterized;
-    use prolog_rs::lang::parse_term;
+    use prolog_rs::{lang::parse_term, util::{case, case_dbg}};
 
     #[parameterized(input = {
         "p(Z, h(Z,W), f(W))",
@@ -14,7 +14,7 @@ mod langtests {
         ""
     })]
     fn test_term_parse(input: &str) {
-        assert_debug_snapshot!(parse_term(input));
+        assert_debug_snapshot!(case_dbg(input, parse_term(input)));
     }
 
     #[parameterized(input = {
@@ -24,8 +24,8 @@ mod langtests {
     })]
     fn test_term_display(input: &str) {
         match parse_term(input) {
-            Ok(term) => assert_display_snapshot!(term),
-            Err(err) => assert_display_snapshot!(err),
+            Ok(term) => assert_display_snapshot!(case(input, term)),
+            Err(err) => assert_display_snapshot!(case(input, err)),
         }
     }
 }

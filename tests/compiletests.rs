@@ -8,6 +8,7 @@ mod compiletests {
     use parameterized::parameterized;
     use prolog_rs::compile::{compile_program, compile_query};
     use prolog_rs::lang::parse_term;
+    use prolog_rs::util::{case, writeout};
 
     #[parameterized(input = {
         "p(Z, h(Z,W), f(W))",
@@ -20,12 +21,7 @@ mod compiletests {
         let query = parse_term(input).unwrap();
         let instructions = compile_query(query);
 
-        let result = instructions
-            .into_iter()
-            .map(|i| format!("{}", i))
-            .collect::<Vec<_>>()
-            .join("\n");
-        assert_display_snapshot!(format!("{}\n-----\n{}", input, result));
+        assert_display_snapshot!(case(input, writeout(&instructions)));
     }
 
     #[parameterized(input = {
@@ -40,11 +36,6 @@ mod compiletests {
         let query = parse_term(input).unwrap();
         let instructions = compile_program(query);
 
-        let result = instructions
-            .into_iter()
-            .map(|i| format!("{}", i))
-            .collect::<Vec<_>>()
-            .join("\n");
-        assert_display_snapshot!(format!("{}\n-----\n{}", input, result));
+        assert_display_snapshot!(case(input, writeout(&instructions)));
     }
 }

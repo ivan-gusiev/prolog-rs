@@ -1,0 +1,13 @@
+---
+source: tests/executetests.rs
+expression: "case(input, output)"
+---
+f(b, Y)
+-----
+000	<STR,1>
+001	b/0
+002	<STR,3>
+003	f/2
+004	<STR,1>
+005	<REF,5>
+

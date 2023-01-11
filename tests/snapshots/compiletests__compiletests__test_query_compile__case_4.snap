@@ -1,7 +1,8 @@
 ---
 source: tests/compiletests.rs
-expression: "format!(\"{}\\n-----\\n{}\", input, result)"
+expression: "case(input, writeout(&instructions))"
 ---
 a
 -----
-put_structure a/0, X1
+000	put_structure a/0, X1
+
