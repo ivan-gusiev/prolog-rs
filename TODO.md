@@ -3,7 +3,6 @@
 - [ ] more compiler tests
 - [ ] static type system?
 - [ ] name table, so we can support more than 1 character in our names
-- [ ] golden parameterized tests: show input as well as output
 - [ ] roll my own topological sort
 
 ### Done ✓
@@ -11,3 +10,4 @@
 - [x] Prolog query parser 
 - [x] seems that integration tests are not working (fixed)
 - [x] justfile instead of makefile
+- [x] golden parameterized tests: show input as well as output

@@ -70,3 +70,63 @@ impl Display for Data {
         }
     }
 }
+
+impl From<Ref> for Data {
+    fn from(value: Ref) -> Self {
+        Data::Ref(value)
+    }
+}
+
+impl From<Str> for Data {
+    fn from(value: Str) -> Self {
+        Data::Str(value)
+    }
+}
+
+impl From<Functor> for Data {
+    fn from(value: Functor) -> Self {
+        Data::Functor(value)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Mode {
+    Read,
+    Write
+}
+
+impl Display for Mode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        match self {
+            Mode::Read => write!(f, "read"),
+            Mode::Write => write!(f, "write"),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Addr {
+    Heap(HeapPtr),
+    Reg(RegPtr),
+}
+
+impl Display for Addr {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        match self {
+            Addr::Heap(h) => write!(f, "{}", h),
+            Addr::Reg(r) => write!(f, "{}", r),
+        }
+    }
+}
+
+impl From<RegPtr> for Addr {
+    fn from(ptr: RegPtr) -> Self {
+        Addr::Reg(ptr)
+    }
+}
+
+impl From<HeapPtr> for Addr {
+    fn from(ptr: HeapPtr) -> Self {
+        Addr::Heap(ptr)
+    }
+}
