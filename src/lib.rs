@@ -8,6 +8,9 @@ pub mod util;
 use data::{Addr, Data, HeapPtr, Mode, Ref, RegPtr, Str};
 use instr::Instruction;
 use lang::Functor;
+use std::fmt::{Display, Write};
+
+use crate::util::writeout;
 
 #[derive(Debug)]
 pub struct Machine {
@@ -18,6 +21,7 @@ pub struct Machine {
     s: HeapPtr,
     mode: Mode,
     fail: bool,
+    pdl: Vec<Addr>,
 }
 
 impl Machine {
@@ -30,6 +34,7 @@ impl Machine {
             s: HeapPtr(0),
             mode: Mode::Read,
             fail: false,
+            pdl: vec![],
         }
     }
 
@@ -77,7 +82,6 @@ impl Machine {
 
     pub fn set_code(&mut self, code: &[Instruction]) {
         self.code = code.to_vec();
-        self.reg.clear();
         self.fail = false;
     }
 
@@ -127,56 +131,149 @@ impl Machine {
         }
     }
 
+    pub fn push_pdl(&mut self, addr: Addr) {
+        self.pdl.push(addr)
+    }
+
+    pub fn pop_pdl(&mut self) -> Option<Addr> {
+        self.pdl.pop()
+    }
+
+    pub fn empty_pdl(&self) -> bool {
+        self.pdl.is_empty()
+    }
+
+    pub fn dbg(&self) -> String {
+        let mut str = String::new();
+        writeln!(str, "{}: {}", "h", self.get_h()).unwrap();
+        writeln!(str, "{}: {}", "s", self.get_s()).unwrap();
+        writeln!(str, "{}: {}", "mode", self.get_mode()).unwrap();
+        writeln!(str, "{}: {}", "fail", self.get_fail()).unwrap();
+        writeln!(str, "{}:\n{}", "code", writeout(&self.get_code())).unwrap();
+        writeln!(str, "{}:\n{}", "heap", writeout(&self.heap)).unwrap();
+        writeln!(str, "{}:\n{}", "regs", writeout(&self.reg)).unwrap();
+        writeln!(str, "{}:\n{}", "pdl", writeout(&self.pdl)).unwrap();
+        str
+    }
 }
+
+#[derive(Debug)]
+pub enum MachineFailure {
+    RegBind,
+    NoStrFunctor,
+}
+
+impl MachineFailure {
+    pub fn message(&self) -> &'static str {
+        match self {
+            Self::RegBind => "Attempted to bind two registers",
+            Self::NoStrFunctor => "Struct does not point to a functor",
+        }
+    }
+}
+
+impl Display for MachineFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+type MResult = Result<(), MachineFailure>;
 
 fn deref(machine: &Machine, mut addr: Addr) -> Addr {
     loop {
         match machine.get_store(addr) {
-            Data::Ref(Ref(new_addr)) if addr != new_addr.into() => {
-                addr = new_addr.into()
-            },
+            Data::Ref(Ref(new_addr)) if addr != new_addr.into() => addr = new_addr.into(),
             _ => break,
         }
     }
     addr
 }
 
-fn bind(machine: &mut Machine, lhs: Addr, rhs: HeapPtr) {
-    machine.set_store(lhs, Ref(rhs).into())
+fn bind(machine: &mut Machine, lhs: Addr, rhs: Addr) -> MResult {
+    match (lhs, rhs) {
+        (Addr::Reg(_), Addr::Reg(_)) => Err(MachineFailure::RegBind),
+        (Addr::Heap(_), Addr::Reg(_)) => bind(machine, rhs, lhs),
+        (_, Addr::Heap(rhs_heap)) => Ok(machine.set_store(lhs, Ref(rhs_heap).into())),
+    }
 }
 
-fn put_structure(machine: &mut Machine, functor: Functor, register: RegPtr) {
+fn unify(machine: &mut Machine, a1: Addr, a2: Addr) -> MResult {
+    machine.push_pdl(a1);
+    machine.push_pdl(a2);
+    machine.set_fail(false);
+    while !(machine.empty_pdl() || machine.get_fail()) {
+        let mut d1 = machine.pop_pdl().expect("cannot pop d1");
+        d1 = deref(machine, d1);
+        let mut d2 = machine.pop_pdl().expect("cannot pop d2");
+        d2 = deref(machine, d2);
+
+        if d1 == d2 {
+            break;
+        }
+
+        match (machine.get_store(d1), machine.get_store(d2)) {
+            (Data::Ref(_), _) => bind(machine, d1, d2)?,
+            (_, Data::Ref(_)) => bind(machine, d1, d2)?,
+            (Data::Str(Str(v1)), Data::Str(Str(v2))) => {
+                let f1 = machine
+                    .get_heap(v1)
+                    .get_functor()
+                    .ok_or(MachineFailure::NoStrFunctor)?;
+                let f2 = machine
+                    .get_heap(v2)
+                    .get_functor()
+                    .ok_or(MachineFailure::NoStrFunctor)?;
+                if f1 == f2 {
+                    for i in 1..=f1.arity() {
+                        machine.push_pdl((v1 + i as usize).into());
+                        machine.push_pdl((v2 + i as usize).into());
+                    }
+                } else {
+                    machine.set_fail(true)
+                };
+            }
+            _ => machine.set_fail(true),
+        }
+    }
+    Ok(())
+}
+
+fn put_structure(machine: &mut Machine, functor: Functor, register: RegPtr) -> MResult {
     let h = machine.get_h();
     machine.set_heap(h, Str(h + 1).into());
     machine.set_heap(h + 1, functor.into());
     machine.set_reg(register, machine.get_heap(h));
     machine.set_h(h + 2);
+    Ok(())
 }
 
-fn set_variable(machine: &mut Machine, register: RegPtr) {
+fn set_variable(machine: &mut Machine, register: RegPtr) -> MResult {
     let h = machine.get_h();
     machine.set_heap(h, Data::Ref(Ref(h)));
     machine.set_reg(register, machine.get_heap(h));
     machine.set_h(h + 1);
+    Ok(())
 }
 
-fn set_value(machine: &mut Machine, register: RegPtr) {
+fn set_value(machine: &mut Machine, register: RegPtr) -> MResult {
     let h = machine.get_h();
     machine.set_heap(h, machine.get_reg(register));
     machine.set_h(h + 1);
+    Ok(())
 }
 
-fn get_structure(machine: &mut Machine, functor: Functor, register: RegPtr) {
+fn get_structure(machine: &mut Machine, functor: Functor, register: RegPtr) -> MResult {
     let addr = deref(machine, register.into());
     match machine.get_store(addr) {
         Data::Ref(Ref(_)) => {
             let h = machine.get_h();
             machine.set_heap(h, Str(h + 1).into());
             machine.set_heap(h + 1, functor.into());
-            bind(machine, addr, h);
+            bind(machine, addr, h.into())?;
             machine.set_h(h + 2);
             machine.set_mode(Mode::Write);
-        },
+        }
         Data::Str(Str(a)) => {
             if machine.get_heap(a) == functor.into() {
                 machine.set_s(a + 1);
@@ -184,12 +281,13 @@ fn get_structure(machine: &mut Machine, functor: Functor, register: RegPtr) {
             } else {
                 machine.set_fail(true);
             }
-        },
+        }
         _ => machine.set_fail(true),
     }
+    Ok(())
 }
 
-fn unify_variable(machine: &mut Machine, register: RegPtr) {
+fn unify_variable(machine: &mut Machine, register: RegPtr) -> MResult {
     let s = machine.get_s();
     let h = machine.get_h();
     match machine.mode {
@@ -201,22 +299,24 @@ fn unify_variable(machine: &mut Machine, register: RegPtr) {
         }
     }
     machine.set_s(s + 1);
+    Ok(())
 }
 
-fn unify_value(machine: &mut Machine, register: RegPtr) {
+fn unify_value(machine: &mut Machine, register: RegPtr) -> MResult {
     let s = machine.get_s();
     let h = machine.get_h();
     match machine.mode {
-        Mode::Read => todo!(),
+        Mode::Read => unify(machine, register.into(), s.into())?,
         Mode::Write => {
             machine.set_heap(h, machine.get_reg(register));
             machine.set_h(h + 1);
         }
     }
     machine.set_s(s + 1);
+    Ok(())
 }
 
-fn execute_instruction(machine: &mut Machine, instruction: Instruction) {
+fn execute_instruction(machine: &mut Machine, instruction: Instruction) -> MResult {
     match instruction {
         Instruction::PutStructure(functor, register) => put_structure(machine, functor, register),
         Instruction::SetVariable(register) => set_variable(machine, register),
@@ -227,8 +327,12 @@ fn execute_instruction(machine: &mut Machine, instruction: Instruction) {
     }
 }
 
-pub fn run_code(machine: &mut Machine) {
+pub fn run_code(machine: &mut Machine) -> MResult {
     for instruction in machine.get_code() {
-        execute_instruction(machine, instruction)
+        execute_instruction(machine, instruction)?;
+        if machine.get_fail() {
+            break;
+        }
     }
+    Ok(())
 }

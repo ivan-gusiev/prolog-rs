@@ -1,0 +1,59 @@
+---
+source: tests/executetests.rs
+expression: "case(input, output)"
+---
+(p(Z, h(Z,W), f(W)), p(f(X), h(Y, f(a)), Y))
+-----
+h: HEAP[20]
+s: HEAP[5]
+mode: write
+fail: false
+code:
+000	get_structure p/3, X1
+001	unify_variable X2
+002	unify_variable X3
+003	unify_variable X4
+004	get_structure f/1, X2
+005	unify_variable X5
+006	get_structure h/2, X3
+007	unify_value X4
+008	unify_variable X6
+009	get_structure f/1, X6
+010	unify_variable X7
+011	get_structure a/0, X7
+
+heap:
+000	<STR,1>
+001	h/2
+002	<REF,12>
+003	<REF,14>
+004	<STR,5>
+005	f/1
+006	<REF,3>
+007	<STR,8>
+008	p/3
+009	<REF,2>
+010	<STR,1>
+011	<STR,5>
+012	<STR,13>
+013	f/1
+014	<REF,15>
+015	<STR,16>
+016	f/1
+017	<REF,18>
+018	<STR,19>
+019	a/0
+
+regs:
+000	<EMPTY>
+001	<STR,8>
+002	<REF,2>
+003	<STR,1>
+004	<STR,5>
+005	<REF,14>
+006	<REF,14>
+007	<REF,17>
+
+pdl:
+
+

@@ -1,3 +1,5 @@
+use prolog_rs::Machine;
+
 extern crate prolog_rs;
 
 fn main() {
@@ -11,32 +13,53 @@ fn main() {
         s
     }
 
+    let mut machine = Option::<Machine>::None;
     loop {
-        match input("?- ").trim() {
+        match input("> ").trim() {
             "exit" => break,
             "" => (),
-            query => match parse_and_run_query(query) {
-                Ok(()) => (),
+            query if query.starts_with("?-") => match parse_and_run_query(query) {
+                Ok(new_machine) => machine = Some(new_machine),
                 Err(err) => println!("{}", err),
             },
+            program if machine.is_some() => {
+                match parse_and_run_program(program, &mut machine.as_mut().unwrap()) {
+                    Ok(()) => (),
+                    Err(err) => println!("{}", err),
+                }
+            }
+            _ => println!("Please enter the query first!"),
         }
     }
 }
 
-fn parse_and_run_query(input: &str) -> Result<(), String> {
-    use prolog_rs::{compile::compile_query, lang::parse_term, run_code, util::printout, Machine};
+fn parse_and_run_query(input: &str) -> Result<Machine, String> {
+    use prolog_rs::{compile::compile_query, lang::parse_term, run_code};
 
-    let query = parse_term(input)?;
+    let query = parse_term(input.trim_start_matches("?-"))?;
 
     let code = compile_query(query);
-    printout("CODE:", &code);
 
     let mut machine = Machine::new();
     machine.set_code(&code);
-    run_code(&mut machine);
+    run_code(&mut machine).map_err(|e| e.message())?;
 
-    printout("REGISTERS:", &machine.iter_reg().collect::<Vec<_>>());
-    printout("DATA:", &machine.iter_heap().collect::<Vec<_>>());
+    println!("{}", machine.dbg());
+
+    Ok(machine)
+}
+
+fn parse_and_run_program(input: &str, machine: &mut Machine) -> Result<(), String> {
+    use prolog_rs::{compile::compile_program, lang::parse_term, run_code};
+
+    let query = parse_term(input)?;
+
+    let code = compile_program(query);
+
+    machine.set_code(&code);
+    run_code(machine).map_err(|e| e.message())?;
+
+    println!("{}", machine.dbg());
 
     Ok(())
 }

@@ -1,7 +1,9 @@
 ---
 source: tests/langtests.rs
-expression: parse_term(input)
+expression: "case_dbg(input, parse_term(input))"
 ---
+"D"
+-----
 Ok(
     Variable(
         'D',

@@ -2,14 +2,13 @@
 source: tests/executetests.rs
 expression: "case(input, output)"
 ---
-a
+(D, D)
 -----
 h: HEAP[0]
 s: HEAP[0]
 mode: read
-fail: true
+fail: false
 code:
-000	get_structure a/0, X1
 
 heap:
 

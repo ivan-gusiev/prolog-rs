@@ -59,7 +59,7 @@ mod tests {
 
         let mut machine = Machine::new();
         machine.set_code(&code);
-        run_code(&mut machine);
+        run_code(&mut machine).expect("machine failure");
 
         fn str(heap: usize) -> Data {
             Data::Str(Str(HeapPtr(heap)))

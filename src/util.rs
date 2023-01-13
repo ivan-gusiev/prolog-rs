@@ -10,7 +10,7 @@ pub fn printout<T: Display>(prompt: &str, items: &[T]) {
 
 pub fn writeout<T: Display>(items: &[T]) -> String {
     fn writeout_impl<T: Display>(items: &[T]) -> Result<String, Error> {
-        let mut out  = String::new();
+        let mut out = String::new();
         for (idx, item) in items.iter().enumerate() {
             writeln!(out, "{:#03}\t{}", idx, item)?;
         }
@@ -25,5 +25,5 @@ pub fn case<T: Display, U: Display>(input: T, output: U) -> String {
 }
 
 pub fn case_dbg<T: Debug, U: Debug>(input: T, output: U) -> String {
-    format!("{:?}\n-----\n{:?}", input, output)
+    format!("{:#?}\n-----\n{:#?}", input, output)
 }

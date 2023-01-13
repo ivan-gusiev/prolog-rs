@@ -1,5 +1,7 @@
 ---
 source: tests/langtests.rs
-expression: err
+expression: "case(input, err)"
 ---
+
+-----
 error at 1:1: expected one of "#", "%", "/*", [' ' | '\t' | '\r' | '\n'], ['A' ..= 'Z'], ['a' ..= 'z']

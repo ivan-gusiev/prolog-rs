@@ -89,10 +89,19 @@ impl From<Functor> for Data {
     }
 }
 
+impl Data {
+    pub fn get_functor(&self) -> Option<Functor> {
+        match self {
+            &Data::Functor(functor) => Some(functor),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Mode {
     Read,
-    Write
+    Write,
 }
 
 impl Display for Mode {

@@ -1,5 +1,7 @@
 ---
 source: tests/langtests.rs
-expression: term
+expression: "case(input, term)"
 ---
+p(Z, h(Z,W), f(W))
+-----
 p(Z, h(Z, W), f(W))

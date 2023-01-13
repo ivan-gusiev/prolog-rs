@@ -2,6 +2,22 @@
 source: tests/executetests.rs
 expression: "case(input, output)"
 ---
-D
+(a, D)
 -----
+h: HEAP[2]
+s: HEAP[0]
+mode: read
+fail: false
+code:
+
+heap:
+000	<STR,1>
+001	a/0
+
+regs:
+000	<EMPTY>
+001	<STR,1>
+
+pdl:
+
 

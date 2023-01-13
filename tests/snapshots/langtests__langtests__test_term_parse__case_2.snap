@@ -1,7 +1,9 @@
 ---
 source: tests/langtests.rs
-expression: parse_term(input)
+expression: "case_dbg(input, parse_term(input))"
 ---
+""
+-----
 Err(
     "error at 1:1: expected one of \"#\", \"%\", \"/*\", [' ' | '\\t' | '\\r' | '\\n'], ['A' ..= 'Z'], ['a' ..= 'z']",
 )
