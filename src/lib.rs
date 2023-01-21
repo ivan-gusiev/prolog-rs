@@ -3,6 +3,8 @@ pub mod compile;
 pub mod data;
 pub mod instr;
 pub mod lang;
+pub mod symbol;
+
 pub mod util;
 
 use data::{Addr, Data, HeapPtr, Mode, Ref, RegPtr, Str};

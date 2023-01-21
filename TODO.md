@@ -5,6 +5,7 @@
 - [ ] name table, so we can support more than 1 character in our names
 - [ ] roll my own topological sort
 - [ ] a symbol table that doesn't repeat the same word twice
+- [ ] fix Clippy warnings
 
 ### Done ✓
 - [x] WAM assembly parser
