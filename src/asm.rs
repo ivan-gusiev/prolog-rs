@@ -1,23 +1,15 @@
+use symbol::{Symbol, SymbolTable, WithSymbols};
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Arg {
     Reg(usize),
-    Func(char, u32),
+    Func(Symbol, u32),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Line {
-    Empty,
-    Cmd(String, Vec<Arg>),
-}
+pub struct Command(pub String, pub Vec<Arg>);
 
-impl Line {
-    fn flatten(input: Option<Line>) -> Line {
-        match input {
-            Some(x) => x,
-            None => Line::Empty,
-        }
-    }
-}
+type Line = Option<Command>;
 
 peg::parser!(
     grammar assembly_parser() for str {
@@ -39,32 +31,36 @@ peg::parser!(
         rule arg_reg() -> Arg
             = "X" n:number() { Arg::Reg(n as usize) }
 
-        rule arg_func() -> Arg
-            = nm:['a'..='z'] "/" ar:number() { Arg::Func(nm, ar) }
+        rule arg_func(symbols : &mut SymbolTable) -> Arg
+            = nm:['a'..='z']+ "/" ar:number() { Arg::Func(symbols.intern_chars(nm), ar) }
 
-        rule arg() -> Arg
-            = arg_reg() / arg_func()
+        rule arg(symbols : &mut SymbolTable) -> Arg
+            = arg_reg() / arg_func(symbols)
 
-        rule cmd() -> Line
-            = id:identifier() _ args:(arg() ** ("," _)) { Line::Cmd(id, args) }
+        rule cmd(symbols : &mut SymbolTable) -> Command
+            = id:identifier() _ args:(arg(symbols) ** ("," _)) { Command(id, args) }
 
-        pub rule line() -> Line
-            = _ l:cmd()? _ { Line::flatten(l) }
+        rule line(symbols : &mut SymbolTable) -> Line
+            = _ l:cmd(symbols)? _ { l }
 
-        pub rule lines() -> Vec<Line>
-            = line() ** "\n"
+        pub rule lines(symbols : &mut SymbolTable) -> Vec<Line>
+            = line(symbols) ** "\n"
     }
 );
 
-pub fn parse_program(program: &str) -> Result<Vec<Line>, String> {
-    match assembly_parser::lines(program) {
+pub fn parse_program(
+    program: &str,
+    symbol_table: Option<SymbolTable>,
+) -> Result<WithSymbols<Vec<Command>>, String> {
+    let mut symbols = match symbol_table {
+        Some(st) => st,
+        None => SymbolTable::new(),
+    };
+    match assembly_parser::lines(program, &mut symbols) {
         Ok(lines) => {
-            let good_lines = lines
-                .into_iter()
-                .filter(|l| !matches!(*l, Line::Empty))
-                .collect();
+            let good_lines = lines.into_iter().filter_map(|l| l).collect();
 
-            Ok(good_lines)
+            Ok(WithSymbols::new(good_lines, symbols))
         }
         Err(e) => Err(format!("{}", e)),
     }

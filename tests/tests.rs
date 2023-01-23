@@ -3,7 +3,7 @@ extern crate prolog_rs;
 #[cfg(test)]
 mod tests {
     use prolog_rs::{
-        asm::{parse_program, Arg, Line},
+        asm::{parse_program, Arg, Command},
         compile::compile_query,
         data::{Data, HeapPtr, Ref, RegPtr, Str},
         instr::Instruction,

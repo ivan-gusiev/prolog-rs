@@ -287,7 +287,7 @@ pub fn compile_program(program: Term) -> Vec<Instruction> {
 #[test]
 fn test_order_structs() {
     use lang::parse_term;
-    let query = parse_term("p(Z,h(Z,W),f(W))").unwrap();
+    let query = parse_term("p(Z,h(Z,W),f(W))", None).unwrap().0;
     let terms = flatten_query(query);
     let structs = extract_structs(&terms);
 
@@ -300,7 +300,7 @@ fn test_order_structs() {
 #[test]
 fn test_flatten_query() {
     use lang::parse_term;
-    let query = parse_term("p(Z,h(Z,W),f(W))").unwrap();
+    let query = parse_term("p(Z,h(Z,W),f(W))", None).unwrap().0;
 
     let results = flatten_query(query)
         .into_iter()
@@ -314,7 +314,7 @@ fn test_flatten_query() {
 #[test]
 fn test_compile_query() {
     use lang::parse_term;
-    let query = parse_term("p(Z,h(Z,W),f(W))").unwrap();
+    let query = parse_term("p(Z,h(Z,W),f(W))", None).unwrap().0;
     let instructions = Instruction::from_program(
         r#"
         put_structure h/2, X3
@@ -327,15 +327,16 @@ fn test_compile_query() {
         set_value X3         
         set_value X4         
         "#,
+        None,
     )
     .unwrap();
-    assert_eq!(compile_query(query), instructions)
+    assert_eq!(compile_query(query), instructions.0)
 }
 
 #[test]
 fn test_compile_program() {
     use lang::parse_term;
-    let program = parse_term("p(f(X), h(Y,f(a)), Y)").unwrap();
+    let program = parse_term("p(f(X), h(Y,f(a)), Y)", None).unwrap();
     let instructions = Instruction::from_program(
         r#"
         get_structure p/3, X1
@@ -351,7 +352,8 @@ fn test_compile_program() {
         unify_variable X7
         get_structure a/0, X7
         "#,
+        None,
     )
     .unwrap();
-    assert_eq!(compile_program(program), instructions)
+    assert_eq!(compile_program(program.0), instructions.0)
 }

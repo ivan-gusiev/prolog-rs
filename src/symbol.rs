@@ -1,17 +1,20 @@
 extern crate string_interner;
 
 use std::convert::{TryFrom, TryInto};
+use std::fmt::{Display, Error, Formatter};
 
 use self::string_interner::{DefaultSymbol, StringInterner, Symbol as _};
 
+type InternalSymbol = DefaultSymbol;
+
 // TODO: This panics if the interned string symbol starts with bit 1. Fix this.
 /// An inlinable, copyable reference to a string
-/// If the head bit is 1, clear it and treat the whole thing as a [DefaultSymbol].
+/// If the head bit is 1, clear it and treat the whole thing as a [InternalSymbol].
 /// Otherwise,
 ///   * the first byte is the length (0-3).
 ///   * the next 0-3 bytes are string content
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-struct Symbol(u8, u8, u8, u8);
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Symbol(u8, u8, u8, u8);
 
 impl Symbol {
     pub fn is_interned(&self) -> bool {
@@ -20,6 +23,26 @@ impl Symbol {
 
     pub fn is_inline(&self) -> bool {
         return !self.is_interned();
+    }
+
+    // private because it can panic
+    fn get_string(&self) -> String {
+        (*self).try_into().expect("symbol should inline-encoded")
+    }
+
+    // private because it can panic
+    fn get_sym(&self) -> InternalSymbol {
+        (*self).try_into().expect("symbol should inline-encoded")
+    }
+}
+
+impl Display for Symbol {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.is_inline() {
+            write!(f, "{}", self.get_string())
+        } else {
+            write!(f, "{:#x}", self.get_sym().to_usize())
+        }
     }
 }
 
@@ -55,10 +78,19 @@ impl TryFrom<&str> for Symbol {
     }
 }
 
-impl TryFrom<DefaultSymbol> for Symbol {
+impl TryFrom<String> for Symbol {
     type Error = ();
 
-    fn try_from(value: DefaultSymbol) -> Result<Self, Self::Error> {
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        let str = value.as_str();
+        return str.try_into();
+    }
+}
+
+impl TryFrom<InternalSymbol> for Symbol {
+    type Error = ();
+
+    fn try_from(value: InternalSymbol) -> Result<Self, Self::Error> {
         let val: u32 = value.to_usize().try_into().map_err(|_| ())?;
         if val & 0x80000000 == 0x80000000 {
             return Err(());
@@ -92,7 +124,7 @@ impl TryFrom<Symbol> for String {
     }
 }
 
-impl TryFrom<Symbol> for DefaultSymbol {
+impl TryFrom<Symbol> for InternalSymbol {
     type Error = ();
 
     fn try_from(mut value: Symbol) -> Result<Self, Self::Error> {
@@ -102,7 +134,7 @@ impl TryFrom<Symbol> for DefaultSymbol {
 
         value.0 = clear_head(value.0);
         let combined: u32 = value.into();
-        DefaultSymbol::try_from_usize(combined as usize).ok_or(())
+        InternalSymbol::try_from_usize(combined as usize).ok_or(())
     }
 }
 
@@ -116,16 +148,16 @@ fn clear_head(byte: u8) -> u8 {
 
 /// A symbol table that associates any non-self-sufficient [Symbol] with a string.
 /// Really an opaque wrapper over the library implementation of string interner.
-#[derive(Default)]
-struct SymbolTable(StringInterner);
+#[derive(Default, Debug, Clone)]
+pub struct SymbolTable(StringInterner);
 
 impl SymbolTable {
     pub fn new() -> SymbolTable {
         Default::default()
     }
 
-    pub fn intern(&mut self, str: &str) -> Symbol {
-        match str.try_into() {
+    pub fn intern<T: AsRef<str>>(&mut self, str: T) -> Symbol {
+        match str.as_ref().try_into() {
             Ok(sym) => sym,
             Err(_) => {
                 let sisym = self.0.get_or_intern(str);
@@ -140,6 +172,10 @@ impl SymbolTable {
         }
     }
 
+    pub fn intern_chars<I: IntoIterator<Item = char>>(&mut self, chars: I) -> Symbol {
+        self.intern(chars.into_iter().collect::<String>())
+    }
+
     pub fn resolve(&self, sym: Symbol) -> Option<String> {
         let str_result: Result<String, ()> = sym.try_into();
         match str_result {
@@ -149,6 +185,15 @@ impl SymbolTable {
                 Err(_) => None,
             },
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct WithSymbols<T>(pub T, pub SymbolTable);
+
+impl<T> WithSymbols<T> {
+    pub fn new(item: T, symbols: SymbolTable) -> WithSymbols<T> {
+        WithSymbols(item, symbols)
     }
 }
 
@@ -163,5 +208,12 @@ fn test_roundtrip_short() {
 fn test_roundtrip_long() {
     let mut table = SymbolTable::new();
     let sym = table.intern("caterpillar");
+    assert_eq!(table.resolve(sym), Some("caterpillar".to_string()))
+}
+
+#[test]
+fn test_roundtrip_string() {
+    let mut table = SymbolTable::new();
+    let sym = table.intern("caterpillar".to_string());
     assert_eq!(table.resolve(sym), Some("caterpillar".to_string()))
 }

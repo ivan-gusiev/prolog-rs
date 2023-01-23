@@ -1,7 +1,11 @@
 use std::fmt::{Display, Formatter};
 
-pub type VarName = char;
-pub type FunctorName = char;
+use symbol::{Symbol, WithSymbols};
+
+use crate::symbol::SymbolTable;
+
+pub type VarName = Symbol;
+pub type FunctorName = Symbol;
 pub type Arity = u32;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -108,36 +112,61 @@ peg::parser!(
         rule _()
             = whitespace()* comment()?
 
-        rule variable() -> Term
-            = n:['A'..='Z'] { Term::Variable(n) }
+        rule variable(symbols: &mut SymbolTable) -> Term
+            = n:['A'..='Z']+ { Term::Variable(symbols.intern_chars(n)) }
 
-        rule structure() -> Term
-            = n:['a'..='z'] "(" ts:(term() ** ",") ")" { Term::Struct(Struct::from_name(n, ts.as_slice())) }
+        rule structure(symbols: &mut SymbolTable) -> Term
+            = n:['a'..='z']+ "(" ts:(term(symbols) ** ",") ")" { Term::Struct(Struct::from_name(symbols.intern_chars(n), ts.as_slice())) }
 
-        rule constant() -> Term
-            = n:['a'..='z'] { Term::Struct(Struct::constant(n)) }
+        rule constant(symbols: &mut SymbolTable) -> Term
+            = n:['a'..='z']+ { Term::Struct(Struct::constant(symbols.intern_chars(n))) }
 
-        pub rule term() -> Term
-            = _ t:(variable() / structure() / constant()) _ { t }
+        pub rule term(symbols: &mut SymbolTable) -> Term
+            = _ t:(variable(symbols) / structure(symbols) / constant(symbols)) _ { t }
     }
 );
 
-pub fn parse_term(term: &str) -> Result<Term, String> {
-    prolog_parser::term(term).map_err(|e| format!("{}", e))
+pub fn parse_term(
+    term: &str,
+    symbol_table: Option<SymbolTable>,
+) -> Result<WithSymbols<Term>, String> {
+    let mut symbols = symbol_table.unwrap_or(SymbolTable::new());
+    prolog_parser::term(term, &mut symbols)
+        .map(|term| WithSymbols::new(term, symbols))
+        .map_err(|e| format!("{}", e))
 }
 
-#[test]
-fn struct_new_success() {
-    assert!(matches!(
-        Struct::new(Functor('f', 1), &[Term::Struct(Struct::constant('h'))]),
-        Ok(_)
-    ))
-}
+#[cfg(test)]
+mod unittests {
+    use std::convert::TryFrom;
 
-#[test]
-fn struct_new_fail() {
-    assert!(matches!(
-        Struct::new(Functor('f', 2), &[Term::Struct(Struct::constant('h'))]),
-        Err(_)
-    ))
+    use crate::symbol::Symbol;
+
+    use super::{Functor, Struct, Term};
+
+    fn dirty(x: char) -> Symbol {
+        Symbol::try_from(x.to_string()).unwrap()
+    }
+
+    #[test]
+    fn struct_new_success() {
+        assert!(matches!(
+            Struct::new(
+                Functor(dirty('f'), 1),
+                &[Term::Struct(Struct::constant(dirty('h')))]
+            ),
+            Ok(_)
+        ))
+    }
+
+    #[test]
+    fn struct_new_fail() {
+        assert!(matches!(
+            Struct::new(
+                Functor(dirty('f'), 2),
+                &[Term::Struct(Struct::constant(dirty('h')))]
+            ),
+            Err(_)
+        ))
+    }
 }

@@ -6,6 +6,7 @@
 - [ ] roll my own topological sort
 - [ ] a symbol table that doesn't repeat the same word twice
 - [ ] fix Clippy warnings
+- [ ] parse_* functions should take a mut ref to symboltable, instead of doing the in-out dance
 
 ### Done ✓
 - [x] WAM assembly parser

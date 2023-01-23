@@ -1,7 +1,9 @@
-use asm::{parse_program, Arg, Line};
+use asm::{parse_program, Arg, Command};
 use data::RegPtr;
 use lang::Functor;
 use std::fmt::{Display, Formatter};
+
+use crate::symbol::{SymbolTable, WithSymbols};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Instruction {
@@ -31,15 +33,18 @@ impl Display for Instruction {
 }
 
 impl Instruction {
-    pub fn from_program(program: &str) -> Result<Vec<Instruction>, String> {
-        let lines = parse_program(program)?;
+    pub fn from_program(
+        program: &str,
+        symbol_table: Option<SymbolTable>,
+    ) -> Result<WithSymbols<Vec<Instruction>>, String> {
+        let WithSymbols(lines, symbols) = parse_program(program, symbol_table)?;
         let mut instructions: Vec<Instruction> = vec![];
 
         for line in lines {
-            instructions.push(line_to_instr(line)?)
+            instructions.push(command_to_instr(line)?)
         }
 
-        Ok(instructions)
+        Ok(WithSymbols::new(instructions, symbols))
     }
 }
 
@@ -57,33 +62,32 @@ fn arg_to_reg(arg: Arg) -> Result<RegPtr, String> {
     }
 }
 
-fn line_to_instr(line: Line) -> Result<Instruction, String> {
+fn command_to_instr(line: Command) -> Result<Instruction, String> {
     fn bad_args(nm: &str, args: &[Arg]) -> Result<Instruction, String> {
         Err(format!("Incorrect arguments for {}: {:?}", nm, args))
     }
 
-    match line {
-        Line::Cmd(cmd, args) => match (cmd.as_str(), &args[..]) {
-            ("put_structure", [f, r]) => Ok(Instruction::PutStructure(
-                arg_to_functor(*f)?,
-                arg_to_reg(*r)?,
-            )),
-            (nm @ "put_structure", args) => bad_args(nm, args),
-            ("set_variable", [r]) => Ok(Instruction::SetVariable(arg_to_reg(*r)?)),
-            (nm @ "set_variable", args) => bad_args(nm, args),
-            ("set_value", [r]) => Ok(Instruction::SetValue(arg_to_reg(*r)?)),
-            (nm @ "set_value", args) => bad_args(nm, args),
-            ("get_structure", [f, r]) => Ok(Instruction::GetStructure(
-                arg_to_functor(*f)?,
-                arg_to_reg(*r)?,
-            )),
-            (nm @ "get_structure", args) => bad_args(nm, args),
-            ("unify_variable", [r]) => Ok(Instruction::UnifyVariable(arg_to_reg(*r)?)),
-            (nm @ "unify_variable", args) => bad_args(nm, args),
-            ("unify_value", [r]) => Ok(Instruction::UnifyValue(arg_to_reg(*r)?)),
-            (nm @ "unify_value", args) => bad_args(nm, args),
-            (x, _) => Err(format!("Unknown command {}", x)),
-        },
-        Line::Empty => Err("Cannot make an instruction from empty line".to_string()),
+    let Command(cmd, args) = line;
+
+    match (cmd.as_str(), &args[..]) {
+        ("put_structure", [f, r]) => Ok(Instruction::PutStructure(
+            arg_to_functor(*f)?,
+            arg_to_reg(*r)?,
+        )),
+        (nm @ "put_structure", args) => bad_args(nm, args),
+        ("set_variable", [r]) => Ok(Instruction::SetVariable(arg_to_reg(*r)?)),
+        (nm @ "set_variable", args) => bad_args(nm, args),
+        ("set_value", [r]) => Ok(Instruction::SetValue(arg_to_reg(*r)?)),
+        (nm @ "set_value", args) => bad_args(nm, args),
+        ("get_structure", [f, r]) => Ok(Instruction::GetStructure(
+            arg_to_functor(*f)?,
+            arg_to_reg(*r)?,
+        )),
+        (nm @ "get_structure", args) => bad_args(nm, args),
+        ("unify_variable", [r]) => Ok(Instruction::UnifyVariable(arg_to_reg(*r)?)),
+        (nm @ "unify_variable", args) => bad_args(nm, args),
+        ("unify_value", [r]) => Ok(Instruction::UnifyValue(arg_to_reg(*r)?)),
+        (nm @ "unify_value", args) => bad_args(nm, args),
+        (x, _) => Err(format!("Unknown command {}", x)),
     }
 }

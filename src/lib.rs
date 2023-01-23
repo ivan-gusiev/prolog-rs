@@ -4,7 +4,6 @@ pub mod data;
 pub mod instr;
 pub mod lang;
 pub mod symbol;
-
 pub mod util;
 
 use data::{Addr, Data, HeapPtr, Mode, Ref, RegPtr, Str};
@@ -12,7 +11,7 @@ use instr::Instruction;
 use lang::Functor;
 use std::fmt::{Display, Write};
 
-use crate::util::writeout;
+use util::writeout;
 
 #[derive(Debug)]
 pub struct Machine {
