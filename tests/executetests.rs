@@ -11,7 +11,7 @@ mod executetests {
         lang::parse_term,
         run_code,
         util::{case, writeout},
-        Machine,
+        Machine, symbol::SymbolTable,
     };
 
     #[parameterized(input = {
@@ -22,7 +22,8 @@ mod executetests {
         "a"
     })]
     fn test_query_execute(input: &str) {
-        let query = parse_term(input).unwrap();
+        let mut symbol_table = SymbolTable::new();
+        let query = parse_term(input, &mut symbol_table).unwrap();
         let instructions = compile_query(query);
         let mut machine = Machine::new();
         machine.set_code(&instructions);
@@ -41,8 +42,9 @@ mod executetests {
     })]
     fn test_program_execute(input: (&str, &str)) {
         let (query_text, program_text) = input;
-        let query = parse_term(query_text).unwrap();
-        let program = parse_term(program_text).unwrap();
+        let mut symbol_table = SymbolTable::new();
+        let query = parse_term(query_text, &mut symbol_table).unwrap();
+        let program = parse_term(program_text, &mut symbol_table).unwrap();
         let mut machine = Machine::new();
 
         let query_instructions = compile_query(query);

@@ -8,6 +8,7 @@ mod langtests {
     use parameterized::parameterized;
     use prolog_rs::{
         lang::parse_term,
+        symbol::SymbolTable,
         util::{case, case_dbg},
     };
 
@@ -17,7 +18,7 @@ mod langtests {
         ""
     })]
     fn test_term_parse(input: &str) {
-        assert_display_snapshot!(case_dbg(input, parse_term(input)));
+        assert_display_snapshot!(case_dbg(input, parse_term(input, &mut (SymbolTable::new()))));
     }
 
     #[parameterized(input = {
@@ -26,7 +27,7 @@ mod langtests {
         ""
     })]
     fn test_term_display(input: &str) {
-        match parse_term(input) {
+        match parse_term(input, &mut (SymbolTable::new())) {
             Ok(term) => assert_display_snapshot!(case(input, term)),
             Err(err) => assert_display_snapshot!(case(input, err)),
         }

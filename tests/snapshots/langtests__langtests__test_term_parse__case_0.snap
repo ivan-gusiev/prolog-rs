@@ -1,6 +1,6 @@
 ---
 source: tests/langtests.rs
-expression: "case_dbg(input, parse_term(input))"
+expression: "case_dbg(input, parse_term(input, &mut (SymbolTable::new())))"
 ---
 "p(Z, h(Z,W), f(W))"
 -----
@@ -8,25 +8,25 @@ Ok(
     Struct(
         Struct(
             Functor(
-                'p',
+                :p,
                 3,
             ),
             [
                 Variable(
-                    'Z',
+                    :Z,
                 ),
                 Struct(
                     Struct(
                         Functor(
-                            'h',
+                            :h,
                             2,
                         ),
                         [
                             Variable(
-                                'Z',
+                                :Z,
                             ),
                             Variable(
-                                'W',
+                                :W,
                             ),
                         ],
                     ),
@@ -34,12 +34,12 @@ Ok(
                 Struct(
                     Struct(
                         Functor(
-                            'f',
+                            :f,
                             1,
                         ),
                         [
                             Variable(
-                                'W',
+                                :W,
                             ),
                         ],
                     ),

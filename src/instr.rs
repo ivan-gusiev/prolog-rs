@@ -3,7 +3,7 @@ use data::RegPtr;
 use lang::Functor;
 use std::fmt::{Display, Formatter};
 
-use crate::symbol::{SymbolTable, WithSymbols};
+use crate::symbol::SymbolTable;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Instruction {
@@ -35,16 +35,16 @@ impl Display for Instruction {
 impl Instruction {
     pub fn from_program(
         program: &str,
-        symbol_table: Option<SymbolTable>,
-    ) -> Result<WithSymbols<Vec<Instruction>>, String> {
-        let WithSymbols(lines, symbols) = parse_program(program, symbol_table)?;
+        symbol_table: &mut SymbolTable,
+    ) -> Result<Vec<Instruction>, String> {
+        let lines = parse_program(program, symbol_table)?;
         let mut instructions: Vec<Instruction> = vec![];
 
         for line in lines {
             instructions.push(command_to_instr(line)?)
         }
 
-        Ok(WithSymbols::new(instructions, symbols))
+        Ok(instructions)
     }
 }
 

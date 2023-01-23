@@ -8,7 +8,7 @@ mod tests {
         data::{Data, HeapPtr, Ref, RegPtr, Str},
         instr::Instruction,
         lang::{parse_term, Functor},
-        run_code, Machine,
+        run_code, Machine, symbol::SymbolTable,
     };
 
     const PROGRAM: &str = r#"
@@ -27,17 +27,19 @@ mod tests {
 
     #[test]
     fn program_compiles_to_bytecode() {
-        let query = parse_term(QUERY).unwrap();
+        let mut symbol_table = SymbolTable::new();
+        let query = parse_term(QUERY, &mut symbol_table).unwrap();
         let instructions = compile_query(query);
-        let expected = Instruction::from_program(PROGRAM).unwrap();
+        let expected = Instruction::from_program(PROGRAM, &mut symbol_table).unwrap();
         assert_eq!(expected.as_slice(), instructions.as_slice());
     }
 
     #[test]
     fn query_compiles_to_bytecode() {
-        let h2 = Functor('h', 2);
-        let f1 = Functor('f', 1);
-        let p3 = Functor('p', 3);
+        let mut symbol_table = SymbolTable::new();
+        let h2 = Functor(symbol_table.intern("h"), 2);
+        let f1 = Functor(symbol_table.intern("f"), 1);
+        let p3 = Functor(symbol_table.intern("p"), 3);
 
         let x1 = RegPtr(1);
         let x2 = RegPtr(2);
@@ -95,41 +97,46 @@ mod tests {
 
     #[test]
     fn parsing_produces_program() {
+        let mut symbol_table = SymbolTable::new();
+        let h = symbol_table.intern("h");
+        let f = symbol_table.intern("f");
+        let p = symbol_table.intern("p");
         assert_eq!(
-            parse_program(PROGRAM),
+            parse_program(PROGRAM, &mut symbol_table),
             Ok(vec![
-                Line::Cmd(
+                Command(
                     "put_structure".to_string(),
-                    vec![Arg::Func('h', 2), Arg::Reg(3)]
+                    vec![Arg::Func(h, 2), Arg::Reg(3)]
                 ),
-                Line::Cmd("set_variable".to_string(), vec![Arg::Reg(2)]),
-                Line::Cmd("set_variable".to_string(), vec![Arg::Reg(5)]),
-                Line::Cmd(
+                Command("set_variable".to_string(), vec![Arg::Reg(2)]),
+                Command("set_variable".to_string(), vec![Arg::Reg(5)]),
+                Command(
                     "put_structure".to_string(),
-                    vec![Arg::Func('f', 1), Arg::Reg(4)]
+                    vec![Arg::Func(f, 1), Arg::Reg(4)]
                 ),
-                Line::Cmd("set_value".to_string(), vec![Arg::Reg(5)]),
-                Line::Cmd(
+                Command("set_value".to_string(), vec![Arg::Reg(5)]),
+                Command(
                     "put_structure".to_string(),
-                    vec![Arg::Func('p', 3), Arg::Reg(1)]
+                    vec![Arg::Func(p, 3), Arg::Reg(1)]
                 ),
-                Line::Cmd("set_value".to_string(), vec![Arg::Reg(2)]),
-                Line::Cmd("set_value".to_string(), vec![Arg::Reg(3)]),
-                Line::Cmd("set_value".to_string(), vec![Arg::Reg(4)]),
+                Command("set_value".to_string(), vec![Arg::Reg(2)]),
+                Command("set_value".to_string(), vec![Arg::Reg(3)]),
+                Command("set_value".to_string(), vec![Arg::Reg(4)]),
             ])
         )
     }
 
     #[test]
     fn incorrect_program_does_not_parse() {
-        assert!(matches!(parse_program("42"), Err(_)))
+        assert!(matches!(parse_program("42", &mut (SymbolTable::new())), Err(_)))
     }
 
     #[test]
     fn parsing_program_produces_instructions() {
-        let h2 = Functor('h', 2);
-        let f1 = Functor('f', 1);
-        let p3 = Functor('p', 3);
+        let mut symbol_table = SymbolTable::new();
+        let h2 = Functor(symbol_table.intern("h"), 2);
+        let f1 = Functor(symbol_table.intern("f"), 1);
+        let p3 = Functor(symbol_table.intern("p"), 3);
 
         let x1 = RegPtr(1);
         let x2 = RegPtr(2);
@@ -149,7 +156,7 @@ mod tests {
             Instruction::SetValue(x4),
         ];
 
-        let parse_result = Instruction::from_program(PROGRAM);
+        let parse_result = Instruction::from_program(PROGRAM, &mut symbol_table);
 
         assert_eq!(parse_result.unwrap().as_slice(), code.as_slice())
     }
@@ -157,7 +164,7 @@ mod tests {
     #[test]
     fn parsing_incorrect_program_produces_error() {
         assert_eq!(
-            Instruction::from_program("put_structure X1"),
+            Instruction::from_program("put_structure X1", &mut (SymbolTable::new())),
             Err("Incorrect arguments for put_structure: [Reg(1)]".to_string())
         )
     }

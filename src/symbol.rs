@@ -1,7 +1,7 @@
 extern crate string_interner;
 
 use std::convert::{TryFrom, TryInto};
-use std::fmt::{Display, Error, Formatter};
+use std::fmt::Display;
 
 use self::string_interner::{DefaultSymbol, StringInterner, Symbol as _};
 
@@ -13,7 +13,7 @@ type InternalSymbol = DefaultSymbol;
 /// Otherwise,
 ///   * the first byte is the length (0-3).
 ///   * the next 0-3 bytes are string content
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Symbol(u8, u8, u8, u8);
 
 impl Symbol {
@@ -41,8 +41,15 @@ impl Display for Symbol {
         if self.is_inline() {
             write!(f, "{}", self.get_string())
         } else {
-            write!(f, "{:#x}", self.get_sym().to_usize())
+            write!(f, "#{:#x}", self.get_sym().to_usize())
         }
+    }
+}
+
+impl std::fmt::Debug for Symbol {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, ":")?;
+        std::fmt::Display::fmt(&self, f)
     }
 }
 
@@ -185,15 +192,6 @@ impl SymbolTable {
                 Err(_) => None,
             },
         }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct WithSymbols<T>(pub T, pub SymbolTable);
-
-impl<T> WithSymbols<T> {
-    pub fn new(item: T, symbols: SymbolTable) -> WithSymbols<T> {
-        WithSymbols(item, symbols)
     }
 }
 

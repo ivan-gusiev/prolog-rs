@@ -1,4 +1,4 @@
-use symbol::{Symbol, SymbolTable, WithSymbols};
+use symbol::{Symbol, SymbolTable};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Arg {
@@ -50,17 +50,15 @@ peg::parser!(
 
 pub fn parse_program(
     program: &str,
-    symbol_table: Option<SymbolTable>,
-) -> Result<WithSymbols<Vec<Command>>, String> {
-    let mut symbols = match symbol_table {
-        Some(st) => st,
-        None => SymbolTable::new(),
-    };
-    match assembly_parser::lines(program, &mut symbols) {
+    symbol_table: &mut SymbolTable,
+) -> Result<Vec<Command>, String> {
+    match assembly_parser::lines(program, symbol_table) {
         Ok(lines) => {
-            let good_lines = lines.into_iter().filter_map(|l| l).collect();
-
-            Ok(WithSymbols::new(good_lines, symbols))
+            let good_lines = lines
+                .into_iter()
+                .filter_map(std::convert::identity)
+                .collect();
+            Ok(good_lines)
         }
         Err(e) => Err(format!("{}", e)),
     }

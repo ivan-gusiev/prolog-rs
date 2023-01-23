@@ -1,11 +1,11 @@
 ---
 source: tests/langtests.rs
-expression: "case_dbg(input, parse_term(input))"
+expression: "case_dbg(input, parse_term(input, &mut (SymbolTable::new())))"
 ---
 "D"
 -----
 Ok(
     Variable(
-        'D',
+        :D,
     ),
 )

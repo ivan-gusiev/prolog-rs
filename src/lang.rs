@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 
-use symbol::{Symbol, WithSymbols};
+use symbol::Symbol;
 
 use crate::symbol::SymbolTable;
 
@@ -128,11 +128,9 @@ peg::parser!(
 
 pub fn parse_term(
     term: &str,
-    symbol_table: Option<SymbolTable>,
-) -> Result<WithSymbols<Term>, String> {
-    let mut symbols = symbol_table.unwrap_or(SymbolTable::new());
-    prolog_parser::term(term, &mut symbols)
-        .map(|term| WithSymbols::new(term, symbols))
+    symbol_table: &mut SymbolTable,
+) -> Result<Term, String> {
+    prolog_parser::term(term, symbol_table)
         .map_err(|e| format!("{}", e))
 }
 

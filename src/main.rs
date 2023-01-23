@@ -1,5 +1,5 @@
 use prolog_rs::{
-    symbol::{SymbolTable, WithSymbols},
+    symbol::SymbolTable,
     Machine,
 };
 
@@ -23,10 +23,9 @@ fn main() {
             "exit" => break,
             "" => (),
             query if query.starts_with("?-") => {
-                match parse_and_run_query(query, symbol_table.clone()) {
-                    Ok(WithSymbols(new_machine, new_symbols)) => {
-                        machine = Some(new_machine);
-                        symbol_table = new_symbols;
+                match parse_and_run_query(query, &mut symbol_table) {
+                    Ok(new_machine) => {
+                        machine = Some(new_machine)
                     }
                     Err(err) => println!("{}", err),
                 }
@@ -35,9 +34,9 @@ fn main() {
                 match parse_and_run_program(
                     program,
                     &mut machine.as_mut().unwrap(),
-                    symbol_table.clone(),
+                    &mut symbol_table,
                 ) {
-                    Ok(new_symbols) => symbol_table = new_symbols,
+                    Ok(()) => (),
                     Err(err) => println!("{}", err),
                 }
             }
@@ -48,12 +47,11 @@ fn main() {
 
 fn parse_and_run_query(
     input: &str,
-    symbol_table: SymbolTable,
-) -> Result<WithSymbols<Machine>, String> {
+    symbol_table: &mut SymbolTable,
+) -> Result<Machine, String> {
     use prolog_rs::{compile::compile_query, lang::parse_term, run_code};
 
-    let WithSymbols(query, symbols) =
-        parse_term(input.trim_start_matches("?-"), Some(symbol_table))?;
+    let query = parse_term(input.trim_start_matches("?-"), symbol_table)?;
 
     let code = compile_query(query);
 
@@ -63,17 +61,17 @@ fn parse_and_run_query(
 
     println!("{}", machine.dbg());
 
-    Ok(WithSymbols(machine, symbols))
+    Ok(machine)
 }
 
 fn parse_and_run_program(
     input: &str,
     machine: &mut Machine,
-    symbol_table: SymbolTable,
-) -> Result<SymbolTable, String> {
+    symbol_table: &mut SymbolTable,
+) -> Result<(), String> {
     use prolog_rs::{compile::compile_program, lang::parse_term, run_code};
 
-    let WithSymbols(query, symbols) = parse_term(input, Some(symbol_table))?;
+    let query = parse_term(input, symbol_table)?;
 
     let code = compile_program(query);
 
@@ -82,5 +80,5 @@ fn parse_and_run_program(
 
     println!("{}", machine.dbg());
 
-    Ok(symbols)
+    Ok(())
 }

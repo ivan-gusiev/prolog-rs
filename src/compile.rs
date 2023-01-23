@@ -284,10 +284,14 @@ pub fn compile_program(program: Term) -> Vec<Instruction> {
     return result;
 }
 
+#[cfg(test)]
+use crate::symbol::SymbolTable;
+
 #[test]
 fn test_order_structs() {
     use lang::parse_term;
-    let query = parse_term("p(Z,h(Z,W),f(W))", None).unwrap().0;
+    let mut symbol_table = SymbolTable::new();
+    let query = parse_term("p(Z,h(Z,W),f(W))", &mut symbol_table).unwrap();
     let terms = flatten_query(query);
     let structs = extract_structs(&terms);
 
@@ -300,21 +304,86 @@ fn test_order_structs() {
 #[test]
 fn test_flatten_query() {
     use lang::parse_term;
-    let query = parse_term("p(Z,h(Z,W),f(W))", None).unwrap().0;
+    let mut symbol_table = SymbolTable::new();
+    let query = parse_term("p(Z,h(Z,W),f(W))", &mut symbol_table).unwrap();
 
     let results = flatten_query(query)
         .into_iter()
-        .map(|x| format!("{:?}", x))
+        .map(|x| format!("{:#?}", x))
         .collect::<Vec<_>>()
         .join("||");
 
-    assert_eq!(format!("{}", results), "Struct(FlatStruct(Functor('p', 3), [Register(RegPtr(2)), Register(RegPtr(3)), Register(RegPtr(4))]))||Variable('Z')||Struct(FlatStruct(Functor('h', 2), [Register(RegPtr(2)), Register(RegPtr(5))]))||Struct(FlatStruct(Functor('f', 1), [Register(RegPtr(5))]))||Variable('W')".to_string());
+    
+
+    assert_eq!(format!("{}", results), r#"Struct(
+    FlatStruct(
+        Functor(
+            :p,
+            3,
+        ),
+        [
+            Register(
+                RegPtr(
+                    2,
+                ),
+            ),
+            Register(
+                RegPtr(
+                    3,
+                ),
+            ),
+            Register(
+                RegPtr(
+                    4,
+                ),
+            ),
+        ],
+    ),
+)||Variable(
+    :Z,
+)||Struct(
+    FlatStruct(
+        Functor(
+            :h,
+            2,
+        ),
+        [
+            Register(
+                RegPtr(
+                    2,
+                ),
+            ),
+            Register(
+                RegPtr(
+                    5,
+                ),
+            ),
+        ],
+    ),
+)||Struct(
+    FlatStruct(
+        Functor(
+            :f,
+            1,
+        ),
+        [
+            Register(
+                RegPtr(
+                    5,
+                ),
+            ),
+        ],
+    ),
+)||Variable(
+    :W,
+)"#.to_string());
 }
 
 #[test]
 fn test_compile_query() {
     use lang::parse_term;
-    let query = parse_term("p(Z,h(Z,W),f(W))", None).unwrap().0;
+    let mut symbol_table = SymbolTable::new();
+    let query = parse_term("p(Z,h(Z,W),f(W))", &mut symbol_table).unwrap();
     let instructions = Instruction::from_program(
         r#"
         put_structure h/2, X3
@@ -327,16 +396,17 @@ fn test_compile_query() {
         set_value X3         
         set_value X4         
         "#,
-        None,
+        &mut symbol_table,
     )
     .unwrap();
-    assert_eq!(compile_query(query), instructions.0)
+    assert_eq!(compile_query(query), instructions)
 }
 
 #[test]
 fn test_compile_program() {
     use lang::parse_term;
-    let program = parse_term("p(f(X), h(Y,f(a)), Y)", None).unwrap();
+    let mut symbol_table = SymbolTable::new();
+    let program = parse_term("p(f(X), h(Y,f(a)), Y)", &mut symbol_table).unwrap();
     let instructions = Instruction::from_program(
         r#"
         get_structure p/3, X1
@@ -352,8 +422,8 @@ fn test_compile_program() {
         unify_variable X7
         get_structure a/0, X7
         "#,
-        None,
+        &mut symbol_table,
     )
     .unwrap();
-    assert_eq!(compile_program(program.0), instructions.0)
+    assert_eq!(compile_program(program), instructions)
 }
