@@ -146,11 +146,15 @@ peg::parser!(
             = line_comment() / block_comment() 
 
         rule rest() -> Vec<char>
-            = ['a'..='z' | 'A'..='Z' | '0'..='9' ]*
+            = ['a'..='z' | 'A'..='Z' | '0'..='9' | '_']*
 
         rule varname() -> std::iter::Chain<std::iter::Once<char>, std::vec::IntoIter<char>>
             = quiet!{ initial:['A'..='Z'] rest:rest() {once(initial).chain(rest.into_iter())}}
             / expected!("variable name")
+
+        rule structname() -> std::iter::Chain<std::iter::Once<char>, std::vec::IntoIter<char>>
+            = quiet!{ initial:['a'..='z'] rest:rest() {once(initial).chain(rest.into_iter())}}
+            / expected!("structure name")
 
         rule _()
             = whitespace()* comment()?
@@ -159,10 +163,10 @@ peg::parser!(
             = n:varname() { Term::Variable(symbols.intern_chars( n )) }
 
         rule structure(symbols: &mut SymbolTable) -> Term
-            = n:['a'..='z']+ "(" ts:(term(symbols) ** ",") ")" { Term::Struct(Struct::from_name(symbols.intern_chars(n), ts.as_slice())) }
+            = n:structname() "(" ts:(term(symbols) ** ",") ")" { Term::Struct(Struct::from_name(symbols.intern_chars(n), ts.as_slice())) }
 
         rule constant(symbols: &mut SymbolTable) -> Term
-            = n:['a'..='z']+ { Term::Struct(Struct::constant(symbols.intern_chars(n))) }
+            = n:structname() { Term::Struct(Struct::constant(symbols.intern_chars(n))) }
 
         pub rule term(symbols: &mut SymbolTable) -> Term
             = _ t:(variable(symbols) / structure(symbols) / constant(symbols)) _ { t }

@@ -1,0 +1,7 @@
+---
+source: tests/langtests.rs
+expression: "case(input, to_display(&term, &symbol_table))"
+---
+super_constant
+-----
+super_constant

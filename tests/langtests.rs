@@ -30,6 +30,9 @@ mod langtests {
         "D",
         "",
         "size(Width, Height)",
+        "superConstant",
+        "super_constant",
+        "superTerm(SuperVariable)"
     })]
     fn test_term_display(input: &str) {
         let mut symbol_table = SymbolTable::new();

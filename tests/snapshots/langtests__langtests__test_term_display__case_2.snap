@@ -4,4 +4,4 @@ expression: "case(input, err)"
 ---
 
 -----
-error at 1:1: expected one of ['a' ..= 'z'], block comment, line comment, variable name
+error at 1:1: expected one of block comment, line comment, structure name, variable name
