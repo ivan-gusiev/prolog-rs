@@ -1,0 +1,24 @@
+---
+source: tests/langtests.rs
+expression: "case_dbg(input, parse_term(input, &mut (SymbolTable::new())))"
+---
+"size(Width, Height)"
+-----
+Ok(
+    Struct(
+        Struct(
+            Functor(
+                :#0x2,
+                2,
+            ),
+            [
+                Variable(
+                    :#0x0,
+                ),
+                Variable(
+                    :#0x1,
+                ),
+            ],
+        ),
+    ),
+)

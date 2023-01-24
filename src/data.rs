@@ -2,6 +2,8 @@ use lang::Functor;
 use std::fmt::{Display, Formatter};
 use std::ops;
 
+use crate::symbol::SymDisplay;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct HeapPtr(pub usize);
 
@@ -67,6 +69,15 @@ impl Display for Data {
             Data::Ref(r) => write!(f, "{}", r),
             Data::Str(s) => write!(f, "{}", s),
             Data::Functor(functor) => write!(f, "{}", functor),
+        }
+    }
+}
+
+impl SymDisplay for Data {
+    fn sym_fmt(&self, f: &mut Formatter<'_>, symbol_table: &crate::symbol::SymbolTable) -> Result<(), std::fmt::Error> {
+        match self {
+            Data::Functor(functor) => functor.sym_fmt(f, symbol_table),
+            _ => self.fmt(f)
         }
     }
 }

@@ -1,23 +1,23 @@
 use std::fmt::{Debug, Display, Error, Write};
 
-pub fn printout<T: Display>(prompt: &str, items: &[T]) {
-    println!("{}", prompt);
-    println!("--------");
-    for (idx, item) in items.iter().enumerate() {
-        println!("{:#03}\t{}", idx, item);
-    }
-}
+use crate::symbol::{to_display, SymDisplay, SymbolTable};
 
-pub fn writeout<T: Display>(items: &[T]) -> String {
-    fn writeout_impl<T: Display>(items: &[T]) -> Result<String, Error> {
+pub fn writeout<T: Display, I: Iterator<Item = T>>(items: I) -> String {
+    fn writeout_impl<T: Display, I: Iterator<Item = T>>(
+        items: I,
+    ) -> Result<String, Error> {
         let mut out = String::new();
-        for (idx, item) in items.iter().enumerate() {
+        for (idx, item) in items.enumerate() {
             writeln!(out, "{:#03}\t{}", idx, item)?;
         }
         Ok(out)
     }
 
     writeout_impl(items).unwrap_or_else(|e| format!("{}", e))
+}
+
+pub fn writeout_sym<T: SymDisplay>(items: &[T], symbol_table: &SymbolTable) -> String {
+    writeout(items.iter().map(|item| to_display(item, symbol_table)))
 }
 
 pub fn case<T: Display, U: Display>(input: T, output: U) -> String {

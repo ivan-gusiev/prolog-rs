@@ -1,7 +1,7 @@
 extern crate string_interner;
 
 use std::convert::{TryFrom, TryInto};
-use std::fmt::Display;
+use std::fmt::{Display, Error, Formatter, Write};
 
 use self::string_interner::{DefaultSymbol, StringInterner, Symbol as _};
 
@@ -42,6 +42,15 @@ impl Display for Symbol {
             write!(f, "{}", self.get_string())
         } else {
             write!(f, "#{:#x}", self.get_sym().to_usize())
+        }
+    }
+}
+
+impl SymDisplay for Symbol {
+    fn sym_fmt(&self, f: &mut Formatter<'_>, symbol_table: &SymbolTable) -> Result<(), Error> {
+        match symbol_table.resolve(*self) {
+            Some(str) => write!(f, "{}", str),
+            None => self.fmt(f),
         }
     }
 }
@@ -184,16 +193,40 @@ impl SymbolTable {
     }
 
     pub fn resolve(&self, sym: Symbol) -> Option<String> {
-        let str_result: Result<String, ()> = sym.try_into();
-        match str_result {
-            Ok(str) => Some(str),
-            Err(_) => match sym.try_into() {
-                Ok(defsym) => self.0.resolve(defsym).map(|s| s.to_string()),
-                Err(_) => None,
-            },
+        if sym.is_inline() {
+            Some(sym.get_string())
+        } else {
+            let defsym = sym.get_sym();
+            self.0.resolve(defsym).map(|s| s.to_string())
         }
     }
 }
+
+pub trait SymDisplay: Sized {
+    fn sym_fmt(&self, f: &mut Formatter<'_>, symbol_table: &SymbolTable) -> Result<(), Error>;
+
+    fn sym_to_str(&self, symbol_table: &SymbolTable) -> String {
+        let mut s = String::new();
+        write!(s, "{}", to_display(self, symbol_table)).unwrap();
+        s
+    }
+}
+
+pub fn to_display<'a, S: SymDisplay>(s: &'a S, symbol_table: &'a SymbolTable) -> impl Display + 'a {
+    SymDisplayHelper { value: s, symbol_table }
+}
+
+struct SymDisplayHelper<'a, T> {
+    value: &'a T,
+    symbol_table: &'a SymbolTable
+}
+
+impl <'a, T : SymDisplay> Display for SymDisplayHelper<'a, T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        self.value.sym_fmt(f, self.symbol_table)
+    }
+}
+
 
 #[test]
 fn test_roundtrip_short() {

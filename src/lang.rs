@@ -1,6 +1,7 @@
 use std::fmt::{Display, Formatter};
+use std::iter::once;
 
-use symbol::Symbol;
+use symbol::{Symbol, SymDisplay};
 
 use crate::symbol::SymbolTable;
 
@@ -24,6 +25,13 @@ impl Functor {
 impl Display for Functor {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(f, "{}/{}", self.0, self.1)
+    }
+}
+
+impl SymDisplay for Functor {
+    fn sym_fmt(&self, f: &mut Formatter<'_>, symbol_table: &SymbolTable) -> Result<(), std::fmt::Error> {
+        self.0.sym_fmt(f, symbol_table)?;
+        write!(f, "/{}", self.1)
     }
 }
 
@@ -80,6 +88,25 @@ impl Display for Struct {
     }
 }
 
+impl SymDisplay for Struct {
+    fn sym_fmt(&self, f: &mut Formatter<'_>, symbol_table: &SymbolTable) -> Result<(), std::fmt::Error> {
+        self.functor().name().sym_fmt(f, symbol_table)?;
+
+        if !self.is_const() {
+            write!(f, "(")?;
+            self.terms()[0].sym_fmt(f, symbol_table)?;
+            for term in self.terms().iter().skip(1) {
+                write!(f, ", ")?;
+                term.sym_fmt(f, symbol_table)?;
+            }
+            write!(f, ")")?
+        }
+
+        Ok(())
+    }
+}
+
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Term {
     Variable(VarName),
@@ -95,25 +122,41 @@ impl Display for Term {
     }
 }
 
+impl SymDisplay for Term {
+    fn sym_fmt(&self, f: &mut Formatter<'_>, symbol_table: &SymbolTable) -> Result<(), std::fmt::Error> {
+        match self {
+            Self::Variable(nm) => nm.sym_fmt(f, symbol_table),
+            Self::Struct(s) => s.sym_fmt(f, symbol_table),
+        }
+    }
+}
+
 peg::parser!(
     grammar prolog_parser() for str {
         rule whitespace()
-            = [' ' | '\t' | '\r' | '\n']
+            = quiet!{[' ' | '\t' | '\r' | '\n']}
 
         rule line_comment()
-            = ("#" / "%") [^'\n']*
+            = quiet!{("#" / "%") [^'\n']*} / expected!("line comment")
 
         rule block_comment()
-            = "/*" (!"*/" [_])* "*/"
+            = quiet!{"/*" (!"*/" [_])* "*/"} / expected!("block comment")
 
         rule comment()
-            = line_comment() / block_comment()
+            = line_comment() / block_comment() 
+
+        rule rest() -> Vec<char>
+            = ['a'..='z' | 'A'..='Z' | '0'..='9' ]*
+
+        rule varname() -> std::iter::Chain<std::iter::Once<char>, std::vec::IntoIter<char>>
+            = quiet!{ initial:['A'..='Z'] rest:rest() {once(initial).chain(rest.into_iter())}}
+            / expected!("variable name")
 
         rule _()
             = whitespace()* comment()?
 
         rule variable(symbols: &mut SymbolTable) -> Term
-            = n:['A'..='Z']+ { Term::Variable(symbols.intern_chars(n)) }
+            = n:varname() { Term::Variable(symbols.intern_chars( n )) }
 
         rule structure(symbols: &mut SymbolTable) -> Term
             = n:['a'..='z']+ "(" ts:(term(symbols) ** ",") ")" { Term::Struct(Struct::from_name(symbols.intern_chars(n), ts.as_slice())) }

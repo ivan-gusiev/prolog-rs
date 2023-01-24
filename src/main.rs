@@ -51,7 +51,7 @@ fn parse_and_run_query(input: &str, symbol_table: &mut SymbolTable) -> Result<Ma
     machine.set_code(&code);
     run_code(&mut machine).map_err(|e| e.message())?;
 
-    println!("{}", machine.dbg());
+    println!("{}", machine.dbg(symbol_table));
 
     Ok(machine)
 }
@@ -70,7 +70,7 @@ fn parse_and_run_program(
     machine.set_code(&code);
     run_code(machine).map_err(|e| e.message())?;
 
-    println!("{}", machine.dbg());
+    println!("{}", machine.dbg(symbol_table));
 
     Ok(())
 }

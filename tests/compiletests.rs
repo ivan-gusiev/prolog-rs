@@ -10,7 +10,7 @@ mod compiletests {
         compile::{compile_program, compile_query},
         lang::parse_term,
         symbol::SymbolTable,
-        util::{case, writeout},
+        util::{case, writeout_sym},
     };
 
     #[parameterized(input = {
@@ -25,7 +25,7 @@ mod compiletests {
         let query = parse_term(input, &mut symbol_table).unwrap();
         let instructions = compile_query(query);
 
-        assert_display_snapshot!(case(input, writeout(&instructions)));
+        assert_display_snapshot!(case(input, writeout_sym(&instructions, &symbol_table)));
     }
 
     #[parameterized(input = {
@@ -41,6 +41,6 @@ mod compiletests {
         let query = parse_term(input, &mut symbol_table).unwrap();
         let instructions = compile_program(query);
 
-        assert_display_snapshot!(case(input, writeout(&instructions)));
+        assert_display_snapshot!(case(input, writeout_sym(&instructions, &symbol_table)));
     }
 }

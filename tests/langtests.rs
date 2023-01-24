@@ -8,14 +8,15 @@ mod langtests {
     use parameterized::parameterized;
     use prolog_rs::{
         lang::parse_term,
-        symbol::SymbolTable,
+        symbol::{SymbolTable, to_display},
         util::{case, case_dbg},
     };
 
     #[parameterized(input = {
         "p(Z, h(Z,W), f(W))",
         "D",
-        ""
+        "",
+        "size(Width, Height)",
     })]
     fn test_term_parse(input: &str) {
         assert_display_snapshot!(case_dbg(
@@ -27,11 +28,13 @@ mod langtests {
     #[parameterized(input = {
         "p(Z, h(Z,W), f(W))",
         "D",
-        ""
+        "",
+        "size(Width, Height)",
     })]
     fn test_term_display(input: &str) {
-        match parse_term(input, &mut (SymbolTable::new())) {
-            Ok(term) => assert_display_snapshot!(case(input, term)),
+        let mut symbol_table = SymbolTable::new();
+        match parse_term(input, &mut symbol_table) {
+            Ok(term) => assert_display_snapshot!(case(input, to_display(&term, &symbol_table))),
             Err(err) => assert_display_snapshot!(case(input, err)),
         }
     }

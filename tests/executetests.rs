@@ -11,7 +11,7 @@ mod executetests {
         lang::parse_term,
         run_code,
         symbol::SymbolTable,
-        util::{case, writeout},
+        util::{case, writeout_sym},
         Machine,
     };
 
@@ -30,7 +30,7 @@ mod executetests {
         machine.set_code(&instructions);
         run_code(&mut machine).expect("machine failure");
 
-        let output = writeout(&machine.iter_heap().collect::<Vec<_>>());
+        let output = writeout_sym(&machine.iter_heap().map(|d| *d).collect::<Vec<_>>(), &symbol_table);
         assert_display_snapshot!(case(input, output));
     }
 
@@ -57,7 +57,7 @@ mod executetests {
         run_code(&mut machine).expect("machine failure");
 
         let input = format!("({}, {})", query_text, program_text);
-        let output = machine.dbg();
+        let output = machine.dbg(&symbol_table);
         assert_display_snapshot!(case(input, output));
     }
 }

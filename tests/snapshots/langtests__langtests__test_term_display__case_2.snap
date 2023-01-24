@@ -4,4 +4,4 @@ expression: "case(input, err)"
 ---
 
 -----
-error at 1:1: expected one of "#", "%", "/*", [' ' | '\t' | '\r' | '\n'], ['A' ..= 'Z'], ['a' ..= 'z']
+error at 1:1: expected one of ['a' ..= 'z'], block comment, line comment, variable name
