@@ -1,7 +1,4 @@
-use prolog_rs::{
-    symbol::SymbolTable,
-    Machine,
-};
+use prolog_rs::{symbol::SymbolTable, Machine};
 
 extern crate prolog_rs;
 
@@ -24,9 +21,7 @@ fn main() {
             "" => (),
             query if query.starts_with("?-") => {
                 match parse_and_run_query(query, &mut symbol_table) {
-                    Ok(new_machine) => {
-                        machine = Some(new_machine)
-                    }
+                    Ok(new_machine) => machine = Some(new_machine),
                     Err(err) => println!("{}", err),
                 }
             }
@@ -45,10 +40,7 @@ fn main() {
     }
 }
 
-fn parse_and_run_query(
-    input: &str,
-    symbol_table: &mut SymbolTable,
-) -> Result<Machine, String> {
+fn parse_and_run_query(input: &str, symbol_table: &mut SymbolTable) -> Result<Machine, String> {
     use prolog_rs::{compile::compile_query, lang::parse_term, run_code};
 
     let query = parse_term(input.trim_start_matches("?-"), symbol_table)?;

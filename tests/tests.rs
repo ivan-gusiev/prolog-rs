@@ -8,7 +8,9 @@ mod tests {
         data::{Data, HeapPtr, Ref, RegPtr, Str},
         instr::Instruction,
         lang::{parse_term, Functor},
-        run_code, Machine, symbol::SymbolTable,
+        run_code,
+        symbol::SymbolTable,
+        Machine,
     };
 
     const PROGRAM: &str = r#"
@@ -128,7 +130,10 @@ mod tests {
 
     #[test]
     fn incorrect_program_does_not_parse() {
-        assert!(matches!(parse_program("42", &mut (SymbolTable::new())), Err(_)))
+        assert!(matches!(
+            parse_program("42", &mut (SymbolTable::new())),
+            Err(_)
+        ))
     }
 
     #[test]

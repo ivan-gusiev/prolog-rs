@@ -18,7 +18,10 @@ mod langtests {
         ""
     })]
     fn test_term_parse(input: &str) {
-        assert_display_snapshot!(case_dbg(input, parse_term(input, &mut (SymbolTable::new()))));
+        assert_display_snapshot!(case_dbg(
+            input,
+            parse_term(input, &mut (SymbolTable::new()))
+        ));
     }
 
     #[parameterized(input = {

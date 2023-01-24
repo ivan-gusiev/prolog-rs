@@ -126,12 +126,8 @@ peg::parser!(
     }
 );
 
-pub fn parse_term(
-    term: &str,
-    symbol_table: &mut SymbolTable,
-) -> Result<Term, String> {
-    prolog_parser::term(term, symbol_table)
-        .map_err(|e| format!("{}", e))
+pub fn parse_term(term: &str, symbol_table: &mut SymbolTable) -> Result<Term, String> {
+    prolog_parser::term(term, symbol_table).map_err(|e| format!("{}", e))
 }
 
 #[cfg(test)]

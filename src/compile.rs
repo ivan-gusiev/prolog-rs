@@ -313,9 +313,9 @@ fn test_flatten_query() {
         .collect::<Vec<_>>()
         .join("||");
 
-    
-
-    assert_eq!(format!("{}", results), r#"Struct(
+    assert_eq!(
+        format!("{}", results),
+        r#"Struct(
     FlatStruct(
         Functor(
             :p,
@@ -376,7 +376,9 @@ fn test_flatten_query() {
     ),
 )||Variable(
     :W,
-)"#.to_string());
+)"#
+        .to_string()
+    );
 }
 
 #[test]

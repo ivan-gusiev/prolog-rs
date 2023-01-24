@@ -10,8 +10,9 @@ mod executetests {
         compile::{compile_program, compile_query},
         lang::parse_term,
         run_code,
+        symbol::SymbolTable,
         util::{case, writeout},
-        Machine, symbol::SymbolTable,
+        Machine,
     };
 
     #[parameterized(input = {
