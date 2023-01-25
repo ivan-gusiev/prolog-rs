@@ -8,8 +8,11 @@ pub mod util;
 
 use data::{Addr, Data, HeapPtr, Mode, Ref, RegPtr, Str};
 use instr::Instruction;
-use lang::Functor;
-use std::fmt::{Display, Write};
+use lang::{Functor, VarName};
+use std::{
+    collections::HashMap,
+    fmt::{Display, Write},
+};
 use symbol::SymbolTable;
 
 use util::{writeout, writeout_sym};
@@ -141,8 +144,12 @@ impl Machine {
         self.pdl.pop()
     }
 
-    pub fn empty_pdl(&self) -> bool {
+    pub fn is_pdl_empty(&self) -> bool {
         self.pdl.is_empty()
+    }
+
+    pub fn trace_reg(&self, reg: RegPtr) -> Data {
+        self.get_store(deref(&self, reg.into()))
     }
 
     pub fn dbg(&self, symbol_table: &SymbolTable) -> String {
@@ -177,6 +184,12 @@ impl Machine {
     }
 }
 
+impl Default for Machine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Debug)]
 pub enum MachineFailure {
     RegBind,
@@ -200,6 +213,13 @@ impl Display for MachineFailure {
 
 type MResult = Result<(), MachineFailure>;
 
+#[derive(Debug, Default)]
+pub struct RunningContext {
+    pub machine: Machine,
+    pub symbol_table: SymbolTable,
+    pub query_variables: HashMap<VarName, RegPtr>,
+}
+
 fn deref(machine: &Machine, mut addr: Addr) -> Addr {
     loop {
         match machine.get_store(addr) {
@@ -222,7 +242,7 @@ fn unify(machine: &mut Machine, a1: Addr, a2: Addr) -> MResult {
     machine.push_pdl(a1);
     machine.push_pdl(a2);
     machine.set_fail(false);
-    while !(machine.empty_pdl() || machine.get_fail()) {
+    while !(machine.is_pdl_empty() || machine.get_fail()) {
         let mut d1 = machine.pop_pdl().expect("cannot pop d1");
         d1 = deref(machine, d1);
         let mut d2 = machine.pop_pdl().expect("cannot pop d2");
