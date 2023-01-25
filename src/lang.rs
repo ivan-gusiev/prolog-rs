@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use std::iter::once;
 
-use symbol::{Symbol, SymDisplay};
+use symbol::{SymDisplay, Symbol};
 
 use crate::symbol::SymbolTable;
 
@@ -29,7 +29,11 @@ impl Display for Functor {
 }
 
 impl SymDisplay for Functor {
-    fn sym_fmt(&self, f: &mut Formatter<'_>, symbol_table: &SymbolTable) -> Result<(), std::fmt::Error> {
+    fn sym_fmt(
+        &self,
+        f: &mut Formatter<'_>,
+        symbol_table: &SymbolTable,
+    ) -> Result<(), std::fmt::Error> {
         self.0.sym_fmt(f, symbol_table)?;
         write!(f, "/{}", self.1)
     }
@@ -89,7 +93,11 @@ impl Display for Struct {
 }
 
 impl SymDisplay for Struct {
-    fn sym_fmt(&self, f: &mut Formatter<'_>, symbol_table: &SymbolTable) -> Result<(), std::fmt::Error> {
+    fn sym_fmt(
+        &self,
+        f: &mut Formatter<'_>,
+        symbol_table: &SymbolTable,
+    ) -> Result<(), std::fmt::Error> {
         self.functor().name().sym_fmt(f, symbol_table)?;
 
         if !self.is_const() {
@@ -105,7 +113,6 @@ impl SymDisplay for Struct {
         Ok(())
     }
 }
-
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Term {
@@ -123,7 +130,11 @@ impl Display for Term {
 }
 
 impl SymDisplay for Term {
-    fn sym_fmt(&self, f: &mut Formatter<'_>, symbol_table: &SymbolTable) -> Result<(), std::fmt::Error> {
+    fn sym_fmt(
+        &self,
+        f: &mut Formatter<'_>,
+        symbol_table: &SymbolTable,
+    ) -> Result<(), std::fmt::Error> {
         match self {
             Self::Variable(nm) => nm.sym_fmt(f, symbol_table),
             Self::Struct(s) => s.sym_fmt(f, symbol_table),
@@ -143,7 +154,7 @@ peg::parser!(
             = quiet!{"/*" (!"*/" [_])* "*/"} / expected!("block comment")
 
         rule comment()
-            = line_comment() / block_comment() 
+            = line_comment() / block_comment()
 
         rule rest() -> Vec<char>
             = ['a'..='z' | 'A'..='Z' | '0'..='9' | '_']*

@@ -9,8 +9,8 @@ pub mod util;
 use data::{Addr, Data, HeapPtr, Mode, Ref, RegPtr, Str};
 use instr::Instruction;
 use lang::Functor;
-use symbol::SymbolTable;
 use std::fmt::{Display, Write};
+use symbol::SymbolTable;
 
 use util::{writeout, writeout_sym};
 
@@ -151,9 +151,27 @@ impl Machine {
         writeln!(str, "{}: {}", "s", self.get_s()).unwrap();
         writeln!(str, "{}: {}", "mode", self.get_mode()).unwrap();
         writeln!(str, "{}: {}", "fail", self.get_fail()).unwrap();
-        writeln!(str, "{}:\n{}", "code", writeout_sym(&self.get_code(), symbol_table)).unwrap();
-        writeln!(str, "{}:\n{}", "heap", writeout_sym(&self.heap, symbol_table)).unwrap();
-        writeln!(str, "{}:\n{}", "regs", writeout_sym(&self.reg, symbol_table)).unwrap();
+        writeln!(
+            str,
+            "{}:\n{}",
+            "code",
+            writeout_sym(&self.get_code(), symbol_table)
+        )
+        .unwrap();
+        writeln!(
+            str,
+            "{}:\n{}",
+            "heap",
+            writeout_sym(&self.heap, symbol_table)
+        )
+        .unwrap();
+        writeln!(
+            str,
+            "{}:\n{}",
+            "regs",
+            writeout_sym(&self.reg, symbol_table)
+        )
+        .unwrap();
         writeln!(str, "{}:\n{}", "pdl", writeout(self.pdl.iter())).unwrap();
         str
     }

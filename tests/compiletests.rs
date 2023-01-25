@@ -23,9 +23,12 @@ mod compiletests {
     fn test_query_compile(input: &str) {
         let mut symbol_table = SymbolTable::new();
         let query = parse_term(input, &mut symbol_table).unwrap();
-        let instructions = compile_query(query);
+        let result = compile_query(query);
 
-        assert_display_snapshot!(case(input, writeout_sym(&instructions, &symbol_table)));
+        assert_display_snapshot!(case(
+            input,
+            writeout_sym(&result.instructions, &symbol_table)
+        ));
     }
 
     #[parameterized(input = {
@@ -39,8 +42,11 @@ mod compiletests {
     fn test_program_compile(input: &str) {
         let mut symbol_table = SymbolTable::new();
         let query = parse_term(input, &mut symbol_table).unwrap();
-        let instructions = compile_program(query);
+        let result = compile_program(query);
 
-        assert_display_snapshot!(case(input, writeout_sym(&instructions, &symbol_table)));
+        assert_display_snapshot!(case(
+            input,
+            writeout_sym(&result.instructions, &symbol_table)
+        ));
     }
 }

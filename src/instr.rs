@@ -3,7 +3,7 @@ use data::RegPtr;
 use lang::Functor;
 use std::fmt::{Display, Formatter};
 
-use crate::symbol::{SymbolTable, SymDisplay, to_display};
+use crate::symbol::{to_display, SymDisplay, SymbolTable};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Instruction {
@@ -33,11 +33,25 @@ impl Display for Instruction {
 }
 
 impl SymDisplay for Instruction {
-    fn sym_fmt(&self, f: &mut Formatter<'_>, symbol_table: &SymbolTable) -> Result<(), std::fmt::Error> {
+    fn sym_fmt(
+        &self,
+        f: &mut Formatter<'_>,
+        symbol_table: &SymbolTable,
+    ) -> Result<(), std::fmt::Error> {
         match self {
-            Instruction::PutStructure(functor, reg) => write!(f, "put_structure {}, {}", to_display(functor, symbol_table), reg),
-            Instruction::GetStructure(functor, reg) => write!(f, "get_structure {}, {}", to_display(functor, symbol_table), reg),
-            _ => self.fmt(f)
+            Instruction::PutStructure(functor, reg) => write!(
+                f,
+                "put_structure {}, {}",
+                to_display(functor, symbol_table),
+                reg
+            ),
+            Instruction::GetStructure(functor, reg) => write!(
+                f,
+                "get_structure {}, {}",
+                to_display(functor, symbol_table),
+                reg
+            ),
+            _ => self.fmt(f),
         }
     }
 }

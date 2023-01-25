@@ -74,10 +74,14 @@ impl Display for Data {
 }
 
 impl SymDisplay for Data {
-    fn sym_fmt(&self, f: &mut Formatter<'_>, symbol_table: &crate::symbol::SymbolTable) -> Result<(), std::fmt::Error> {
+    fn sym_fmt(
+        &self,
+        f: &mut Formatter<'_>,
+        symbol_table: &crate::symbol::SymbolTable,
+    ) -> Result<(), std::fmt::Error> {
         match self {
             Data::Functor(functor) => functor.sym_fmt(f, symbol_table),
-            _ => self.fmt(f)
+            _ => self.fmt(f),
         }
     }
 }

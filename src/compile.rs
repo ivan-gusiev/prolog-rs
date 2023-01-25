@@ -1,10 +1,12 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::{Display, Formatter};
+use std::hash::Hash;
 
 use instr::Instruction;
 use lang::{Term, VarName};
 
-extern crate topological_sort; // TODO: fix this
+// TODO: for some reason rustc requires `extern crate` definitions, fix this
+extern crate topological_sort;
 use self::topological_sort::TopologicalSort;
 
 use crate::{data::RegPtr, lang::Functor};
@@ -81,7 +83,7 @@ impl FlattenedTerm {
     }
 }
 
-fn flatten_query(query: Term) -> Vec<FlattenedTerm> {
+fn flatten_query(query: Term) -> (Vec<FlattenedTerm>, HashMap<VarName, RegPtr>) {
     let mut term_map = HashMap::<TermId, RegPtr>::new();
     let mut var_map = HashMap::<VarName, RegPtr>::new();
     let mut queue = VecDeque::from([(&query, TermId(0))]);
@@ -149,7 +151,7 @@ fn flatten_query(query: Term) -> Vec<FlattenedTerm> {
         }
     }
 
-    result
+    (result, var_map)
 }
 
 fn ptoi(ptr: RegPtr) -> usize {
@@ -228,8 +230,8 @@ fn order_query_structs(terms: &[FlattenedTerm], structs_to_sort: &[RegPtr]) -> V
     result
 }
 
-pub fn compile_query(query: Term) -> Vec<Instruction> {
-    let registers = flatten_query(query);
+pub fn compile_query(query: Term) -> CompileResult {
+    let (registers, vars) = flatten_query(query);
     let structs = order_query_structs(&registers, &extract_structs(&registers));
     let mut seen = HashSet::<RegPtr>::new();
     let mut result = vec![];
@@ -253,11 +255,14 @@ pub fn compile_query(query: Term) -> Vec<Instruction> {
         }
     }
 
-    return result;
+    return CompileResult {
+        instructions: result,
+        var_mapping: vars,
+    };
 }
 
-pub fn compile_program(program: Term) -> Vec<Instruction> {
-    let registers = flatten_query(program);
+pub fn compile_program(program: Term) -> CompileResult {
+    let (registers, vars) = flatten_query(program);
     let structs = extract_structs(&registers);
     let mut seen = HashSet::<RegPtr>::new();
     let mut result = vec![];
@@ -281,7 +286,16 @@ pub fn compile_program(program: Term) -> Vec<Instruction> {
         }
     }
 
-    return result;
+    return CompileResult {
+        instructions: result,
+        var_mapping: vars,
+    };
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct CompileResult {
+    pub instructions: Vec<Instruction>,
+    pub var_mapping: HashMap<VarName, RegPtr>,
 }
 
 #[cfg(test)]
@@ -292,7 +306,7 @@ fn test_order_structs() {
     use lang::parse_term;
     let mut symbol_table = SymbolTable::new();
     let query = parse_term("p(Z,h(Z,W),f(W))", &mut symbol_table).unwrap();
-    let terms = flatten_query(query);
+    let (terms, _) = flatten_query(query);
     let structs = extract_structs(&terms);
 
     assert_eq!(
@@ -308,76 +322,19 @@ fn test_flatten_query() {
     let query = parse_term("p(Z,h(Z,W),f(W))", &mut symbol_table).unwrap();
 
     let results = flatten_query(query)
+        .0
         .into_iter()
-        .map(|x| format!("{:#?}", x))
+        .map(|x| format!("{:?}", x))
         .collect::<Vec<_>>()
-        .join("||");
+        .join("||\n");
 
     assert_eq!(
         format!("{}", results),
-        r#"Struct(
-    FlatStruct(
-        Functor(
-            :p,
-            3,
-        ),
-        [
-            Register(
-                RegPtr(
-                    2,
-                ),
-            ),
-            Register(
-                RegPtr(
-                    3,
-                ),
-            ),
-            Register(
-                RegPtr(
-                    4,
-                ),
-            ),
-        ],
-    ),
-)||Variable(
-    :Z,
-)||Struct(
-    FlatStruct(
-        Functor(
-            :h,
-            2,
-        ),
-        [
-            Register(
-                RegPtr(
-                    2,
-                ),
-            ),
-            Register(
-                RegPtr(
-                    5,
-                ),
-            ),
-        ],
-    ),
-)||Struct(
-    FlatStruct(
-        Functor(
-            :f,
-            1,
-        ),
-        [
-            Register(
-                RegPtr(
-                    5,
-                ),
-            ),
-        ],
-    ),
-)||Variable(
-    :W,
-)"#
-        .to_string()
+        r#"Struct(FlatStruct(Functor(:p, 3), [Register(RegPtr(2)), Register(RegPtr(3)), Register(RegPtr(4))]))||
+Variable(:Z)||
+Struct(FlatStruct(Functor(:h, 2), [Register(RegPtr(2)), Register(RegPtr(5))]))||
+Struct(FlatStruct(Functor(:f, 1), [Register(RegPtr(5))]))||
+Variable(:W)"#.to_string()
     );
 }
 
@@ -401,7 +358,16 @@ fn test_compile_query() {
         &mut symbol_table,
     )
     .unwrap();
-    assert_eq!(compile_query(query), instructions)
+    assert_eq!(
+        compile_query(query),
+        CompileResult {
+            instructions,
+            var_mapping: HashMap::from([
+                (symbol_table.intern("W"), RegPtr(5)),
+                (symbol_table.intern("Z"), RegPtr(2))
+            ])
+        }
+    )
 }
 
 #[test]
@@ -427,5 +393,14 @@ fn test_compile_program() {
         &mut symbol_table,
     )
     .unwrap();
-    assert_eq!(compile_program(program), instructions)
+    assert_eq!(
+        compile_program(program),
+        CompileResult {
+            instructions,
+            var_mapping: HashMap::from([
+                (symbol_table.intern("X"), RegPtr(5)),
+                (symbol_table.intern("Y"), RegPtr(4))
+            ])
+        }
+    )
 }

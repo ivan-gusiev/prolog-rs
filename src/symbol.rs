@@ -213,20 +213,22 @@ pub trait SymDisplay: Sized {
 }
 
 pub fn to_display<'a, S: SymDisplay>(s: &'a S, symbol_table: &'a SymbolTable) -> impl Display + 'a {
-    SymDisplayHelper { value: s, symbol_table }
+    SymDisplayHelper {
+        value: s,
+        symbol_table,
+    }
 }
 
 struct SymDisplayHelper<'a, T> {
     value: &'a T,
-    symbol_table: &'a SymbolTable
+    symbol_table: &'a SymbolTable,
 }
 
-impl <'a, T : SymDisplay> Display for SymDisplayHelper<'a, T> {
+impl<'a, T: SymDisplay> Display for SymDisplayHelper<'a, T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         self.value.sym_fmt(f, self.symbol_table)
     }
 }
-
 
 #[test]
 fn test_roundtrip_short() {

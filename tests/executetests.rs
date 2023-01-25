@@ -25,12 +25,15 @@ mod executetests {
     fn test_query_execute(input: &str) {
         let mut symbol_table = SymbolTable::new();
         let query = parse_term(input, &mut symbol_table).unwrap();
-        let instructions = compile_query(query);
+        let result = compile_query(query);
         let mut machine = Machine::new();
-        machine.set_code(&instructions);
+        machine.set_code(&result.instructions);
         run_code(&mut machine).expect("machine failure");
 
-        let output = writeout_sym(&machine.iter_heap().map(|d| *d).collect::<Vec<_>>(), &symbol_table);
+        let output = writeout_sym(
+            &machine.iter_heap().map(|d| *d).collect::<Vec<_>>(),
+            &symbol_table,
+        );
         assert_display_snapshot!(case(input, output));
     }
 
@@ -48,12 +51,12 @@ mod executetests {
         let program = parse_term(program_text, &mut symbol_table).unwrap();
         let mut machine = Machine::new();
 
-        let query_instructions = compile_query(query);
-        machine.set_code(&query_instructions);
+        let query_result = compile_query(query);
+        machine.set_code(&query_result.instructions);
         run_code(&mut machine).expect("machine failure");
 
-        let program_instructions = compile_program(program);
-        machine.set_code(&program_instructions);
+        let program_result = compile_program(program);
+        machine.set_code(&program_result.instructions);
         run_code(&mut machine).expect("machine failure");
 
         let input = format!("({}, {})", query_text, program_text);

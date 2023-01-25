@@ -4,7 +4,7 @@ extern crate prolog_rs;
 mod tests {
     use prolog_rs::{
         asm::{parse_program, Arg, Command},
-        compile::compile_query,
+        compile::{compile_query, CompileResult},
         data::{Data, HeapPtr, Ref, RegPtr, Str},
         instr::Instruction,
         lang::{parse_term, Functor},
@@ -31,7 +31,10 @@ mod tests {
     fn program_compiles_to_bytecode() {
         let mut symbol_table = SymbolTable::new();
         let query = parse_term(QUERY, &mut symbol_table).unwrap();
-        let instructions = compile_query(query);
+        let CompileResult {
+            instructions,
+            var_mapping: _,
+        } = compile_query(query);
         let expected = Instruction::from_program(PROGRAM, &mut symbol_table).unwrap();
         assert_eq!(expected.as_slice(), instructions.as_slice());
     }

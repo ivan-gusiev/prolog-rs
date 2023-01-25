@@ -8,7 +8,7 @@ mod langtests {
     use parameterized::parameterized;
     use prolog_rs::{
         lang::parse_term,
-        symbol::{SymbolTable, to_display},
+        symbol::{to_display, SymbolTable},
         util::{case, case_dbg},
     };
 

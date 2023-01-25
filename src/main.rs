@@ -48,7 +48,7 @@ fn parse_and_run_query(input: &str, symbol_table: &mut SymbolTable) -> Result<Ma
     let code = compile_query(query);
 
     let mut machine = Machine::new();
-    machine.set_code(&code);
+    machine.set_code(&code.instructions);
     run_code(&mut machine).map_err(|e| e.message())?;
 
     println!("{}", machine.dbg(symbol_table));
@@ -67,7 +67,7 @@ fn parse_and_run_program(
 
     let code = compile_program(query);
 
-    machine.set_code(&code);
+    machine.set_code(&code.instructions);
     run_code(machine).map_err(|e| e.message())?;
 
     println!("{}", machine.dbg(symbol_table));

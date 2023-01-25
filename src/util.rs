@@ -3,9 +3,7 @@ use std::fmt::{Debug, Display, Error, Write};
 use crate::symbol::{to_display, SymDisplay, SymbolTable};
 
 pub fn writeout<T: Display, I: Iterator<Item = T>>(items: I) -> String {
-    fn writeout_impl<T: Display, I: Iterator<Item = T>>(
-        items: I,
-    ) -> Result<String, Error> {
+    fn writeout_impl<T: Display, I: Iterator<Item = T>>(items: I) -> Result<String, Error> {
         let mut out = String::new();
         for (idx, item) in items.enumerate() {
             writeln!(out, "{:#03}\t{}", idx, item)?;
