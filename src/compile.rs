@@ -139,12 +139,11 @@ fn flatten_query(query: Term) -> (Vec<FlattenedTerm>, HashMap<VarName, RegPtr>) 
             FlattenedTerm::Variable(_) => (),
             FlattenedTerm::Struct(FlatStruct(_, subterms)) => {
                 for subterm in subterms {
-                    match subterm {
-                        FlatRef::Term(id) => match term_map.get(id) {
+                    if let FlatRef::Term(id) = subterm {
+                        match term_map.get(id) {
                             Some(reg) => *subterm = FlatRef::Register(*reg),
                             None => panic!("Could not find a term for {:?}", id),
-                        },
-                        _ => (),
+                        }
                     }
                 }
             }
@@ -176,19 +175,15 @@ fn extract_structs(terms: &[FlattenedTerm]) -> Vec<RegPtr> {
 fn order_query_structs(terms: &[FlattenedTerm], structs_to_sort: &[RegPtr]) -> Vec<RegPtr> {
     fn regs(term: &FlattenedTerm) -> HashSet<RegPtr> {
         let mut result = HashSet::new();
-        match term {
-            FlattenedTerm::Struct(FlatStruct(_, refs)) => {
-                for r in refs {
-                    match r {
-                        FlatRef::Register(ptr) => {
-                            result.insert(*ptr);
-                        }
-                        _ => (),
-                    }
+
+        if let FlattenedTerm::Struct(FlatStruct(_, refs)) = term {
+            for r in refs {
+                if let FlatRef::Register(ptr) = r {
+                    result.insert(*ptr);
                 }
             }
-            _ => (),
         }
+
         result
     }
 
@@ -241,16 +236,13 @@ pub fn compile_query(query: Term) -> CompileResult {
         result.push(Instruction::PutStructure(*f, struct_ptr));
         seen.insert(struct_ptr);
         for flat_ref in refs {
-            match flat_ref {
-                FlatRef::Register(ref_ptr) => {
-                    if seen.contains(ref_ptr) {
-                        result.push(Instruction::SetValue(*ref_ptr))
-                    } else {
-                        seen.insert(*ref_ptr);
-                        result.push(Instruction::SetVariable(*ref_ptr))
-                    }
+            if let FlatRef::Register(ref_ptr) = flat_ref {
+                if seen.contains(ref_ptr) {
+                    result.push(Instruction::UnifyValue(*ref_ptr))
+                } else {
+                    seen.insert(*ref_ptr);
+                    result.push(Instruction::UnifyVariable(*ref_ptr))
                 }
-                _ => (),
             }
         }
     }
@@ -272,16 +264,13 @@ pub fn compile_program(program: Term) -> CompileResult {
         result.push(Instruction::GetStructure(*f, struct_ptr));
         seen.insert(struct_ptr);
         for flat_ref in refs {
-            match flat_ref {
-                FlatRef::Register(ref_ptr) => {
-                    if seen.contains(ref_ptr) {
-                        result.push(Instruction::UnifyValue(*ref_ptr))
-                    } else {
-                        seen.insert(*ref_ptr);
-                        result.push(Instruction::UnifyVariable(*ref_ptr))
-                    }
+            if let FlatRef::Register(ref_ptr) = flat_ref {
+                if seen.contains(ref_ptr) {
+                    result.push(Instruction::UnifyValue(*ref_ptr))
+                } else {
+                    seen.insert(*ref_ptr);
+                    result.push(Instruction::UnifyVariable(*ref_ptr))
                 }
-                _ => (),
             }
         }
     }

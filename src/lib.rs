@@ -239,18 +239,8 @@ impl Machine {
             writeout_sym(&self.get_code(), symbol_table)
         )
         .unwrap();
-        writeln!(
-            str,
-            "heap:\n{}",
-            writeout_sym(&self.heap, symbol_table)
-        )
-        .unwrap();
-        writeln!(
-            str,
-            "regs:\n{}",
-            writeout_sym(&self.reg, symbol_table)
-        )
-        .unwrap();
+        writeln!(str, "heap:\n{}", writeout_sym(&self.heap, symbol_table)).unwrap();
+        writeln!(str, "regs:\n{}", writeout_sym(&self.reg, symbol_table)).unwrap();
         writeln!(str, "pdl:\n{}", writeout(self.pdl.iter())).unwrap();
         str
     }
@@ -309,7 +299,7 @@ fn bind(machine: &mut Machine, lhs: Addr, rhs: Addr) -> MResult {
         (_, Addr::Heap(rhs_heap)) => {
             machine.set_store(lhs, Ref(rhs_heap).into());
             Ok(())
-        },
+        }
     }
 }
 

@@ -177,7 +177,12 @@ impl SymbolTable {
             Ok(sym) => sym,
             Err(_) => {
                 let sisym = self.0.get_or_intern(str);
-                sisym.try_into().unwrap_or_else(|_| panic!("{}", "Interning backend returned a higher than expected symbol index {sisym:?}"))
+                sisym.try_into().unwrap_or_else(|_| {
+                    panic!(
+                        "{}",
+                        "Interning backend returned a higher than expected symbol index {sisym:?}"
+                    )
+                })
             }
         }
     }

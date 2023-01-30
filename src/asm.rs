@@ -54,10 +54,7 @@ pub fn parse_program(
 ) -> Result<Vec<Command>, String> {
     match assembly_parser::lines(program, symbol_table) {
         Ok(lines) => {
-            let good_lines = lines
-                .into_iter()
-                .flatten()
-                .collect();
+            let good_lines = lines.into_iter().flatten().collect();
             Ok(good_lines)
         }
         Err(e) => Err(format!("{e}")),
