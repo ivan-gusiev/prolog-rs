@@ -230,13 +230,12 @@ impl Machine {
     pub fn describe_vars(self: &Machine, var_mapping: &VarMapping) -> Vec<VarDescription> {
         var_mapping
             .mappings()
-            .map(|(&name, &reg)| {
+            .filter_map(|(&name, &reg)| {
                 let addr = self.trace_reg(reg);
                 let value = self.get_store(addr);
-                self.decompile(addr.into(), var_mapping)
+                self.decompile(addr, var_mapping)
                     .map(|term| VarDescription(name, reg, value, term))
             })
-            .flatten()
             .collect()
     }
 

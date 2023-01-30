@@ -31,7 +31,7 @@ mod executetests {
         run_code(&mut machine).expect("machine failure");
 
         let output = writeout_sym(
-            &machine.iter_heap().map(|d| *d).collect::<Vec<_>>(),
+            &machine.iter_heap().copied().collect::<Vec<_>>(),
             &symbol_table,
         );
         assert_display_snapshot!(case(input, output));
@@ -59,7 +59,7 @@ mod executetests {
         machine.set_code(&program_result.instructions);
         run_code(&mut machine).expect("machine failure");
 
-        let input = format!("({}, {})", query_text, program_text);
+        let input = format!("({query_text}, {program_text})");
         let output = machine.dbg(&symbol_table);
         assert_display_snapshot!(case(input, output));
     }
