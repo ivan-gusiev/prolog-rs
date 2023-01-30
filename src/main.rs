@@ -56,24 +56,46 @@ fn parse_and_run_program(input: &str, context: &mut RunningContext) -> Result<()
 
     let code = compile_program(query);
 
+    let no_data_symbol = prolog_rs::lang::Term::Variable(context.symbol_table.intern("NO DATA"));
+
     context.machine.set_code(&code.instructions);
     run_code(&mut context.machine).map_err(|e| e.message())?;
 
     println!("{}", context.machine.dbg(&context.symbol_table));
 
-    for (var_name, &regptr) in context.query_variables.iter() {
+    for (var_name, &regptr) in context.query_variables.mappings() {
         println!(
-            "{} = {}",
+            "{} = {}\t| {}",
             to_display(var_name, &context.symbol_table),
-            to_display(&context.machine.trace_reg(regptr), &context.symbol_table)
+            to_display(
+                &context.machine.get_store(context.machine.trace_reg(regptr)),
+                &context.symbol_table
+            ),
+            to_display(
+                &context
+                    .machine
+                    .decompile(context.machine.trace_reg(regptr), &code.var_mapping)
+                    .unwrap_or(no_data_symbol.clone()),
+                &context.symbol_table
+            ),
         )
     }
     println!("----");
-    for (var_name, &regptr) in code.var_mapping.iter() {
+    for (var_name, &regptr) in code.var_mapping.mappings() {
         println!(
-            "{} = {}",
+            "{} = {}\t| {}",
             to_display(var_name, &context.symbol_table),
-            to_display(&context.machine.trace_reg(regptr), &context.symbol_table)
+            to_display(
+                &context.machine.get_store(context.machine.trace_reg(regptr)),
+                &context.symbol_table
+            ),
+            to_display(
+                &context
+                    .machine
+                    .decompile(context.machine.trace_reg(regptr), &context.query_variables)
+                    .unwrap_or(no_data_symbol.clone()),
+                &context.symbol_table
+            ),
         )
     }
 

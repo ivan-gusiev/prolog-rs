@@ -6,16 +6,16 @@ pub mod lang;
 pub mod symbol;
 pub mod util;
 
+use compile::VarMapping;
 use data::{Addr, Data, HeapPtr, Mode, Ref, RegPtr, Str};
 use instr::Instruction;
-use lang::{Functor, VarName};
-use std::{
-    collections::HashMap,
-    fmt::{Display, Write},
-};
+use lang::{Functor, Term};
+use std::fmt::{Display, Write};
 use symbol::SymbolTable;
 
 use util::{writeout, writeout_sym};
+
+use crate::lang::Struct;
 
 #[derive(Debug)]
 pub struct Machine {
@@ -148,8 +148,83 @@ impl Machine {
         self.pdl.is_empty()
     }
 
-    pub fn trace_reg(&self, reg: RegPtr) -> Data {
-        self.get_store(deref(&self, reg.into()))
+    pub fn trace_reg(&self, reg: RegPtr) -> Addr {
+        deref(&self, reg.into())
+    }
+
+    pub fn decompile(&self, addr: Addr, var_mapping: &VarMapping) -> Option<Term> {
+        fn decompile_str(
+            machine: &Machine,
+            Str(ptr): Str,
+            var_mapping: &VarMapping,
+        ) -> Option<Term> {
+            match machine.get_heap(ptr) {
+                Data::Functor(f) => {
+                    let mut subterms = Vec::<Term>::new();
+                    for i in 1..=f.arity() {
+                        if let Some(subterm) =
+                            machine.decompile((ptr + i as usize).into(), var_mapping)
+                        {
+                            subterms.push(subterm)
+                        } else {
+                            return None;
+                        }
+                    }
+                    Struct::new(f, &subterms).ok().map(Term::Struct)
+                }
+                _ => None,
+            }
+        }
+
+        fn decompile_ref(
+            machine: &Machine,
+            Ref(ptr): Ref,
+            var_mapping: &VarMapping,
+        ) -> Option<Term> {
+            match machine.get_heap(ptr) {
+                h @ Data::Ref(Ref(r)) if r == ptr => {
+                    for (i, val) in machine.iter_reg().enumerate() {
+                        if *val == h {
+                            if let Some(known_var) = var_mapping.get(&RegPtr(i)) {
+                                return Some(Term::Variable(known_var));
+                            }
+                        }
+                    }
+                    None
+                }
+                Data::Ref(next_ref) => decompile_ref(machine, next_ref, var_mapping),
+                Data::Str(str) => decompile_str(machine, str, var_mapping),
+                _ => None,
+            }
+        }
+
+        fn decompile_heap(
+            machine: &Machine,
+            ptr: HeapPtr,
+            var_mapping: &VarMapping,
+        ) -> Option<Term> {
+            match machine.get_heap(ptr) {
+                Data::Ref(r) => decompile_ref(machine, r, var_mapping),
+                Data::Str(str) => decompile_str(machine, str, var_mapping),
+                _ => None,
+            }
+        }
+
+        fn decompile_reg(machine: &Machine, ptr: RegPtr, var_mapping: &VarMapping) -> Option<Term> {
+            if let Some(known_var) = var_mapping.get(&ptr) {
+                return Some(Term::Variable(known_var));
+            }
+            match machine.get_reg(ptr) {
+                Data::Ref(r) => decompile_ref(machine, r, var_mapping),
+                Data::Str(str) => decompile_str(machine, str, var_mapping),
+                _ => None,
+            }
+        }
+
+        match addr {
+            Addr::Reg(reg_ptr) => decompile_reg(self, reg_ptr, var_mapping),
+            Addr::Heap(heap_ptr) => decompile_heap(self, heap_ptr, var_mapping),
+        }
     }
 
     pub fn dbg(&self, symbol_table: &SymbolTable) -> String {
@@ -217,7 +292,7 @@ type MResult = Result<(), MachineFailure>;
 pub struct RunningContext {
     pub machine: Machine,
     pub symbol_table: SymbolTable,
-    pub query_variables: HashMap<VarName, RegPtr>,
+    pub query_variables: VarMapping,
 }
 
 fn deref(machine: &Machine, mut addr: Addr) -> Addr {

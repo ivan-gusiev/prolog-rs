@@ -257,7 +257,7 @@ pub fn compile_query(query: Term) -> CompileResult {
 
     return CompileResult {
         instructions: result,
-        var_mapping: vars,
+        var_mapping: vars.into(),
     };
 }
 
@@ -288,14 +288,37 @@ pub fn compile_program(program: Term) -> CompileResult {
 
     return CompileResult {
         instructions: result,
-        var_mapping: vars,
+        var_mapping: vars.into(),
     };
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct VarMapping(HashMap<RegPtr, VarName>);
+
+impl From<HashMap<VarName, RegPtr>> for VarMapping {
+    fn from(value: HashMap<VarName, RegPtr>) -> Self {
+        let mut result = HashMap::<RegPtr, VarName>::new();
+        for (v, r) in value.into_iter() {
+            result.insert(r, v);
+        }
+        Self(result)
+    }
+}
+
+impl VarMapping {
+    pub fn mappings(&self) -> impl Iterator<Item = (&VarName, &RegPtr)> {
+        self.0.iter().map(|(r, v)| (v, r))
+    }
+
+    pub fn get(&self, ptr: &RegPtr) -> Option<VarName> {
+        self.0.get(ptr).copied()
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct CompileResult {
     pub instructions: Vec<Instruction>,
-    pub var_mapping: HashMap<VarName, RegPtr>,
+    pub var_mapping: VarMapping,
 }
 
 #[cfg(test)]
@@ -366,6 +389,7 @@ fn test_compile_query() {
                 (symbol_table.intern("W"), RegPtr(5)),
                 (symbol_table.intern("Z"), RegPtr(2))
             ])
+            .into()
         }
     )
 }
@@ -401,6 +425,7 @@ fn test_compile_program() {
                 (symbol_table.intern("X"), RegPtr(5)),
                 (symbol_table.intern("Y"), RegPtr(4))
             ])
+            .into()
         }
     )
 }
