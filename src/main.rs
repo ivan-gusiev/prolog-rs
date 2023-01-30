@@ -1,4 +1,4 @@
-use prolog_rs::{symbol::to_display, Machine, RunningContext};
+use prolog_rs::{Machine, RunningContext};
 
 extern crate prolog_rs;
 
@@ -44,7 +44,7 @@ fn parse_and_run_query(input: &str, context: &mut RunningContext) -> Result<(), 
     context.query_variables = code.var_mapping;
     run_code(&mut context.machine).map_err(|e| e.message())?;
 
-    println!("{}", context.machine.dbg(&context.symbol_table));
+    //println!("{}", context.machine.dbg(&context.symbol_table));
 
     Ok(())
 }
@@ -56,48 +56,19 @@ fn parse_and_run_program(input: &str, context: &mut RunningContext) -> Result<()
 
     let code = compile_program(query);
 
-    let no_data_symbol = prolog_rs::lang::Term::Variable(context.symbol_table.intern("NO DATA"));
-
     context.machine.set_code(&code.instructions);
     run_code(&mut context.machine).map_err(|e| e.message())?;
 
-    println!("{}", context.machine.dbg(&context.symbol_table));
+    if context.machine.get_fail() {
+        println!("no")
+    } else {
+        for desc in context.machine.describe_vars(&context.query_variables) {
+            println!("{}", desc.short(&context.symbol_table))
+        }
+    }
+    //println!("{}", context.machine.dbg(&context.symbol_table));
 
-    for (var_name, &regptr) in context.query_variables.mappings() {
-        println!(
-            "{} = {}\t| {}",
-            to_display(var_name, &context.symbol_table),
-            to_display(
-                &context.machine.get_store(context.machine.trace_reg(regptr)),
-                &context.symbol_table
-            ),
-            to_display(
-                &context
-                    .machine
-                    .decompile(context.machine.trace_reg(regptr), &code.var_mapping)
-                    .unwrap_or(no_data_symbol.clone()),
-                &context.symbol_table
-            ),
-        )
-    }
-    println!("----");
-    for (var_name, &regptr) in code.var_mapping.mappings() {
-        println!(
-            "{} = {}\t| {}",
-            to_display(var_name, &context.symbol_table),
-            to_display(
-                &context.machine.get_store(context.machine.trace_reg(regptr)),
-                &context.symbol_table
-            ),
-            to_display(
-                &context
-                    .machine
-                    .decompile(context.machine.trace_reg(regptr), &context.query_variables)
-                    .unwrap_or(no_data_symbol.clone()),
-                &context.symbol_table
-            ),
-        )
-    }
+    //println!("{}", write_program_result(&context.machine, &context.symbol_table, &context.query_variables, &code.var_mapping));
 
     Ok(())
 }

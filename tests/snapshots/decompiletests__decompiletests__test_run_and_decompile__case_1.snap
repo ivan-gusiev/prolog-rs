@@ -1,0 +1,15 @@
+---
+source: tests/decompiletests.rs
+expression: "case(program_str.to_owned() + \" | ?- \" + query_str, program_result)"
+---
+f(X, g(X,a)) | ?- f(b, Y)
+-----
+QUERY
+----
+000	Y	(X3) =	<STR,7>	// g(b, a)
+
+PROGRAM
+____
+000	X	(X2) =	<STR,1>	// b
+
+

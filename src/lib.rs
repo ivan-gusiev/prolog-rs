@@ -9,9 +9,9 @@ pub mod util;
 use compile::VarMapping;
 use data::{Addr, Data, HeapPtr, Mode, Ref, RegPtr, Str};
 use instr::Instruction;
-use lang::{Functor, Term};
+use lang::{Functor, Term, VarName};
 use std::fmt::{Display, Write};
-use symbol::SymbolTable;
+use symbol::{to_display, SymDisplay, SymbolTable};
 
 use util::{writeout, writeout_sym};
 
@@ -211,9 +211,9 @@ impl Machine {
         }
 
         fn decompile_reg(machine: &Machine, ptr: RegPtr, var_mapping: &VarMapping) -> Option<Term> {
-            if let Some(known_var) = var_mapping.get(&ptr) {
+            /*if let Some(known_var) = var_mapping.get(&ptr) {
                 return Some(Term::Variable(known_var));
-            }
+            }*/
             match machine.get_reg(ptr) {
                 Data::Ref(r) => decompile_ref(machine, r, var_mapping),
                 Data::Str(str) => decompile_str(machine, str, var_mapping),
@@ -225,6 +225,19 @@ impl Machine {
             Addr::Reg(reg_ptr) => decompile_reg(self, reg_ptr, var_mapping),
             Addr::Heap(heap_ptr) => decompile_heap(self, heap_ptr, var_mapping),
         }
+    }
+
+    pub fn describe_vars(self: &Machine, var_mapping: &VarMapping) -> Vec<VarDescription> {
+        var_mapping
+            .mappings()
+            .map(|(&name, &reg)| {
+                let addr = self.trace_reg(reg);
+                let value = self.get_store(addr);
+                self.decompile(addr.into(), var_mapping)
+                    .map(|term| VarDescription(name, reg, value, term))
+            })
+            .flatten()
+            .collect()
     }
 
     pub fn dbg(&self, symbol_table: &SymbolTable) -> String {
@@ -274,6 +287,36 @@ impl Display for MachineFailure {
 }
 
 type MResult = Result<(), MachineFailure>;
+
+#[derive(Debug)]
+pub struct VarDescription(VarName, RegPtr, Data, Term);
+
+impl SymDisplay for VarDescription {
+    fn sym_fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        symbol_table: &SymbolTable,
+    ) -> Result<(), std::fmt::Error> {
+        write!(
+            f,
+            "{}\t({}) =\t{}\t// {}",
+            to_display(&self.0, symbol_table),
+            self.1,
+            to_display(&self.2, symbol_table),
+            to_display(&self.3, symbol_table),
+        )
+    }
+}
+
+impl VarDescription {
+    pub fn short(&self, symbol_table: &SymbolTable) -> String {
+        format!(
+            "{0} = {1}",
+            to_display(&self.0, symbol_table),
+            to_display(&self.3, symbol_table)
+        )
+    }
+}
 
 #[derive(Debug, Default)]
 pub struct RunningContext {

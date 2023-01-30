@@ -238,10 +238,10 @@ pub fn compile_query(query: Term) -> CompileResult {
         for flat_ref in refs {
             if let FlatRef::Register(ref_ptr) = flat_ref {
                 if seen.contains(ref_ptr) {
-                    result.push(Instruction::UnifyValue(*ref_ptr))
+                    result.push(Instruction::SetValue(*ref_ptr))
                 } else {
                     seen.insert(*ref_ptr);
-                    result.push(Instruction::UnifyVariable(*ref_ptr))
+                    result.push(Instruction::SetVariable(*ref_ptr))
                 }
             }
         }
