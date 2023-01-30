@@ -6,7 +6,7 @@ fn main() {
     use std::io::{stdin, stdout, Write};
 
     fn input(prompt: &str) -> String {
-        print!("{}", prompt);
+        print!("{prompt}");
         let _ = stdout().flush();
         let mut s = String::new();
         stdin().read_line(&mut s).expect("Failed to read!");
@@ -21,11 +21,11 @@ fn main() {
             "" => (),
             query if query.starts_with("?-") => match parse_and_run_query(query, &mut context) {
                 Ok(()) => query_ready = true,
-                Err(err) => println!("{}", err),
+                Err(err) => println!("{err}"),
             },
             program if query_ready => match parse_and_run_program(program, &mut context) {
                 Ok(()) => (),
-                Err(err) => println!("{}", err),
+                Err(err) => println!("{err}"),
             },
             _ => println!("Please enter the query first!"),
         }

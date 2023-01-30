@@ -19,15 +19,15 @@ impl Display for Instruction {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         match self {
             Instruction::PutStructure(functor, reg) => {
-                write!(f, "put_structure {}, {}", functor, reg)
+                write!(f, "put_structure {functor}, {reg}")
             }
-            Instruction::SetVariable(reg) => write!(f, "set_variable {}", reg),
-            Instruction::SetValue(reg) => write!(f, "set_value {}", reg),
+            Instruction::SetVariable(reg) => write!(f, "set_variable {reg}"),
+            Instruction::SetValue(reg) => write!(f, "set_value {reg}"),
             Instruction::GetStructure(functor, reg) => {
-                write!(f, "get_structure {}, {}", functor, reg)
+                write!(f, "get_structure {functor}, {reg}")
             }
-            Instruction::UnifyVariable(reg) => write!(f, "unify_variable {}", reg),
-            Instruction::UnifyValue(reg) => write!(f, "unify_value {}", reg),
+            Instruction::UnifyVariable(reg) => write!(f, "unify_variable {reg}"),
+            Instruction::UnifyValue(reg) => write!(f, "unify_value {reg}"),
         }
     }
 }
@@ -75,20 +75,20 @@ impl Instruction {
 fn arg_to_functor(arg: Arg) -> Result<Functor, String> {
     match arg {
         Arg::Func(f, a) => Ok(Functor(f, a)),
-        x => Err(format!("Argument {:?} is not a register reference", x)),
+        x => Err(format!("Argument {x:?} is not a register reference")),
     }
 }
 
 fn arg_to_reg(arg: Arg) -> Result<RegPtr, String> {
     match arg {
         Arg::Reg(i) => Ok(RegPtr(i)),
-        x => Err(format!("Argument {:?} is not a register reference", x)),
+        x => Err(format!("Argument {x:?} is not a register reference")),
     }
 }
 
 fn command_to_instr(line: Command) -> Result<Instruction, String> {
     fn bad_args(nm: &str, args: &[Arg]) -> Result<Instruction, String> {
-        Err(format!("Incorrect arguments for {}: {:?}", nm, args))
+        Err(format!("Incorrect arguments for {nm}: {args:?}"))
     }
 
     let Command(cmd, args) = line;
@@ -112,6 +112,6 @@ fn command_to_instr(line: Command) -> Result<Instruction, String> {
         (nm @ "unify_variable", args) => bad_args(nm, args),
         ("unify_value", [r]) => Ok(Instruction::UnifyValue(arg_to_reg(*r)?)),
         (nm @ "unify_value", args) => bad_args(nm, args),
-        (x, _) => Err(format!("Unknown command {}", x)),
+        (x, _) => Err(format!("Unknown command {x}")),
     }
 }

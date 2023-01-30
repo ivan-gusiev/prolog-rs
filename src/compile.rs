@@ -48,7 +48,7 @@ impl Display for FlatStruct {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}(", self.0)?;
         for term in self.1.iter() {
-            write!(f, "{},", term)?
+            write!(f, "{term},")?
         }
         write!(f, ")")
     }
@@ -214,7 +214,7 @@ fn order_query_structs(terms: &[FlattenedTerm], structs_to_sort: &[RegPtr]) -> V
     let mut result = vec![];
     loop {
         let mut batch = ts.pop_all(); // use pop_all to preserve the original ordering
-        if batch.len() == 0 {
+        if batch.is_empty() {
             break;
         }
 
@@ -223,7 +223,7 @@ fn order_query_structs(terms: &[FlattenedTerm], structs_to_sort: &[RegPtr]) -> V
     }
 
     // special case when there are no dependencies between terms, e.g. only one term to sort
-    if result.len() == 0 && structs_to_sort.len() == 1 {
+    if result.is_empty() && structs_to_sort.len() == 1 {
         result.push(structs_to_sort[0]);
     }
 
@@ -255,10 +255,10 @@ pub fn compile_query(query: Term) -> CompileResult {
         }
     }
 
-    return CompileResult {
+    CompileResult {
         instructions: result,
         var_mapping: vars.into(),
-    };
+    }
 }
 
 pub fn compile_program(program: Term) -> CompileResult {
@@ -286,10 +286,10 @@ pub fn compile_program(program: Term) -> CompileResult {
         }
     }
 
-    return CompileResult {
+    CompileResult {
         instructions: result,
         var_mapping: vars.into(),
-    };
+    }
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -347,12 +347,12 @@ fn test_flatten_query() {
     let results = flatten_query(query)
         .0
         .into_iter()
-        .map(|x| format!("{:?}", x))
+        .map(|x| format!("{x:?}"))
         .collect::<Vec<_>>()
         .join("||\n");
 
     assert_eq!(
-        format!("{}", results),
+        format!("{results}"),
         r#"Struct(FlatStruct(Functor(:p, 3), [Register(RegPtr(2)), Register(RegPtr(3)), Register(RegPtr(4))]))||
 Variable(:Z)||
 Struct(FlatStruct(Functor(:h, 2), [Register(RegPtr(2)), Register(RegPtr(5))]))||

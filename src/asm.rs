@@ -56,10 +56,10 @@ pub fn parse_program(
         Ok(lines) => {
             let good_lines = lines
                 .into_iter()
-                .filter_map(std::convert::identity)
+                .flatten()
                 .collect();
             Ok(good_lines)
         }
-        Err(e) => Err(format!("{}", e)),
+        Err(e) => Err(format!("{e}")),
     }
 }

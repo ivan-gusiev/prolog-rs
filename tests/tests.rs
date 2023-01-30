@@ -95,7 +95,7 @@ mod tests {
             str(5),
         ];
 
-        let actual_heap = machine.iter_heap().map(|x| *x).collect::<Vec<_>>();
+        let actual_heap = machine.iter_heap().copied().collect::<Vec<_>>();
 
         assert_eq!(expected_heap.as_slice(), actual_heap.as_slice())
     }

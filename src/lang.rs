@@ -46,12 +46,11 @@ impl Struct {
     pub fn new(functor: Functor, terms: &[Term]) -> Result<Struct, String> {
         if terms.len() != functor.arity() as usize {
             return Err(format!(
-                "functor {} arity does not correspond to the terms count",
-                functor
+                "functor {functor} arity does not correspond to the terms count"
             ));
         }
 
-        return Ok(Struct(functor, terms.to_vec()));
+        Ok(Struct(functor, terms.to_vec()))
     }
 
     pub fn from_name(name: FunctorName, terms: &[Term]) -> Struct {
@@ -83,7 +82,7 @@ impl Display for Struct {
         if !self.is_const() {
             write!(f, "({}", self.terms()[0])?;
             for term in self.terms().iter().skip(1) {
-                write!(f, ", {}", term)?
+                write!(f, ", {term}")?
             }
             write!(f, ")")?
         }
@@ -123,7 +122,7 @@ pub enum Term {
 impl Display for Term {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         match self {
-            Self::Variable(nm) => write!(f, "{}", nm),
+            Self::Variable(nm) => write!(f, "{nm}"),
             Self::Struct(s) => s.fmt(f),
         }
     }
@@ -185,7 +184,7 @@ peg::parser!(
 );
 
 pub fn parse_term(term: &str, symbol_table: &mut SymbolTable) -> Result<Term, String> {
-    prolog_parser::term(term, symbol_table).map_err(|e| format!("{}", e))
+    prolog_parser::term(term, symbol_table).map_err(|e| format!("{e}"))
 }
 
 #[cfg(test)]

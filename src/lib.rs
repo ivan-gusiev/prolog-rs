@@ -149,7 +149,7 @@ impl Machine {
     }
 
     pub fn trace_reg(&self, reg: RegPtr) -> Addr {
-        deref(&self, reg.into())
+        deref(self, reg.into())
     }
 
     pub fn decompile(&self, addr: Addr, var_mapping: &VarMapping) -> Option<Term> {
@@ -229,32 +229,29 @@ impl Machine {
 
     pub fn dbg(&self, symbol_table: &SymbolTable) -> String {
         let mut str = String::new();
-        writeln!(str, "{}: {}", "h", self.get_h()).unwrap();
-        writeln!(str, "{}: {}", "s", self.get_s()).unwrap();
-        writeln!(str, "{}: {}", "mode", self.get_mode()).unwrap();
-        writeln!(str, "{}: {}", "fail", self.get_fail()).unwrap();
+        writeln!(str, "h: {}", self.get_h()).unwrap();
+        writeln!(str, "s: {}", self.get_s()).unwrap();
+        writeln!(str, "mode: {}", self.get_mode()).unwrap();
+        writeln!(str, "fail: {}", self.get_fail()).unwrap();
         writeln!(
             str,
-            "{}:\n{}",
-            "code",
+            "code:\n{}",
             writeout_sym(&self.get_code(), symbol_table)
         )
         .unwrap();
         writeln!(
             str,
-            "{}:\n{}",
-            "heap",
+            "heap:\n{}",
             writeout_sym(&self.heap, symbol_table)
         )
         .unwrap();
         writeln!(
             str,
-            "{}:\n{}",
-            "regs",
+            "regs:\n{}",
             writeout_sym(&self.reg, symbol_table)
         )
         .unwrap();
-        writeln!(str, "{}:\n{}", "pdl", writeout(self.pdl.iter())).unwrap();
+        writeln!(str, "pdl:\n{}", writeout(self.pdl.iter())).unwrap();
         str
     }
 }
@@ -282,7 +279,7 @@ impl MachineFailure {
 
 impl Display for MachineFailure {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -309,7 +306,10 @@ fn bind(machine: &mut Machine, lhs: Addr, rhs: Addr) -> MResult {
     match (lhs, rhs) {
         (Addr::Reg(_), Addr::Reg(_)) => Err(MachineFailure::RegBind),
         (Addr::Heap(_), Addr::Reg(_)) => bind(machine, rhs, lhs),
-        (_, Addr::Heap(rhs_heap)) => Ok(machine.set_store(lhs, Ref(rhs_heap).into())),
+        (_, Addr::Heap(rhs_heap)) => {
+            machine.set_store(lhs, Ref(rhs_heap).into());
+            Ok(())
+        },
     }
 }
 

@@ -66,9 +66,9 @@ impl Display for Data {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         match self {
             Data::Empty => write!(f, "<EMPTY>"),
-            Data::Ref(r) => write!(f, "{}", r),
-            Data::Str(s) => write!(f, "{}", s),
-            Data::Functor(functor) => write!(f, "{}", functor),
+            Data::Ref(r) => write!(f, "{r}"),
+            Data::Str(s) => write!(f, "{s}"),
+            Data::Functor(functor) => write!(f, "{functor}"),
         }
     }
 }
@@ -137,8 +137,8 @@ pub enum Addr {
 impl Display for Addr {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         match self {
-            Addr::Heap(h) => write!(f, "{}", h),
-            Addr::Reg(r) => write!(f, "{}", r),
+            Addr::Heap(h) => write!(f, "{h}"),
+            Addr::Reg(r) => write!(f, "{r}"),
         }
     }
 }

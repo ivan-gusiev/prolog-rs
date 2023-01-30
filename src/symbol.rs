@@ -22,7 +22,7 @@ impl Symbol {
     }
 
     pub fn is_inline(&self) -> bool {
-        return !self.is_interned();
+        !self.is_interned()
     }
 
     // private because it can panic
@@ -49,7 +49,7 @@ impl Display for Symbol {
 impl SymDisplay for Symbol {
     fn sym_fmt(&self, f: &mut Formatter<'_>, symbol_table: &SymbolTable) -> Result<(), Error> {
         match symbol_table.resolve(*self) {
-            Some(str) => write!(f, "{}", str),
+            Some(str) => write!(f, "{str}"),
             None => self.fmt(f),
         }
     }
@@ -99,7 +99,7 @@ impl TryFrom<String> for Symbol {
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         let str = value.as_str();
-        return str.try_into();
+        str.try_into()
     }
 }
 
@@ -177,13 +177,7 @@ impl SymbolTable {
             Ok(sym) => sym,
             Err(_) => {
                 let sisym = self.0.get_or_intern(str);
-                sisym.try_into().expect(
-                    format!(
-                        "Interning backend returned a higher than expected symbol index {:?}",
-                        sisym
-                    )
-                    .as_str(),
-                )
+                sisym.try_into().unwrap_or_else(|_| panic!("{}", "Interning backend returned a higher than expected symbol index {sisym:?}"))
             }
         }
     }
@@ -247,6 +241,6 @@ fn test_roundtrip_long() {
 #[test]
 fn test_roundtrip_string() {
     let mut table = SymbolTable::new();
-    let sym = table.intern("caterpillar".to_string());
+    let sym = table.intern("caterpillar");
     assert_eq!(table.resolve(sym), Some("caterpillar".to_string()))
 }
