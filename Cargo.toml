@@ -5,6 +5,7 @@ authors = ["Ivan Gusiev <ivan.gusiev@gmail.com>"]
 
 [dependencies]
 peg = "0.8.1"
+rustyline = "10.1.1"
 string-interner = "0.14.0"
 topological-sort = "0.2.2"
 

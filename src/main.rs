@@ -1,35 +1,64 @@
+use crate::rustyline::error::ReadlineError;
+use crate::rustyline::{Editor, Result as RustyResult};
+use prolog_rs::compile::VarMapping;
 use prolog_rs::{Machine, RunningContext};
 
 extern crate prolog_rs;
+extern crate rustyline;
 
-fn main() {
-    use std::io::{stdin, stdout, Write};
-
-    fn input(prompt: &str) -> String {
-        print!("{prompt}");
-        let _ = stdout().flush();
-        let mut s = String::new();
-        stdin().read_line(&mut s).expect("Failed to read!");
-        s
-    }
-
+fn main() -> RustyResult<()> {
+    let mut rl = Editor::<()>::new()?;
     let mut context = RunningContext::default();
     let mut query_ready = false;
     loop {
-        match input("> ").trim() {
-            "exit" => break,
-            "" => (),
-            query if query.starts_with("?-") => match parse_and_run_query(query, &mut context) {
-                Ok(()) => query_ready = true,
-                Err(err) => println!("{err}"),
-            },
-            program if query_ready => match parse_and_run_program(program, &mut context) {
-                Ok(()) => (),
-                Err(err) => println!("{err}"),
-            },
-            _ => println!("Please enter the query first!"),
+        match rl.readline("> ") {
+            Ok(str) => {
+                match str.trim() {
+                    "exit" => break,
+                    "" => (),
+                    "dbg" => {
+                        println!("{}", context.machine.dbg(&context.symbol_table));
+                    }
+                    "vars" => {
+                        println!(
+                            "{}",
+                            prolog_rs::util::write_program_result(
+                                &context.machine,
+                                &context.symbol_table,
+                                &context.query_variables,
+                                &VarMapping::default()
+                            )
+                        );
+                    }
+                    query if query.starts_with("?-") => {
+                        match parse_and_run_query(query, &mut context) {
+                            Ok(()) => query_ready = true,
+                            Err(err) => println!("{err}"),
+                        }
+                    }
+                    program if query_ready => match parse_and_run_program(program, &mut context) {
+                        Ok(()) => (),
+                        Err(err) => println!("{err}"),
+                    },
+                    _ => println!("Please enter the query first!"),
+                }
+                rl.add_history_entry(str);
+            }
+            Err(ReadlineError::Interrupted) => {
+                println!("CTRL-C");
+                break;
+            }
+            Err(ReadlineError::Eof) => {
+                println!("CTRL-D");
+                break;
+            }
+            Err(err) => {
+                println!("Error: {:?}", err);
+                break;
+            }
         }
     }
+    Ok(())
 }
 
 fn parse_and_run_query(input: &str, context: &mut RunningContext) -> Result<(), String> {
