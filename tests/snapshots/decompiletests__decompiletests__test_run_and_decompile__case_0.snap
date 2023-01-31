@@ -6,8 +6,8 @@ p(Z, h(Z,W), f(W)) | ?- p(f(X), h(Y, f(a)), Y)
 -----
 QUERY
 ----
-000	Y	(X4) =	<STR,18>	// f(f(a))
-001	X	(X5) =	<STR,6>	// f(a)
+000	X	(X5) =	<STR,6>	// f(a)
+001	Y	(X4) =	<STR,18>	// f(f(a))
 
 PROGRAM
 ____

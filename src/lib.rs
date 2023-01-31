@@ -315,6 +315,10 @@ impl VarDescription {
             to_display(&self.3, symbol_table)
         )
     }
+
+    pub fn to_assignment(&self) -> (VarName, Term) {
+        (self.0, self.3.clone())
+    }
 }
 
 #[derive(Debug, Default)]

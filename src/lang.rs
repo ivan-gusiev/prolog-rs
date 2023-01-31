@@ -39,7 +39,7 @@ impl SymDisplay for Functor {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Struct(Functor, Vec<Term>);
 
 impl Struct {
@@ -113,7 +113,7 @@ impl SymDisplay for Struct {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Term {
     Variable(VarName),
     Struct(Struct),

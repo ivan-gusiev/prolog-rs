@@ -18,6 +18,7 @@ mod compiletests {
         "D",
         "f(X, g(X,a))",
         "f(b, Y)",
+        "p(f(X), h(Y, f(a)), Y)",
         "a"
     })]
     fn test_query_compile(input: &str) {
