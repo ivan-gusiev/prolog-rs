@@ -42,9 +42,9 @@ impl Display for FlatRef {
 }
 
 #[derive(Debug, Hash, PartialEq, Eq)]
-struct FlatStruct(Functor, Vec<FlatRef>);
+struct FlatStruct<Ptr>(Functor, Vec<Ptr>);
 
-impl Display for FlatStruct {
+impl<Ptr: Display> Display for FlatStruct<Ptr> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}(", self.0)?;
         for term in self.1.iter() {
@@ -54,13 +54,25 @@ impl Display for FlatStruct {
     }
 }
 
-#[derive(Debug, Hash, PartialEq, Eq)]
-enum FlattenedTerm {
-    Variable(VarName),
-    Struct(FlatStruct),
+impl<Ptr: Copy> FlatStruct<Ptr> {
+    fn transform<NewPtr, F>(&self, mapper: F) -> FlatStruct<NewPtr>
+    where
+        F: FnMut(Ptr) -> NewPtr,
+    {
+        FlatStruct(
+            self.0,
+            self.1.iter().copied().map(mapper).collect::<Vec<_>>(),
+        )
+    }
 }
 
-impl Display for FlattenedTerm {
+#[derive(Debug, Hash, PartialEq, Eq)]
+enum FlattenedTerm<Ptr> {
+    Variable(VarName),
+    Struct(FlatStruct<Ptr>),
+}
+
+impl<Ptr: Display> Display for FlattenedTerm<Ptr> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             FlattenedTerm::Variable(n) => n.fmt(f),
@@ -69,25 +81,35 @@ impl Display for FlattenedTerm {
     }
 }
 
-impl FlattenedTerm {
-    fn new_str(f: Functor, refs: Vec<FlatRef>) -> FlattenedTerm {
+impl<Ptr: Copy> FlattenedTerm<Ptr> {
+    fn new_str(f: Functor, refs: Vec<Ptr>) -> FlattenedTerm<Ptr> {
         FlattenedTerm::Struct(FlatStruct(f, refs))
     }
 
-    fn get_str(&self) -> &FlatStruct {
+    fn get_str(&self) -> &FlatStruct<Ptr> {
         if let FlattenedTerm::Struct(str) = self {
             str
         } else {
             panic!("not a struct")
         }
     }
+
+    fn transform<NewPtr, F>(&self, mapper: F) -> FlattenedTerm<NewPtr>
+    where
+        F: FnMut(Ptr) -> NewPtr,
+    {
+        match self {
+            FlattenedTerm::Variable(nm) => FlattenedTerm::Variable(*nm),
+            FlattenedTerm::Struct(str) => FlattenedTerm::Struct(str.transform(mapper)),
+        }
+    }
 }
 
-fn flatten_query(query: Term) -> (Vec<FlattenedTerm>, HashMap<VarName, RegPtr>) {
+fn flatten_query(query: Term) -> (Vec<FlattenedTerm<RegPtr>>, HashMap<VarName, RegPtr>) {
     let mut term_map = HashMap::<TermId, RegPtr>::new();
     let mut var_map = HashMap::<VarName, RegPtr>::new();
     let mut queue = VecDeque::from([(&query, TermId(0))]);
-    let mut result = Vec::<FlattenedTerm>::new();
+    let mut flatrefs = Vec::<FlattenedTerm<FlatRef>>::new();
     let mut term_counter = TermId(0);
 
     let mut next_term_id = || {
@@ -102,9 +124,9 @@ fn flatten_query(query: Term) -> (Vec<FlattenedTerm>, HashMap<VarName, RegPtr>) 
                 if var_map.contains_key(nm) {
                     term_map.insert(id, var_map[nm]);
                 } else {
-                    result.push(FlattenedTerm::Variable(*nm));
-                    var_map.insert(*nm, RegPtr(result.len()));
-                    term_map.insert(id, RegPtr(result.len()));
+                    flatrefs.push(FlattenedTerm::Variable(*nm));
+                    var_map.insert(*nm, RegPtr(flatrefs.len()));
+                    term_map.insert(id, RegPtr(flatrefs.len()));
                 }
             }
             Some((Term::Struct(str), id)) => {
@@ -128,27 +150,24 @@ fn flatten_query(query: Term) -> (Vec<FlattenedTerm>, HashMap<VarName, RegPtr>) 
                         }
                     }
                 }
-                result.push(FlattenedTerm::new_str(str.functor(), subterms));
-                term_map.insert(id, RegPtr(result.len()));
+                flatrefs.push(FlattenedTerm::new_str(str.functor(), subterms));
+                term_map.insert(id, RegPtr(flatrefs.len()));
             }
         }
     }
 
-    for term in result.iter_mut() {
-        match term {
-            FlattenedTerm::Variable(_) => (),
-            FlattenedTerm::Struct(FlatStruct(_, subterms)) => {
-                for subterm in subterms {
-                    if let FlatRef::Term(id) = subterm {
-                        match term_map.get(id) {
-                            Some(reg) => *subterm = FlatRef::Register(*reg),
-                            None => panic!("Could not find a term for {:?}", id),
-                        }
-                    }
-                }
-            }
-        }
-    }
+    let flat_to_reg = |flat_term| match flat_term {
+        FlatRef::Term(id) => match term_map.get(&id) {
+            Some(reg) => *reg,
+            None => panic!("Could not find a term for {:?}", id),
+        },
+        FlatRef::Register(reg) => reg,
+    };
+
+    let result: Vec<FlattenedTerm<RegPtr>> = flatrefs
+        .iter()
+        .map(|ft| ft.transform(flat_to_reg))
+        .collect();
 
     (result, var_map)
 }
@@ -161,7 +180,7 @@ fn itop(idx: usize) -> RegPtr {
     RegPtr(idx + 1)
 }
 
-fn extract_structs(terms: &[FlattenedTerm]) -> Vec<RegPtr> {
+fn extract_structs(terms: &[FlattenedTerm<RegPtr>]) -> Vec<RegPtr> {
     let mut structs = vec![];
     for (i, term) in terms.iter().enumerate() {
         match term {
@@ -172,16 +191,12 @@ fn extract_structs(terms: &[FlattenedTerm]) -> Vec<RegPtr> {
     structs
 }
 
-fn order_query_structs(terms: &[FlattenedTerm], structs_to_sort: &[RegPtr]) -> Vec<RegPtr> {
-    fn regs(term: &FlattenedTerm) -> HashSet<RegPtr> {
+fn order_query_structs(terms: &[FlattenedTerm<RegPtr>], structs_to_sort: &[RegPtr]) -> Vec<RegPtr> {
+    fn regs(term: &FlattenedTerm<RegPtr>) -> HashSet<RegPtr> {
         let mut result = HashSet::new();
 
         if let FlattenedTerm::Struct(FlatStruct(_, refs)) = term {
-            for r in refs {
-                if let FlatRef::Register(ptr) = r {
-                    result.insert(*ptr);
-                }
-            }
+            result.extend(refs);
         }
 
         result
@@ -235,14 +250,12 @@ pub fn compile_query(query: Term) -> CompileResult {
         let FlatStruct(f, refs) = registers[ptoi(struct_ptr)].get_str();
         result.push(Instruction::PutStructure(*f, struct_ptr));
         seen.insert(struct_ptr);
-        for flat_ref in refs {
-            if let FlatRef::Register(ref_ptr) = flat_ref {
-                if seen.contains(ref_ptr) {
-                    result.push(Instruction::SetValue(*ref_ptr))
-                } else {
-                    seen.insert(*ref_ptr);
-                    result.push(Instruction::SetVariable(*ref_ptr))
-                }
+        for ref_ptr in refs {
+            if seen.contains(ref_ptr) {
+                result.push(Instruction::SetValue(*ref_ptr))
+            } else {
+                seen.insert(*ref_ptr);
+                result.push(Instruction::SetVariable(*ref_ptr))
             }
         }
     }
@@ -263,14 +276,12 @@ pub fn compile_program(program: Term) -> CompileResult {
         let FlatStruct(f, refs) = registers[ptoi(struct_ptr)].get_str();
         result.push(Instruction::GetStructure(*f, struct_ptr));
         seen.insert(struct_ptr);
-        for flat_ref in refs {
-            if let FlatRef::Register(ref_ptr) = flat_ref {
-                if seen.contains(ref_ptr) {
-                    result.push(Instruction::UnifyValue(*ref_ptr))
-                } else {
-                    seen.insert(*ref_ptr);
-                    result.push(Instruction::UnifyVariable(*ref_ptr))
-                }
+        for ref_ptr in refs {
+            if seen.contains(ref_ptr) {
+                result.push(Instruction::UnifyValue(*ref_ptr))
+            } else {
+                seen.insert(*ref_ptr);
+                result.push(Instruction::UnifyVariable(*ref_ptr))
             }
         }
     }
@@ -346,11 +357,12 @@ fn test_flatten_query() {
 
     assert_eq!(
         format!("{results}"),
-        r#"Struct(FlatStruct(Functor(:p, 3), [Register(RegPtr(2)), Register(RegPtr(3)), Register(RegPtr(4))]))||
+        r#"Struct(FlatStruct(Functor(:p, 3), [RegPtr(2), RegPtr(3), RegPtr(4)]))||
 Variable(:Z)||
-Struct(FlatStruct(Functor(:h, 2), [Register(RegPtr(2)), Register(RegPtr(5))]))||
-Struct(FlatStruct(Functor(:f, 1), [Register(RegPtr(5))]))||
-Variable(:W)"#.to_string()
+Struct(FlatStruct(Functor(:h, 2), [RegPtr(2), RegPtr(5)]))||
+Struct(FlatStruct(Functor(:f, 1), [RegPtr(5)]))||
+Variable(:W)"#
+            .to_string()
     );
 }
 
