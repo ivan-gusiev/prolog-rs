@@ -302,6 +302,10 @@ impl VarMapping {
     pub fn get(&self, ptr: &RegPtr) -> Option<VarName> {
         self.0.get(ptr).copied()
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]

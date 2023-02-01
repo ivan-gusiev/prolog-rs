@@ -53,7 +53,7 @@ fn main() -> RustyResult<()> {
                 break;
             }
             Err(err) => {
-                println!("Error: {:?}", err);
+                println!("Error: {err:?}");
                 break;
             }
         }
@@ -72,9 +72,6 @@ fn parse_and_run_query(input: &str, context: &mut RunningContext) -> Result<(), 
     context.machine.set_code(&code.instructions);
     context.query_variables = code.var_mapping;
     run_code(&mut context.machine).map_err(|e| e.message())?;
-
-    //println!("{}", context.machine.dbg(&context.symbol_table));
-
     Ok(())
 }
 
@@ -88,16 +85,18 @@ fn parse_and_run_program(input: &str, context: &mut RunningContext) -> Result<()
     context.machine.set_code(&code.instructions);
     run_code(&mut context.machine).map_err(|e| e.message())?;
 
+    output_result(context);
+    Ok(())
+}
+
+fn output_result(context: &RunningContext) {
     if context.machine.get_fail() {
         println!("no")
+    } else if context.query_variables.is_empty() {
+        println!("yes")
     } else {
         for desc in context.machine.describe_vars(&context.query_variables) {
             println!("{}", desc.short(&context.symbol_table))
         }
     }
-    //println!("{}", context.machine.dbg(&context.symbol_table));
-
-    //println!("{}", write_program_result(&context.machine, &context.symbol_table, &context.query_variables, &code.var_mapping));
-
-    Ok(())
 }
