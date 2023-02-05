@@ -4,13 +4,18 @@ extern crate prolog_rs;
 
 #[cfg(test)]
 mod executetests {
+    use std::collections::HashMap;
+    use std::fmt::Write;
+
     use insta::assert_display_snapshot;
     use parameterized::parameterized;
     use prolog_rs::{
-        compile::{compile_program, compile_query},
-        lang::parse_term,
+        compile::{compile_program, compile_query, VarMapping},
+        data::{CodePtr, RegPtr},
+        instr::Instruction,
+        lang::{parse_term, Functor, VarName},
         run_code,
-        symbol::SymbolTable,
+        symbol::{to_display, SymbolTable},
         util::{case, writeout_sym},
         Machine,
     };
@@ -62,5 +67,104 @@ mod executetests {
         let input = format!("({query_text}, {program_text})");
         let output = machine.dbg(&symbol_table);
         assert_display_snapshot!(case(input, output));
+    }
+
+    #[test]
+    fn test_l1_query() {
+        let mut symbol_table = SymbolTable::new();
+        let h2 = Functor(symbol_table.intern("h"), 2);
+        let f1 = Functor(symbol_table.intern("f"), 1);
+
+        let a1 = RegPtr(1);
+        let a2 = RegPtr(2);
+        let a3 = RegPtr(3);
+        let x4 = RegPtr(4);
+        let x5 = RegPtr(5);
+
+        let code = vec![
+            Instruction::PutVariable(x4, a1),
+            Instruction::PutStructure(h2, a2),
+            Instruction::SetValue(x4),
+            Instruction::SetVariable(x5),
+            Instruction::PutStructure(f1, a3),
+            Instruction::SetValue(x5),
+            Instruction::Call(CodePtr(0)),
+        ];
+
+        let mut machine = Machine::new();
+        machine.set_code(&code);
+        run_code(&mut machine).expect("machine failure");
+
+        let heap = machine.iter_heap().copied().collect::<Vec<_>>();
+
+        let heap_writeout = writeout_sym(&heap, &symbol_table);
+        assert_display_snapshot!(heap_writeout);
+    }
+
+    #[test]
+    fn test_l1_program_query() {
+        let mut symbol_table = SymbolTable::new();
+        let h2 = Functor(symbol_table.intern("h"), 2);
+        let f1 = Functor(symbol_table.intern("f"), 1);
+        let a0 = Functor(symbol_table.intern("a"), 0);
+
+        let a1 = RegPtr(1);
+        let a2 = RegPtr(2);
+        let a3 = RegPtr(3);
+        let x4 = RegPtr(4);
+        let x5 = RegPtr(5);
+        let x6 = RegPtr(6);
+        let x7 = RegPtr(7);
+
+        let query_code = vec![
+            Instruction::PutVariable(x4, a1),
+            Instruction::PutStructure(h2, a2),
+            Instruction::SetValue(x4),
+            Instruction::SetVariable(x5),
+            Instruction::PutStructure(f1, a3),
+            Instruction::SetValue(x5),
+            Instruction::Call(CodePtr(0)),
+        ];
+
+        let program_code = vec![
+            Instruction::GetStructure(f1, a1),
+            Instruction::UnifyVariable(x4),
+            Instruction::GetStructure(h2, a2),
+            Instruction::UnifyVariable(x5),
+            Instruction::UnifyVariable(x6),
+            Instruction::GetValue(x5, a3),
+            Instruction::GetStructure(f1, x6),
+            Instruction::UnifyVariable(x7),
+            Instruction::GetStructure(a0, x7),
+        ];
+
+        let mut machine = Machine::new();
+
+        machine.set_code(&query_code);
+        run_code(&mut machine).expect("machine failure");
+
+        machine.set_code(&program_code);
+        run_code(&mut machine).expect("machine failure");
+
+        let mut mk_sym = |s: &str| symbol_table.intern(s);
+
+        let vars = HashMap::<VarName, RegPtr>::from([
+            (mk_sym("a1"), a1),
+            (mk_sym("a2"), a2),
+            (mk_sym("a3"), a3),
+            (mk_sym("x4"), x4),
+            (mk_sym("x5"), x5),
+            (mk_sym("x6"), x6),
+            (mk_sym("x7"), x7),
+        ]);
+        let var_mapping = VarMapping::from(vars);
+        let mut output = String::new();
+        for i in 1..7 {
+            if let Some(term) = machine.decompile(RegPtr(i).into(), &var_mapping) {
+                writeln!(output, "reg({}) = {}", i, to_display(&term, &symbol_table)).unwrap();
+            }
+        }
+
+        assert_display_snapshot!(output);
     }
 }

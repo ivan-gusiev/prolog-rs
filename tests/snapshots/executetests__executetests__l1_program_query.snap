@@ -1,0 +1,11 @@
+---
+source: tests/executetests.rs
+expression: output
+---
+reg(1) = f(f(a))
+reg(2) = h(f(f(a)), f(a))
+reg(3) = f(f(a))
+reg(4) = f(a)
+reg(5) = f(f(a))
+reg(6) = f(a)
+

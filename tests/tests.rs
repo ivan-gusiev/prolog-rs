@@ -25,6 +25,16 @@ mod tests {
         set_value X4          %              X4)
         "#;
 
+    // const PROGRAM1: &str = r#"
+    //     put_variable X4, A1   % ?- p(Z,
+    //     put_structure h/2, A2 %        h
+    //     set_value X4          %         (Z,
+    //     set_variable X5       %            W),
+    //     put_structure f/1, A3 %               f
+    //     set_value X5          %                (W))
+    //     call @0               % who knows where this points
+    // "#;
+
     const QUERY: &str = "p(Z,h(Z,W), f(W))";
 
     #[test]
@@ -40,7 +50,7 @@ mod tests {
     }
 
     #[test]
-    fn query_compiles_to_bytecode() {
+    fn instructions_result_in_heap() {
         let mut symbol_table = SymbolTable::new();
         let h2 = Functor(symbol_table.intern("h"), 2);
         let f1 = Functor(symbol_table.intern("f"), 1);

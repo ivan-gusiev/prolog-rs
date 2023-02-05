@@ -3,7 +3,10 @@ use data::RegPtr;
 use lang::Functor;
 use std::fmt::{Display, Formatter};
 
-use crate::symbol::{to_display, SymDisplay, SymbolTable};
+use crate::{
+    data::CodePtr,
+    symbol::{to_display, SymDisplay, SymbolTable},
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Instruction {
@@ -13,6 +16,12 @@ pub enum Instruction {
     GetStructure(Functor, RegPtr),
     UnifyVariable(RegPtr),
     UnifyValue(RegPtr),
+    Call(CodePtr),
+    Proceed,
+    PutVariable(RegPtr, RegPtr),
+    PutValue(RegPtr, RegPtr),
+    GetVariable(RegPtr, RegPtr),
+    GetValue(RegPtr, RegPtr),
 }
 
 impl Display for Instruction {
@@ -28,6 +37,12 @@ impl Display for Instruction {
             }
             Instruction::UnifyVariable(reg) => write!(f, "unify_variable {reg}"),
             Instruction::UnifyValue(reg) => write!(f, "unify_value {reg}"),
+            Instruction::Call(code) => write!(f, "call {code}"),
+            Instruction::Proceed => write!(f, "proceed"),
+            Instruction::PutVariable(x, a) => write!(f, "put_variable {x}, {a}"),
+            Instruction::PutValue(x, a) => write!(f, "put_value {x}, {a}"),
+            Instruction::GetVariable(x, a) => write!(f, "put_variable {x}, {a}"),
+            Instruction::GetValue(x, a) => write!(f, "put_value {x}, {a}"),
         }
     }
 }

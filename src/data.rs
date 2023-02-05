@@ -36,6 +36,23 @@ impl Display for RegPtr {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
+pub struct CodePtr(pub usize);
+
+impl Display for CodePtr {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "CODE[{}]", self.0)
+    }
+}
+
+impl ops::Add<usize> for CodePtr {
+    type Output = CodePtr;
+
+    fn add(self, rhs: usize) -> CodePtr {
+        CodePtr(self.0 + rhs)
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Ref(pub HeapPtr);
 

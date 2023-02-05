@@ -1,0 +1,13 @@
+---
+source: tests/executetests.rs
+expression: heap_writeout
+---
+000	<REF,0>
+001	<STR,2>
+002	h/2
+003	<REF,0>
+004	<REF,4>
+005	<STR,6>
+006	f/1
+007	<REF,4>
+

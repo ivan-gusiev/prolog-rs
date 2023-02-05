@@ -1,8 +1,8 @@
 ### To Do
-- [ ] compile: fix FlatRef, see if possible to optimize
-- [ ] more compiler tests
+- [ ] more compiler tests (e.g. from the brown book)
 - [ ] static type system?
 - [ ] roll my own topological sort
+- [ ] `call p/n` should really have a code address when compiled, not a reference to a functor
 
 ### Bugs
 - [ ] Type `?- X` then `X`. It cannot figure out the unification.
@@ -17,3 +17,4 @@
 - [x] name table, so we can support more than 1 character in our names
 - [x] parse_* functions should take a mut ref to symboltable, instead of doing the in-out dance
 - [x] fix Clippy warnings
+- [x] compile: fix FlatRef, see if possible to optimize

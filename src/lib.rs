@@ -7,7 +7,7 @@ pub mod symbol;
 pub mod util;
 
 use compile::VarMapping;
-use data::{Addr, Data, HeapPtr, Mode, Ref, RegPtr, Str};
+use data::{Addr, CodePtr, Data, HeapPtr, Mode, Ref, RegPtr, Str};
 use instr::Instruction;
 use lang::{Functor, Term, VarName};
 use std::fmt::{Display, Write};
@@ -22,8 +22,9 @@ pub struct Machine {
     heap: Vec<Data>,
     reg: Vec<Data>,
     code: Vec<Instruction>,
-    h: HeapPtr,
-    s: HeapPtr,
+    h: HeapPtr, // heap top
+    s: HeapPtr, // subterm to be matched
+    p: CodePtr, // instruction to be executed
     mode: Mode,
     fail: bool,
     pdl: Vec<Addr>,
@@ -37,6 +38,7 @@ impl Machine {
             code: vec![],
             h: HeapPtr(0),
             s: HeapPtr(0),
+            p: CodePtr(0),
             mode: Mode::Read,
             fail: false,
             pdl: vec![],
@@ -104,6 +106,14 @@ impl Machine {
 
     pub fn set_s(&mut self, value: HeapPtr) {
         self.s = value
+    }
+
+    pub fn get_p(&self) -> CodePtr {
+        self.p
+    }
+
+    pub fn set_p(&mut self, value: CodePtr) {
+        self.p = value
     }
 
     pub fn get_mode(&self) -> Mode {
@@ -228,9 +238,15 @@ impl Machine {
     }
 
     pub fn describe_vars(self: &Machine, var_mapping: &VarMapping) -> Vec<VarDescription> {
-        var_mapping
+        let mut mappings = var_mapping
             .mappings()
-            .filter_map(|(&name, &reg)| {
+            .map(|(&n, &r)| (n, r))
+            .collect::<Vec<(VarName, RegPtr)>>();
+        mappings.sort_by_key(|(v, _)| *v);
+
+        mappings
+            .into_iter()
+            .filter_map(|(name, reg)| {
                 let addr = self.trace_reg(reg);
                 let value = self.get_store(addr);
                 self.decompile(addr, var_mapping)
@@ -285,6 +301,7 @@ impl Display for MachineFailure {
     }
 }
 
+type IResult = Result<Option<CodePtr>, MachineFailure>;
 type MResult = Result<(), MachineFailure>;
 
 #[derive(Debug)]
@@ -390,31 +407,31 @@ fn unify(machine: &mut Machine, a1: Addr, a2: Addr) -> MResult {
     Ok(())
 }
 
-fn put_structure(machine: &mut Machine, functor: Functor, register: RegPtr) -> MResult {
+fn put_structure(machine: &mut Machine, functor: Functor, register: RegPtr) -> IResult {
     let h = machine.get_h();
     machine.set_heap(h, Str(h + 1).into());
     machine.set_heap(h + 1, functor.into());
     machine.set_reg(register, machine.get_heap(h));
     machine.set_h(h + 2);
-    Ok(())
+    Ok(None)
 }
 
-fn set_variable(machine: &mut Machine, register: RegPtr) -> MResult {
+fn set_variable(machine: &mut Machine, register: RegPtr) -> IResult {
     let h = machine.get_h();
     machine.set_heap(h, Data::Ref(Ref(h)));
     machine.set_reg(register, machine.get_heap(h));
     machine.set_h(h + 1);
-    Ok(())
+    Ok(None)
 }
 
-fn set_value(machine: &mut Machine, register: RegPtr) -> MResult {
+fn set_value(machine: &mut Machine, register: RegPtr) -> IResult {
     let h = machine.get_h();
     machine.set_heap(h, machine.get_reg(register));
     machine.set_h(h + 1);
-    Ok(())
+    Ok(None)
 }
 
-fn get_structure(machine: &mut Machine, functor: Functor, register: RegPtr) -> MResult {
+fn get_structure(machine: &mut Machine, functor: Functor, register: RegPtr) -> IResult {
     let addr = deref(machine, register.into());
     match machine.get_store(addr) {
         Data::Ref(Ref(_)) => {
@@ -435,10 +452,10 @@ fn get_structure(machine: &mut Machine, functor: Functor, register: RegPtr) -> M
         }
         _ => machine.set_fail(true),
     }
-    Ok(())
+    Ok(None)
 }
 
-fn unify_variable(machine: &mut Machine, register: RegPtr) -> MResult {
+fn unify_variable(machine: &mut Machine, register: RegPtr) -> IResult {
     let s = machine.get_s();
     let h = machine.get_h();
     match machine.mode {
@@ -450,10 +467,10 @@ fn unify_variable(machine: &mut Machine, register: RegPtr) -> MResult {
         }
     }
     machine.set_s(s + 1);
-    Ok(())
+    Ok(None)
 }
 
-fn unify_value(machine: &mut Machine, register: RegPtr) -> MResult {
+fn unify_value(machine: &mut Machine, register: RegPtr) -> IResult {
     let s = machine.get_s();
     let h = machine.get_h();
     match machine.mode {
@@ -464,18 +481,59 @@ fn unify_value(machine: &mut Machine, register: RegPtr) -> MResult {
         }
     }
     machine.set_s(s + 1);
-    Ok(())
+    Ok(None)
+}
+
+fn call(_machine: &mut Machine, ptr: CodePtr) -> IResult {
+    Ok(Some(ptr))
+}
+
+fn proceed(_machine: &mut Machine) -> IResult {
+    Ok(None)
+}
+
+fn put_variable(machine: &mut Machine, xreg: RegPtr, areg: RegPtr) -> IResult {
+    let h = machine.get_h();
+    let data = Ref(h).into();
+    machine.set_heap(h, data);
+    machine.set_reg(xreg, data);
+    machine.set_reg(areg, data);
+    machine.set_h(h + 1);
+    Ok(None)
+}
+
+fn put_value(machine: &mut Machine, xreg: RegPtr, areg: RegPtr) -> IResult {
+    machine.set_reg(areg, machine.get_reg(xreg));
+    Ok(None)
+}
+
+fn get_variable(machine: &mut Machine, xreg: RegPtr, areg: RegPtr) -> IResult {
+    machine.set_reg(xreg, machine.get_reg(areg));
+    Ok(None)
+}
+
+fn get_value(machine: &mut Machine, xreg: RegPtr, areg: RegPtr) -> IResult {
+    unify(machine, xreg.into(), areg.into())?;
+    Ok(None)
 }
 
 fn execute_instruction(machine: &mut Machine, instruction: Instruction) -> MResult {
-    match instruction {
+    let nextp = match instruction {
         Instruction::PutStructure(functor, register) => put_structure(machine, functor, register),
         Instruction::SetVariable(register) => set_variable(machine, register),
         Instruction::SetValue(register) => set_value(machine, register),
         Instruction::GetStructure(functor, register) => get_structure(machine, functor, register),
         Instruction::UnifyVariable(register) => unify_variable(machine, register),
         Instruction::UnifyValue(register) => unify_value(machine, register),
-    }
+        Instruction::Call(code) => call(machine, code),
+        Instruction::Proceed => proceed(machine),
+        Instruction::PutVariable(xreg, areg) => put_variable(machine, xreg, areg),
+        Instruction::PutValue(xreg, areg) => put_value(machine, xreg, areg),
+        Instruction::GetVariable(xreg, areg) => get_variable(machine, xreg, areg),
+        Instruction::GetValue(xreg, areg) => get_value(machine, xreg, areg),
+    }?;
+    machine.set_p(nextp.unwrap_or(machine.get_p() + 1));
+    Ok(())
 }
 
 pub fn run_code(machine: &mut Machine) -> MResult {
