@@ -2,7 +2,7 @@
 - [ ] more compiler tests (e.g. from the brown book)
 - [ ] static type system?
 - [ ] roll my own topological sort
-- [ ] `call p/n` should really have a code address when compiled, not a reference to a functor
+- [ ] byte-address `call p/n` instead of index-address into array
 
 ### Bugs
 - [ ] Type `?- X` then `X`. It cannot figure out the unification.
