@@ -37,7 +37,7 @@ impl Display for Instruction {
             }
             Instruction::UnifyVariable(reg) => write!(f, "unify_variable {reg}"),
             Instruction::UnifyValue(reg) => write!(f, "unify_value {reg}"),
-            Instruction::Call(code) => write!(f, "call {code}"),
+            Instruction::Call(code) => write!(f, "call @{}", usize::from(*code)),
             Instruction::Proceed => write!(f, "proceed"),
             Instruction::PutVariable(x, a) => write!(f, "put_variable {x}, {a}"),
             Instruction::PutValue(x, a) => write!(f, "put_value {x}, {a}"),
@@ -72,7 +72,7 @@ impl SymDisplay for Instruction {
 }
 
 impl Instruction {
-    pub fn from_program(
+    pub fn from_assembly(
         program: &str,
         symbol_table: &mut SymbolTable,
     ) -> Result<Vec<Instruction>, String> {
@@ -97,6 +97,13 @@ fn arg_to_functor(arg: Arg) -> Result<Functor, String> {
 fn arg_to_reg(arg: Arg) -> Result<RegPtr, String> {
     match arg {
         Arg::Reg(i) => Ok(RegPtr(i)),
+        x => Err(format!("Argument {x:?} is not a register reference")),
+    }
+}
+
+fn arg_to_code(arg: Arg) -> Result<CodePtr, String> {
+    match arg {
+        Arg::Code(i) => Ok(CodePtr(i)),
         x => Err(format!("Argument {x:?} is not a register reference")),
     }
 }
@@ -127,6 +134,12 @@ fn command_to_instr(line: Command) -> Result<Instruction, String> {
         (nm @ "unify_variable", args) => bad_args(nm, args),
         ("unify_value", [r]) => Ok(Instruction::UnifyValue(arg_to_reg(*r)?)),
         (nm @ "unify_value", args) => bad_args(nm, args),
+        ("put_variable", [x, a]) => Ok(Instruction::PutVariable(arg_to_reg(*x)?, arg_to_reg(*a)?)),
+        ("put_value", [x, a]) => Ok(Instruction::PutValue(arg_to_reg(*x)?, arg_to_reg(*a)?)),
+        ("get_variable", [x, a]) => Ok(Instruction::GetVariable(arg_to_reg(*x)?, arg_to_reg(*a)?)),
+        ("get_value", [x, a]) => Ok(Instruction::GetValue(arg_to_reg(*x)?, arg_to_reg(*a)?)),
+        ("call", [c]) => Ok(Instruction::Call(arg_to_code(*c)?)),
+        ("proceed", []) => Ok(Instruction::Proceed),
         (x, _) => Err(format!("Unknown command {x}")),
     }
 }

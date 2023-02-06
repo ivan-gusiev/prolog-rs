@@ -371,7 +371,7 @@ fn test_compile_query() {
     use lang::parse_term;
     let mut symbol_table = SymbolTable::new();
     let query = parse_term("p(Z,h(Z,W),f(W))", &mut symbol_table).unwrap();
-    let instructions = Instruction::from_program(
+    let instructions = Instruction::from_assembly(
         r#"
         put_structure h/2, X3
         set_variable X2      
@@ -404,7 +404,7 @@ fn test_compile_program() {
     use lang::parse_term;
     let mut symbol_table = SymbolTable::new();
     let program = parse_term("p(f(X), h(Y,f(a)), Y)", &mut symbol_table).unwrap();
-    let instructions = Instruction::from_program(
+    let instructions = Instruction::from_assembly(
         r#"
         get_structure p/3, X1
         unify_variable X2

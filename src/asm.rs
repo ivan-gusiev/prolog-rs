@@ -4,6 +4,7 @@ use symbol::{Symbol, SymbolTable};
 pub enum Arg {
     Reg(usize),
     Func(Symbol, u32),
+    Code(usize),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -29,13 +30,16 @@ peg::parser!(
             = s:$(['a'..='z' | 'A'..='Z' | '_']+) { s.to_string() }
 
         rule arg_reg() -> Arg
-            = "X" n:number() { Arg::Reg(n as usize) }
+            = ['X' | 'A'] n:number() { Arg::Reg(n as usize) }
 
         rule arg_func(symbols : &mut SymbolTable) -> Arg
             = nm:['a'..='z']+ "/" ar:number() { Arg::Func(symbols.intern_chars(nm), ar) }
 
+        rule arg_label() -> Arg
+            = "@" n:number() { Arg::Code(n as usize) }
+
         rule arg(symbols : &mut SymbolTable) -> Arg
-            = arg_reg() / arg_func(symbols)
+            = arg_reg() / arg_func(symbols) / arg_label()
 
         rule cmd(symbols : &mut SymbolTable) -> Command
             = id:identifier() _ args:(arg(symbols) ** ("," _)) { Command(id, args) }

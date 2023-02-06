@@ -1,0 +1,26 @@
+---
+source: tests/asmtests.rs
+expression: "case(input, output)"
+---
+
+    put_structure h/2, X3 % ?- X3=h
+    set_variable X2       %        (Z,
+    set_variable X5       %           W),
+    put_structure f/1, X4 %    X4=f
+    set_value X5          %        (W),
+    put_structure p/3, X1 %    X1=p
+    set_value X2          %        (Z,
+    set_value X3          %           X3,
+    set_value X4          %              X4)
+    
+-----
+000	put_structure h/2, X3
+001	set_variable X2
+002	set_variable X5
+003	put_structure f/1, X4
+004	set_value X5
+005	put_structure p/3, X1
+006	set_value X2
+007	set_value X3
+008	set_value X4
+

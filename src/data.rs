@@ -53,6 +53,12 @@ impl ops::Add<usize> for CodePtr {
     }
 }
 
+impl From<CodePtr> for usize {
+    fn from(value: CodePtr) -> Self {
+        value.0
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Ref(pub HeapPtr);
 

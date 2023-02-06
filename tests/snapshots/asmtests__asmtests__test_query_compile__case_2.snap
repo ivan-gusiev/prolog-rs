@@ -1,0 +1,28 @@
+---
+source: tests/asmtests.rs
+expression: "case(input, output)"
+---
+
+    get_structure f/1, A1
+    unify_variable X4
+    get_structure h/2, A2
+    unify_variable X5
+    unify_variable X6
+    get_value X5, A3
+    get_structure f/1, X6
+    unify_variable X7
+    get_structure a/0, X7
+    proceed
+    
+-----
+000	get_structure f/1, X1
+001	unify_variable X4
+002	get_structure h/2, X2
+003	unify_variable X5
+004	unify_variable X6
+005	put_value X5, X3
+006	get_structure f/1, X6
+007	unify_variable X7
+008	get_structure a/0, X7
+009	proceed
+
