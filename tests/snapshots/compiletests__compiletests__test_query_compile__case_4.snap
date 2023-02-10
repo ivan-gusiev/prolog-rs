@@ -4,16 +4,13 @@ expression: "case(input, writeout_sym(&result.instructions, &symbol_table))"
 ---
 p(f(X), h(Y, f(a)), Y)
 -----
-000	put_structure f/1, X2
-001	set_variable X5
-002	put_structure a/0, X7
-003	put_structure f/1, X6
-004	set_value X7
-005	put_structure h/2, X3
-006	set_variable X4
+000	put_structure a/0, X7
+001	put_structure f/1, X6
+002	set_value X7
+003	put_structure f/1, X1
+004	set_variable X4
+005	put_structure h/2, X2
+006	set_variable X5
 007	set_value X6
-008	put_structure p/3, X1
-009	set_value X2
-010	set_value X3
-011	set_value X4
+008	put_value X5, X3
 

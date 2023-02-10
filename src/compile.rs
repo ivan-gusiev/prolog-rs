@@ -3,15 +3,13 @@ use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 use std::iter::FromIterator;
 
+use data::RegPtr;
 use instr::Instruction;
-use lang::{Term, VarName};
+use lang::{Functor, Term, VarName};
 
 // TODO: for some reason rustc requires `extern crate` definitions, fix this
 extern crate topological_sort;
 use self::topological_sort::TopologicalSort;
-
-use crate::util::{writeout, writeout_dict, writeout_table2};
-use crate::{data::RegPtr, lang::Functor};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 struct TermId(usize);
@@ -189,7 +187,22 @@ fn flatten_query(query: Term) -> (Vec<FlattenedTerm<RegPtr>>, HashMap<VarName, R
 
 // TODO: unfuck it by mapping everything
 
-fn flatten_query_l1(query: Term) -> (Vec<FlattenedTerm<RegPtr>>, HashMap<VarName, RegPtr>) {
+#[derive(Debug)]
+struct FlattenedReg(RegPtr, FlattenedTerm<RegPtr>);
+
+impl Display for FlattenedReg {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} = {}", self.0, self.1)
+    }
+}
+
+impl FlattenedReg {
+    fn to_tuple(&self) -> (RegPtr, &FlattenedTerm<RegPtr>) {
+        (self.0, &self.1)
+    }
+}
+
+fn flatten_query_l1(query: Term) -> (Vec<FlattenedReg>, HashMap<VarName, RegPtr>) {
     let root_functor = get_root_functor(&query).expect("query root must be a functor");
     let mut term_map = HashMap::<TermId, RegPtr>::new();
     let mut var_map = HashMap::<VarName, RegPtr>::new();
@@ -254,15 +267,11 @@ fn flatten_query_l1(query: Term) -> (Vec<FlattenedTerm<RegPtr>>, HashMap<VarName
         FlatRef::Register(reg) => reg,
     };
 
-    println!("FLATREFS\n{}", writeout(flatrefs.iter()));
-    println!("TERMS\n{}", writeout_dict(term_map.iter()));
-    println!("VARS\n{}", writeout_dict(var_map.iter()));
-    let result: Vec<FlattenedTerm<RegPtr>> = flatrefs
+    let result: Vec<FlattenedReg> = flatrefs
         .iter()
-        .map(|ft| ft.transform(flat_to_reg))
+        .enumerate()
+        .map(|(i, ft)| FlattenedReg(RegPtr(i), ft.transform(flat_to_reg)))
         .collect();
-
-    println!("REGREFS\n{}", writeout(result.iter()));
 
     (result, var_map)
 }
@@ -286,6 +295,17 @@ fn extract_structs(terms: &[FlattenedTerm<RegPtr>]) -> Vec<RegPtr> {
     structs
 }
 
+fn extract_structs_l1(terms: &[FlattenedReg]) -> Vec<RegPtr> {
+    let mut structs = vec![];
+    for term in terms.iter() {
+        match term {
+            FlattenedReg(reg, FlattenedTerm::Struct(_)) => structs.push(*reg),
+            _ => (),
+        }
+    }
+    structs
+}
+
 fn order_query_structs(terms: &[FlattenedTerm<RegPtr>], structs_to_sort: &[RegPtr]) -> Vec<RegPtr> {
     fn regs(term: &FlattenedTerm<RegPtr>) -> HashSet<RegPtr> {
         if let FlattenedTerm::Struct(FlatStruct(_, refs)) = term {
@@ -302,6 +322,53 @@ fn order_query_structs(terms: &[FlattenedTerm<RegPtr>], structs_to_sort: &[RegPt
             let rp = structs_to_sort[r];
             let lhs = &terms[ptoi(lp)];
             let rhs = &terms[ptoi(rp)];
+
+            let regs_lhs = regs(lhs);
+            let regs_rhs = regs(rhs);
+
+            if regs_lhs.contains(&rp) {
+                ts.add_dependency(rp, lp);
+            } else if regs_rhs.contains(&lp) {
+                ts.add_dependency(lp, rp);
+            }
+        }
+    }
+
+    let mut result = vec![];
+    loop {
+        let mut batch = ts.pop_all(); // use pop_all to preserve the original ordering
+        if batch.is_empty() {
+            break;
+        }
+
+        batch.sort();
+        result.append(&mut batch)
+    }
+
+    // special case when there are no dependencies between terms, e.g. only one term to sort
+    if result.is_empty() && structs_to_sort.len() == 1 {
+        result.push(structs_to_sort[0]);
+    }
+
+    result
+}
+
+fn order_query_structs_l1(terms: &HashMap<RegPtr, &FlattenedTerm<RegPtr>>, structs_to_sort: &[RegPtr]) -> Vec<RegPtr> {
+    fn regs(term: &FlattenedTerm<RegPtr>) -> HashSet<RegPtr> {
+        if let FlattenedTerm::Struct(FlatStruct(_, refs)) = term {
+            HashSet::from_iter(refs.to_owned())
+        } else {
+            HashSet::default()
+        }
+    }
+
+    let mut ts = TopologicalSort::<RegPtr>::new();
+    for l in 0..structs_to_sort.len() {
+        for r in (l + 1)..structs_to_sort.len() {
+            let lp = structs_to_sort[l];
+            let rp = structs_to_sort[r];
+            let lhs = terms[&lp];
+            let rhs = terms[&rp];
 
             let regs_lhs = regs(lhs);
             let regs_rhs = regs(rhs);
@@ -360,40 +427,25 @@ pub fn compile_query(query: Term) -> CompileResult {
 }
 
 pub fn compile_query_l1(query: Term) -> CompileResult {
-    let (registers, vars) = flatten_query_l1(query);
-    {
-        let regptrs = (1..registers.len()).map(|i| RegPtr(i)).collect::<Vec<_>>();
-        println!(
-            "compile_query_l1:registers\n{}",
-            writeout_table2(&regptrs, &registers[1..])
-        );
-        let varnames = vars.keys().copied().collect::<Vec<_>>();
-        let varptrs = varnames.iter().map(|nm| vars[nm]).collect::<Vec<_>>();
-        println!(
-            "compile_query_l1:vars\n{}",
-            writeout_table2(&varnames, &varptrs)
-        );
-    }
-    let structs = order_query_structs(&registers[1..], &extract_structs(&registers[1..]));
-    {
-        println!("compile_query_l1:structures\n{}", writeout(structs.iter()));
-    }
+    let (registers_with_root, vars) = flatten_query_l1(query);
+    let registers = &registers_with_root[1..];
+    let reg_map = HashMap::from_iter(registers.iter().map(FlattenedReg::to_tuple));
+    let structs = order_query_structs_l1(&reg_map, &extract_structs_l1(registers));
     let mut seen = HashSet::<RegPtr>::new();
     let mut result = vec![];
 
-    let root = &registers[0];
+    let FlattenedReg(_, root) = &registers_with_root[0];
     let max_argument = root.get_str().functor().arity() + 1;
 
     // set up general purpose registers
-    for struct_ptr @ RegPtr(struct_index) in structs {
+    for reg @ RegPtr(struct_index) in structs {
         if struct_index <= max_argument as usize {
-            println!("skipping {struct_ptr} as its index is withing argument range {max_argument}");
             continue;
         }
 
-        let FlatStruct(f, refs) = registers[struct_ptr.0].get_str();
-        result.push(Instruction::PutStructure(*f, struct_ptr));
-        seen.insert(struct_ptr);
+        let FlatStruct(f, refs) = reg_map[&reg].get_str();
+        result.push(Instruction::PutStructure(*f, reg));
+        seen.insert(reg);
         for ref_ptr in refs {
             if seen.contains(ref_ptr) {
                 result.push(Instruction::SetValue(*ref_ptr))
@@ -407,8 +459,7 @@ pub fn compile_query_l1(query: Term) -> CompileResult {
     // set up argument registers
     for i in 1..(max_argument as usize) {
         let areg = RegPtr(i);
-        println!("Argument register {} = {}", areg, &registers[i]);
-        match &registers[i] {
+        match &reg_map[&areg] {
             FlattenedTerm::Variable(nm) => {
                 let xreg = vars[nm];
                 if seen.contains(&xreg) {

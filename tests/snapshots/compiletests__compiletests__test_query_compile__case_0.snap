@@ -1,16 +1,13 @@
 ---
 source: tests/compiletests.rs
-expression: "case(input, writeout(&instructions))"
+expression: "case(input, writeout_sym(&result.instructions, &symbol_table))"
 ---
 p(Z, h(Z,W), f(W))
 -----
-000	put_structure h/2, X3
-001	set_variable X2
-002	set_variable X5
-003	put_structure f/1, X4
-004	set_value X5
-005	put_structure p/3, X1
-006	set_value X2
-007	set_value X3
-008	set_value X4
+000	put_variable X4, X1
+001	put_structure h/2, X2
+002	set_value X4
+003	set_variable X5
+004	put_structure f/1, X3
+005	set_value X5
 

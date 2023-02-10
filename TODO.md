@@ -1,12 +1,14 @@
 ### To Do
 - [ ] more compiler tests (e.g. from the brown book)
 - [ ] static type system?
-- [ ] roll my own topological sort
+- [ ] roll my own topological sort 
+    * not needed? generations approach might work
 - [ ] byte-address `call p/n` instead of index-address into array
 - [ ] compile: term_map seems to be useless (`term_map[Ti] == Xi`)
 
 ### Bugs
-- [ ] Type `?- X` then `X`. It cannot figure out the unification.
+- [x] Type `?- X` then `X`. It cannot figure out the unification. 
+    * WONTFIX: after L1 you cannot have root variables
 
 ### Done ✓
 - [x] WAM assembly parser
