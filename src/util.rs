@@ -18,8 +18,39 @@ pub fn writeout<T: Display, I: Iterator<Item = T>>(items: I) -> String {
     writeout_impl(items).unwrap_or_else(|e| format!("{e}"))
 }
 
+pub fn writeout_table2<T: Display, U: Display>(ts: &[T], us: &[U]) -> String {
+    let items = ts
+        .iter()
+        .zip(us.iter())
+        .map(|(t, u)| format!("{}\t{}", t, u));
+    writeout(items)
+}
+
+pub fn writeout_dict<T: Display, U: Display, D>(dict: D) -> String
+where
+    D: IntoIterator<Item = (T, U)>,
+{
+    let items = dict.into_iter().map(|(t, u)| format!("{}\t{}", t, u));
+    writeout(items)
+}
+
 pub fn writeout_sym<T: SymDisplay>(items: &[T], symbol_table: &SymbolTable) -> String {
     writeout(items.iter().map(|item| to_display(item, symbol_table)))
+}
+
+pub fn writeout_table2_sym<T: SymDisplay, U: SymDisplay>(
+    ts: &[T],
+    us: &[U],
+    symbol_table: &SymbolTable,
+) -> String {
+    let items = ts.iter().zip(us.iter()).map(|(t, u)| {
+        format!(
+            "{}\t{}",
+            to_display(t, symbol_table),
+            to_display(u, symbol_table)
+        )
+    });
+    writeout(items)
 }
 
 pub fn case<T: Display, U: Display>(input: T, output: U) -> String {

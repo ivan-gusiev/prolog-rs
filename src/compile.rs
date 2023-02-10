@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
+use std::iter::FromIterator;
 
 use instr::Instruction;
 use lang::{Term, VarName};
@@ -9,6 +10,7 @@ use lang::{Term, VarName};
 extern crate topological_sort;
 use self::topological_sort::TopologicalSort;
 
+use crate::util::{writeout, writeout_dict, writeout_table2};
 use crate::{data::RegPtr, lang::Functor};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -28,7 +30,7 @@ impl Display for TermId {
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 enum FlatRef {
-    Term(TermId), // TODO: this shouldn't exist after flatten_term returns
+    Term(TermId),
     Register(RegPtr),
 }
 
@@ -63,6 +65,12 @@ impl<Ptr: Copy> FlatStruct<Ptr> {
             self.0,
             self.1.iter().copied().map(mapper).collect::<Vec<_>>(),
         )
+    }
+}
+
+impl<Ptr> FlatStruct<Ptr> {
+    fn functor(&self) -> Functor {
+        self.0
     }
 }
 
@@ -102,6 +110,13 @@ impl<Ptr: Copy> FlattenedTerm<Ptr> {
             FlattenedTerm::Variable(nm) => FlattenedTerm::Variable(*nm),
             FlattenedTerm::Struct(str) => FlattenedTerm::Struct(str.transform(mapper)),
         }
+    }
+}
+
+fn get_root_functor(term: &Term) -> Option<Functor> {
+    match term {
+        Term::Struct(s) => Some(s.functor()),
+        _ => None,
     }
 }
 
@@ -172,6 +187,86 @@ fn flatten_query(query: Term) -> (Vec<FlattenedTerm<RegPtr>>, HashMap<VarName, R
     (result, var_map)
 }
 
+// TODO: unfuck it by mapping everything
+
+fn flatten_query_l1(query: Term) -> (Vec<FlattenedTerm<RegPtr>>, HashMap<VarName, RegPtr>) {
+    let root_functor = get_root_functor(&query).expect("query root must be a functor");
+    let mut term_map = HashMap::<TermId, RegPtr>::new();
+    let mut var_map = HashMap::<VarName, RegPtr>::new();
+    let mut queue = VecDeque::from([(&query, TermId(0))]);
+    let mut flatrefs = Vec::<FlattenedTerm<FlatRef>>::new();
+    let mut term_counter = TermId(0);
+
+    let mut next_term_id = || {
+        term_counter.inc();
+        term_counter
+    };
+
+    loop {
+        match queue.pop_front() {
+            None => break,
+            Some((Term::Variable(nm), id)) => {
+                if var_map.contains_key(nm) {
+                    term_map.insert(id, var_map[nm]);
+                } else if id.0 <= root_functor.arity() as usize {
+                    //let var_id = next_term_id();
+                    flatrefs.push(FlattenedTerm::Variable(*nm));
+                    term_map.insert(id, RegPtr(id.0));
+                    //queue.push_back((t, var_id))
+                } else {
+                    flatrefs.push(FlattenedTerm::Variable(*nm));
+                    var_map.insert(*nm, RegPtr(flatrefs.len() - 1));
+                    term_map.insert(id, RegPtr(flatrefs.len() - 1));
+                }
+            }
+            Some((Term::Struct(str), id)) => {
+                let mut subterms: Vec<FlatRef> = vec![];
+
+                for subterm in str.terms() {
+                    match subterm {
+                        v @ Term::Variable(nm) => {
+                            if var_map.contains_key(nm) {
+                                subterms.push(FlatRef::Register(var_map[nm]))
+                            } else {
+                                let id = next_term_id();
+                                subterms.push(FlatRef::Term(id));
+                                queue.push_back((v, id));
+                            }
+                        }
+                        t @ Term::Struct(_) => {
+                            let id = next_term_id();
+                            subterms.push(FlatRef::Term(id));
+                            queue.push_back((t, id));
+                        }
+                    }
+                }
+                flatrefs.push(FlattenedTerm::new_str(str.functor(), subterms));
+                term_map.insert(id, RegPtr(flatrefs.len() - 1));
+            }
+        }
+    }
+
+    let flat_to_reg = |flat_term| match flat_term {
+        FlatRef::Term(id) => match term_map.get(&id) {
+            Some(reg) => *reg,
+            None => panic!("Could not find a term for {:?}", id),
+        },
+        FlatRef::Register(reg) => reg,
+    };
+
+    println!("FLATREFS\n{}", writeout(flatrefs.iter()));
+    println!("TERMS\n{}", writeout_dict(term_map.iter()));
+    println!("VARS\n{}", writeout_dict(var_map.iter()));
+    let result: Vec<FlattenedTerm<RegPtr>> = flatrefs
+        .iter()
+        .map(|ft| ft.transform(flat_to_reg))
+        .collect();
+
+    println!("REGREFS\n{}", writeout(result.iter()));
+
+    (result, var_map)
+}
+
 fn ptoi(ptr: RegPtr) -> usize {
     ptr.0 - 1
 }
@@ -193,13 +288,11 @@ fn extract_structs(terms: &[FlattenedTerm<RegPtr>]) -> Vec<RegPtr> {
 
 fn order_query_structs(terms: &[FlattenedTerm<RegPtr>], structs_to_sort: &[RegPtr]) -> Vec<RegPtr> {
     fn regs(term: &FlattenedTerm<RegPtr>) -> HashSet<RegPtr> {
-        let mut result = HashSet::new();
-
         if let FlattenedTerm::Struct(FlatStruct(_, refs)) = term {
-            result.extend(refs);
+            HashSet::from_iter(refs.to_owned())
+        } else {
+            HashSet::default()
         }
-
-        result
     }
 
     let mut ts = TopologicalSort::<RegPtr>::new();
@@ -256,6 +349,85 @@ pub fn compile_query(query: Term) -> CompileResult {
             } else {
                 seen.insert(*ref_ptr);
                 result.push(Instruction::SetVariable(*ref_ptr))
+            }
+        }
+    }
+
+    CompileResult {
+        instructions: result,
+        var_mapping: vars.into(),
+    }
+}
+
+pub fn compile_query_l1(query: Term) -> CompileResult {
+    let (registers, vars) = flatten_query_l1(query);
+    {
+        let regptrs = (1..registers.len()).map(|i| RegPtr(i)).collect::<Vec<_>>();
+        println!(
+            "compile_query_l1:registers\n{}",
+            writeout_table2(&regptrs, &registers[1..])
+        );
+        let varnames = vars.keys().copied().collect::<Vec<_>>();
+        let varptrs = varnames.iter().map(|nm| vars[nm]).collect::<Vec<_>>();
+        println!(
+            "compile_query_l1:vars\n{}",
+            writeout_table2(&varnames, &varptrs)
+        );
+    }
+    let structs = order_query_structs(&registers[1..], &extract_structs(&registers[1..]));
+    {
+        println!("compile_query_l1:structures\n{}", writeout(structs.iter()));
+    }
+    let mut seen = HashSet::<RegPtr>::new();
+    let mut result = vec![];
+
+    let root = &registers[0];
+    let max_argument = root.get_str().functor().arity() + 1;
+
+    // set up general purpose registers
+    for struct_ptr @ RegPtr(struct_index) in structs {
+        if struct_index <= max_argument as usize {
+            println!("skipping {struct_ptr} as its index is withing argument range {max_argument}");
+            continue;
+        }
+
+        let FlatStruct(f, refs) = registers[struct_ptr.0].get_str();
+        result.push(Instruction::PutStructure(*f, struct_ptr));
+        seen.insert(struct_ptr);
+        for ref_ptr in refs {
+            if seen.contains(ref_ptr) {
+                result.push(Instruction::SetValue(*ref_ptr))
+            } else {
+                seen.insert(*ref_ptr);
+                result.push(Instruction::SetVariable(*ref_ptr))
+            }
+        }
+    }
+
+    // set up argument registers
+    for i in 1..(max_argument as usize) {
+        let areg = RegPtr(i);
+        println!("Argument register {} = {}", areg, &registers[i]);
+        match &registers[i] {
+            FlattenedTerm::Variable(nm) => {
+                let xreg = vars[nm];
+                if seen.contains(&xreg) {
+                    result.push(Instruction::PutValue(xreg, areg));
+                } else {
+                    seen.insert(xreg);
+                    result.push(Instruction::PutVariable(xreg, areg));
+                }
+            }
+            FlattenedTerm::Struct(FlatStruct(f, refs)) => {
+                result.push(Instruction::PutStructure(*f, areg));
+                for ref_ptr in refs {
+                    if seen.contains(ref_ptr) {
+                        result.push(Instruction::SetValue(*ref_ptr))
+                    } else {
+                        seen.insert(*ref_ptr);
+                        result.push(Instruction::SetVariable(*ref_ptr))
+                    }
+                }
             }
         }
     }
@@ -393,6 +565,36 @@ fn test_compile_query() {
             var_mapping: HashMap::from([
                 (symbol_table.intern("W"), RegPtr(5)),
                 (symbol_table.intern("Z"), RegPtr(2))
+            ])
+            .into()
+        }
+    )
+}
+
+#[test]
+fn test_compile_query_l1() {
+    use lang::parse_term;
+    let mut symbol_table = SymbolTable::new();
+    let query = parse_term("p(Z,h(Z,W),f(W))", &mut symbol_table).unwrap();
+    let instructions = Instruction::from_assembly(
+        r#"
+        put_variable X4, A1
+        put_structure h/2, A2
+        set_value X4
+        set_variable X5
+        put_structure f/1, A3
+        set_value X5
+        "#,
+        &mut symbol_table,
+    )
+    .unwrap();
+    assert_eq!(
+        compile_query_l1(query),
+        CompileResult {
+            instructions,
+            var_mapping: HashMap::from([
+                (symbol_table.intern("W"), RegPtr(5)),
+                (symbol_table.intern("Z"), RegPtr(4))
             ])
             .into()
         }

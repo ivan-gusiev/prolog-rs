@@ -3,6 +3,7 @@
 - [ ] static type system?
 - [ ] roll my own topological sort
 - [ ] byte-address `call p/n` instead of index-address into array
+- [ ] compile: term_map seems to be useless (`term_map[Ti] == Xi`)
 
 ### Bugs
 - [ ] Type `?- X` then `X`. It cannot figure out the unification.
