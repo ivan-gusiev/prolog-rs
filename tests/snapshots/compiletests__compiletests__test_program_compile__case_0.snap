@@ -1,16 +1,13 @@
 ---
 source: tests/compiletests.rs
-expression: "case(input, writeout(&instructions))"
+expression: "case(input, writeout_sym(&result.instructions, &symbol_table))"
 ---
 p(Z, h(Z,W), f(W))
 -----
-000	get_structure p/3, X1
-001	unify_variable X2
-002	unify_variable X3
-003	unify_variable X4
-004	get_structure h/2, X3
-005	unify_value X2
-006	unify_variable X5
-007	get_structure f/1, X4
-008	unify_value X5
+000	get_variable X4, X1
+001	get_structure h/2, X2
+002	unify_value X4
+003	unify_variable X5
+004	get_structure f/1, X3
+005	unify_value X5
 

@@ -10,6 +10,7 @@
 ### Bugs
 - [x] Type `?- X` then `X`. It cannot figure out the unification. 
     * WONTFIX: after L1 you cannot have root variables
+- [ ] Unify `f(X, g(X,a))` and `f(b, Y)`. The variable mapping does not seem to be right.
 
 ### Done ✓
 - [x] WAM assembly parser

@@ -4,16 +4,12 @@ expression: "case(input, output)"
 ---
 p(Z, h(Z,W), f(W))
 -----
-000	<STR,1>
-001	h/2
-002	<REF,2>
-003	<REF,3>
-004	<STR,5>
-005	f/1
-006	<REF,3>
-007	<STR,8>
-008	p/3
-009	<REF,2>
-010	<STR,1>
-011	<STR,5>
+000	<REF,0>
+001	<STR,2>
+002	h/2
+003	<REF,0>
+004	<REF,4>
+005	<STR,6>
+006	f/1
+007	<REF,4>
 

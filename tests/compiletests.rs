@@ -8,7 +8,7 @@ mod compiletests {
     use parameterized::parameterized;
     use prolog_rs::{
         compile::{compile_program_l1, compile_query_l1},
-        lang::{parse_struct},
+        lang::parse_struct,
         symbol::SymbolTable,
         util::{case, writeout_sym},
     };

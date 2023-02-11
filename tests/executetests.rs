@@ -10,10 +10,10 @@ mod executetests {
     use insta::assert_display_snapshot;
     use parameterized::parameterized;
     use prolog_rs::{
-        compile::{compile_program, compile_query, VarMapping},
+        compile::{compile_program_l1, compile_query_l1, VarMapping},
         data::{CodePtr, RegPtr},
         instr::Instruction,
-        lang::{parse_term, Functor, VarName},
+        lang::{parse_struct, Functor, VarName},
         run_code,
         symbol::{to_display, SymbolTable},
         util::{case, writeout_sym},
@@ -29,8 +29,8 @@ mod executetests {
     })]
     fn test_query_execute(input: &str) {
         let mut symbol_table = SymbolTable::new();
-        let query = parse_term(input, &mut symbol_table).unwrap();
-        let result = compile_query(query);
+        let query = parse_struct(input, &mut symbol_table).unwrap();
+        let result = compile_query_l1(query);
         let mut machine = Machine::new();
         machine.set_code(&result.instructions);
         run_code(&mut machine).expect("machine failure");
@@ -44,28 +44,41 @@ mod executetests {
 
     #[parameterized(input = {
         ("p(Z, h(Z,W), f(W))", "p(f(X), h(Y, f(a)), Y)"),
-        ("a", "D"),
-        ("D", "D"),
-        ("f(X, g(X,a))", "f(b, Y)"),
+        ("f(b, Y)", "f(X, g(X,a))"),
         ("f(X, g(X,a))", "p(f(X), h(Y, f(a)), Y)"),
     })]
     fn test_program_execute(input: (&str, &str)) {
         let (query_text, program_text) = input;
         let mut symbol_table = SymbolTable::new();
-        let query = parse_term(query_text, &mut symbol_table).unwrap();
-        let program = parse_term(program_text, &mut symbol_table).unwrap();
+        let query = parse_struct(query_text, &mut symbol_table).unwrap();
+        let program = parse_struct(program_text, &mut symbol_table).unwrap();
         let mut machine = Machine::new();
 
-        let query_result = compile_query(query);
+        let query_result = compile_query_l1(query);
         machine.set_code(&query_result.instructions);
         run_code(&mut machine).expect("machine failure");
 
-        let program_result = compile_program(program);
+        let program_result = compile_program_l1(program);
         machine.set_code(&program_result.instructions);
         run_code(&mut machine).expect("machine failure");
 
         let input = format!("({query_text}, {program_text})");
-        let output = machine.dbg(&symbol_table);
+        let output = if machine.get_fail() {
+            machine.dbg(&symbol_table)
+        } else {
+            format!(
+                "{}\n{}\n{}",
+                machine.dbg(&symbol_table),
+                writeout_sym(
+                    &machine.describe_vars(&query_result.var_mapping),
+                    &symbol_table
+                ),
+                writeout_sym(
+                    &machine.describe_vars(&program_result.var_mapping),
+                    &symbol_table
+                )
+            )
+        };
         assert_display_snapshot!(case(input, output));
     }
 

@@ -2,17 +2,41 @@
 source: tests/executetests.rs
 expression: "case(input, output)"
 ---
-(D, D)
+(f(X, g(X,a)), p(f(X), h(Y, f(a)), Y))
 -----
-h: HEAP[0]
-s: HEAP[0]
-mode: read
-fail: false
+h: HEAP[10]
+s: HEAP[1]
+mode: write
+fail: true
 code:
+000	get_structure f/1, X1
+001	unify_variable X4
+002	get_structure h/2, X2
+003	unify_variable X5
+004	unify_variable X6
+005	get_value X5, X3
+006	get_structure f/1, X6
+007	unify_variable X7
+008	get_structure a/0, X7
 
 heap:
+000	<STR,1>
+001	a/0
+002	<REF,7>
+003	<STR,4>
+004	g/2
+005	<REF,2>
+006	<STR,1>
+007	<STR,8>
+008	f/1
+009	<REF,9>
 
 regs:
+000	<EMPTY>
+001	<REF,2>
+002	<STR,4>
+003	<REF,2>
+004	<REF,9>
 
 pdl:
 

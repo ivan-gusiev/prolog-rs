@@ -4,8 +4,6 @@ expression: "case(input, writeout_sym(&result.instructions, &symbol_table))"
 ---
 f(b, Y)
 -----
-000	get_structure f/2, X1
-001	unify_variable X2
-002	unify_variable X3
-003	get_structure b/0, X2
+000	get_structure b/0, X1
+001	get_variable X3, X2
 
