@@ -141,6 +141,15 @@ impl SymDisplay for Term {
     }
 }
 
+impl Term {
+    pub fn into_struct(self) -> Option<Struct> {
+        match self {
+            Self::Struct(s) => Some(s),
+            _ => None,
+        }
+    }
+}
+
 peg::parser!(
     grammar prolog_parser() for str {
         rule whitespace()
@@ -185,6 +194,12 @@ peg::parser!(
 
 pub fn parse_term(term: &str, symbol_table: &mut SymbolTable) -> Result<Term, String> {
     prolog_parser::term(term, symbol_table).map_err(|e| format!("{e}"))
+}
+
+pub fn parse_struct(term: &str, symbol_table: &mut SymbolTable) -> Result<Struct, String> {
+    parse_term(term, symbol_table)?
+        .into_struct()
+        .ok_or("term must be a struct.".to_string())
 }
 
 #[cfg(test)]

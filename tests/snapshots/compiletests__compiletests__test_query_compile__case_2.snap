@@ -2,11 +2,8 @@
 source: tests/compiletests.rs
 expression: "case(input, writeout_sym(&result.instructions, &symbol_table))"
 ---
-f(X, g(X,a))
+f(b, Y)
 -----
-000	put_structure a/0, X4
-001	put_variable X3, X1
-002	put_structure g/2, X2
-003	set_value X3
-004	set_value X4
+000	put_structure b/0, X1
+001	put_variable X3, X2
 

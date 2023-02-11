@@ -5,7 +5,7 @@ use std::iter::FromIterator;
 
 use data::RegPtr;
 use instr::Instruction;
-use lang::{Functor, Term, VarName};
+use lang::{Functor, Struct, Term, VarName};
 
 // TODO: for some reason rustc requires `extern crate` definitions, fix this
 extern crate topological_sort;
@@ -111,14 +111,7 @@ impl<Ptr: Copy> FlattenedTerm<Ptr> {
     }
 }
 
-fn get_root_functor(term: &Term) -> Option<Functor> {
-    match term {
-        Term::Struct(s) => Some(s.functor()),
-        _ => None,
-    }
-}
-
-fn flatten_query(query: Term) -> (Vec<FlattenedTerm<RegPtr>>, HashMap<VarName, RegPtr>) {
+fn flatten_term(query: Term) -> (Vec<FlattenedTerm<RegPtr>>, HashMap<VarName, RegPtr>) {
     let mut term_map = HashMap::<TermId, RegPtr>::new();
     let mut var_map = HashMap::<VarName, RegPtr>::new();
     let mut queue = VecDeque::from([(&query, TermId(0))]);
@@ -202,11 +195,12 @@ impl FlattenedReg {
     }
 }
 
-fn flatten_query_l1(query: Term) -> (Vec<FlattenedReg>, HashMap<VarName, RegPtr>) {
-    let root_functor = get_root_functor(&query).expect("query root must be a functor");
+fn flatten_struct(root_struct: Struct) -> (Vec<FlattenedReg>, HashMap<VarName, RegPtr>) {
+    let root_functor = root_struct.functor();
+    let root_term = Term::Struct(root_struct);
     let mut term_map = HashMap::<TermId, RegPtr>::new();
     let mut var_map = HashMap::<VarName, RegPtr>::new();
-    let mut queue = VecDeque::from([(&query, TermId(0))]);
+    let mut queue = VecDeque::from([(&root_term, TermId(0))]);
     let mut flatrefs = Vec::<FlattenedTerm<FlatRef>>::new();
     let mut term_counter = TermId(0);
 
@@ -218,14 +212,14 @@ fn flatten_query_l1(query: Term) -> (Vec<FlattenedReg>, HashMap<VarName, RegPtr>
     loop {
         match queue.pop_front() {
             None => break,
-            Some((Term::Variable(nm), id)) => {
+            Some((t @ Term::Variable(nm), id)) => {
                 if var_map.contains_key(nm) {
                     term_map.insert(id, var_map[nm]);
                 } else if id.0 <= root_functor.arity() as usize {
                     //let var_id = next_term_id();
                     flatrefs.push(FlattenedTerm::Variable(*nm));
                     term_map.insert(id, RegPtr(id.0));
-                    //queue.push_back((t, var_id))
+                    queue.push_back((t, next_term_id()))
                 } else {
                     flatrefs.push(FlattenedTerm::Variable(*nm));
                     var_map.insert(*nm, RegPtr(flatrefs.len() - 1));
@@ -353,7 +347,10 @@ fn order_query_structs(terms: &[FlattenedTerm<RegPtr>], structs_to_sort: &[RegPt
     result
 }
 
-fn order_query_structs_l1(terms: &HashMap<RegPtr, &FlattenedTerm<RegPtr>>, structs_to_sort: &[RegPtr]) -> Vec<RegPtr> {
+fn order_query_structs_l1(
+    terms: &HashMap<RegPtr, &FlattenedTerm<RegPtr>>,
+    structs_to_sort: &[RegPtr],
+) -> Vec<RegPtr> {
     fn regs(term: &FlattenedTerm<RegPtr>) -> HashSet<RegPtr> {
         if let FlattenedTerm::Struct(FlatStruct(_, refs)) = term {
             HashSet::from_iter(refs.to_owned())
@@ -367,11 +364,8 @@ fn order_query_structs_l1(terms: &HashMap<RegPtr, &FlattenedTerm<RegPtr>>, struc
         for r in (l + 1)..structs_to_sort.len() {
             let lp = structs_to_sort[l];
             let rp = structs_to_sort[r];
-            let lhs = terms[&lp];
-            let rhs = terms[&rp];
-
-            let regs_lhs = regs(lhs);
-            let regs_rhs = regs(rhs);
+            let regs_lhs = regs(terms[&lp]);
+            let regs_rhs = regs(terms[&rp]);
 
             if regs_lhs.contains(&rp) {
                 ts.add_dependency(rp, lp);
@@ -401,7 +395,7 @@ fn order_query_structs_l1(terms: &HashMap<RegPtr, &FlattenedTerm<RegPtr>>, struc
 }
 
 pub fn compile_query(query: Term) -> CompileResult {
-    let (registers, vars) = flatten_query(query);
+    let (registers, vars) = flatten_term(query);
     let structs = order_query_structs(&registers, &extract_structs(&registers));
     let mut seen = HashSet::<RegPtr>::new();
     let mut result = vec![];
@@ -426,8 +420,8 @@ pub fn compile_query(query: Term) -> CompileResult {
     }
 }
 
-pub fn compile_query_l1(query: Term) -> CompileResult {
-    let (registers_with_root, vars) = flatten_query_l1(query);
+pub fn compile_query_l1(query: Struct) -> CompileResult {
+    let (registers_with_root, vars) = flatten_struct(query);
     let registers = &registers_with_root[1..];
     let reg_map = HashMap::from_iter(registers.iter().map(FlattenedReg::to_tuple));
     let structs = order_query_structs_l1(&reg_map, &extract_structs_l1(registers));
@@ -490,7 +484,7 @@ pub fn compile_query_l1(query: Term) -> CompileResult {
 }
 
 pub fn compile_program(program: Term) -> CompileResult {
-    let (registers, vars) = flatten_query(program);
+    let (registers, vars) = flatten_term(program);
     let structs = extract_structs(&registers);
     let mut seen = HashSet::<RegPtr>::new();
     let mut result = vec![];
@@ -499,6 +493,70 @@ pub fn compile_program(program: Term) -> CompileResult {
         let FlatStruct(f, refs) = registers[ptoi(struct_ptr)].get_str();
         result.push(Instruction::GetStructure(*f, struct_ptr));
         seen.insert(struct_ptr);
+        for ref_ptr in refs {
+            if seen.contains(ref_ptr) {
+                result.push(Instruction::UnifyValue(*ref_ptr))
+            } else {
+                seen.insert(*ref_ptr);
+                result.push(Instruction::UnifyVariable(*ref_ptr))
+            }
+        }
+    }
+
+    CompileResult {
+        instructions: result,
+        var_mapping: vars.into(),
+    }
+}
+
+pub fn compile_program_l1(program: Struct) -> CompileResult {
+    let (registers_with_root, vars) = flatten_struct(program);
+    let registers = &registers_with_root[1..];
+    let reg_map: HashMap<RegPtr, &FlattenedTerm<RegPtr>> =
+        HashMap::from_iter(registers.iter().map(FlattenedReg::to_tuple));
+    let structs = extract_structs_l1(&registers);
+    let mut seen = HashSet::<RegPtr>::new();
+    let mut result = vec![];
+
+    let FlattenedReg(_, root) = &registers_with_root[0];
+    let max_argument = root.get_str().functor().arity() + 1;
+
+    // set up argument registers
+    for i in 1..(max_argument as usize) {
+        let areg = RegPtr(i);
+        match &reg_map[&areg] {
+            FlattenedTerm::Variable(nm) => {
+                let xreg = vars[nm];
+                if seen.contains(&xreg) {
+                    result.push(Instruction::GetValue(xreg, areg));
+                } else {
+                    seen.insert(xreg);
+                    result.push(Instruction::GetVariable(xreg, areg));
+                }
+            }
+            FlattenedTerm::Struct(FlatStruct(f, refs)) => {
+                result.push(Instruction::GetStructure(*f, areg));
+                for ref_ptr in refs {
+                    if seen.contains(ref_ptr) {
+                        result.push(Instruction::UnifyValue(*ref_ptr))
+                    } else {
+                        seen.insert(*ref_ptr);
+                        result.push(Instruction::UnifyVariable(*ref_ptr))
+                    }
+                }
+            }
+        }
+    }
+
+    // set up general purpose registers
+    for reg @ RegPtr(struct_index) in structs {
+        if struct_index <= max_argument as usize {
+            continue;
+        }
+
+        let FlatStruct(f, refs) = reg_map[&reg].get_str();
+        result.push(Instruction::GetStructure(*f, reg));
+        seen.insert(reg);
         for ref_ptr in refs {
             if seen.contains(ref_ptr) {
                 result.push(Instruction::UnifyValue(*ref_ptr))
@@ -556,7 +614,7 @@ fn test_order_structs() {
     use lang::parse_term;
     let mut symbol_table = SymbolTable::new();
     let query = parse_term("p(Z,h(Z,W),f(W))", &mut symbol_table).unwrap();
-    let (terms, _) = flatten_query(query);
+    let (terms, _) = flatten_term(query);
     let structs = extract_structs(&terms);
 
     assert_eq!(
@@ -571,7 +629,7 @@ fn test_flatten_query() {
     let mut symbol_table = SymbolTable::new();
     let query = parse_term("p(Z,h(Z,W),f(W))", &mut symbol_table).unwrap();
 
-    let results = flatten_query(query)
+    let results = flatten_term(query)
         .0
         .into_iter()
         .map(|x| format!("{x:?}"))
@@ -624,9 +682,9 @@ fn test_compile_query() {
 
 #[test]
 fn test_compile_query_l1() {
-    use lang::parse_term;
+    use lang::parse_struct;
     let mut symbol_table = SymbolTable::new();
-    let query = parse_term("p(Z,h(Z,W),f(W))", &mut symbol_table).unwrap();
+    let query = parse_struct("p(Z,h(Z,W),f(W))", &mut symbol_table).unwrap();
     let instructions = Instruction::from_assembly(
         r#"
         put_variable X4, A1
@@ -648,6 +706,28 @@ fn test_compile_query_l1() {
                 (symbol_table.intern("Z"), RegPtr(4))
             ])
             .into()
+        }
+    )
+}
+
+#[test]
+fn test_compile_query2_l1() {
+    use lang::parse_struct;
+    let mut symbol_table = SymbolTable::new();
+    let query = parse_struct("f(b, Y)", &mut symbol_table).unwrap();
+    let instructions = Instruction::from_assembly(
+        r#"
+        put_structure b/0, A1
+        put_variable X3, A2
+        "#,
+        &mut symbol_table,
+    )
+    .unwrap();
+    assert_eq!(
+        compile_query_l1(query),
+        CompileResult {
+            instructions,
+            var_mapping: HashMap::from([(symbol_table.intern("Y"), RegPtr(3))]).into()
         }
     )
 }
@@ -682,6 +762,39 @@ fn test_compile_program() {
             var_mapping: HashMap::from([
                 (symbol_table.intern("X"), RegPtr(5)),
                 (symbol_table.intern("Y"), RegPtr(4))
+            ])
+            .into()
+        }
+    )
+}
+
+#[test]
+fn test_compile_program_l1() {
+    use lang::parse_struct;
+    let mut symbol_table = SymbolTable::new();
+    let program = parse_struct("p(f(X), h(Y,f(a)), Y)", &mut symbol_table).unwrap();
+    let instructions = Instruction::from_assembly(
+        r#"
+        get_structure f/1, A1
+        unify_variable X4
+        get_structure h/2, A2
+        unify_variable X5
+        unify_variable X6
+        get_value X5, A3
+        get_structure f/1, X6
+        unify_variable X7
+        get_structure a/0, X7
+        "#,
+        &mut symbol_table,
+    )
+    .unwrap();
+    assert_eq!(
+        compile_program_l1(program),
+        CompileResult {
+            instructions,
+            var_mapping: HashMap::from([
+                (symbol_table.intern("X"), RegPtr(4)),
+                (symbol_table.intern("Y"), RegPtr(5))
             ])
             .into()
         }

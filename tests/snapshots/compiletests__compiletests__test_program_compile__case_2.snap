@@ -1,14 +1,11 @@
 ---
 source: tests/compiletests.rs
-expression: "case(input, writeout(&instructions))"
+expression: "case(input, writeout_sym(&result.instructions, &symbol_table))"
 ---
-f(X, g(X,a))
+f(b, Y)
 -----
 000	get_structure f/2, X1
 001	unify_variable X2
 002	unify_variable X3
-003	get_structure g/2, X3
-004	unify_value X2
-005	unify_variable X4
-006	get_structure a/0, X4
+003	get_structure b/0, X2
 

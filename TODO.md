@@ -5,6 +5,7 @@
     * not needed? generations approach might work
 - [ ] byte-address `call p/n` instead of index-address into array
 - [ ] compile: term_map seems to be useless (`term_map[Ti] == Xi`)
+- [ ] compile: don't forget to add `call` and `proceed` instructions
 
 ### Bugs
 - [x] Type `?- X` then `X`. It cannot figure out the unification. 

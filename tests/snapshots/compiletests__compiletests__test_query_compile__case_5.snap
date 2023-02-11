@@ -1,7 +1,0 @@
----
-source: tests/compiletests.rs
-expression: "case(input, writeout_sym(&result.instructions, &symbol_table))"
----
-a
------
-

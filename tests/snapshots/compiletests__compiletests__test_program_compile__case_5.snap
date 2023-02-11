@@ -1,8 +1,0 @@
----
-source: tests/compiletests.rs
-expression: "case(input, writeout(&instructions))"
----
-a
------
-000	get_structure a/0, X1
-
