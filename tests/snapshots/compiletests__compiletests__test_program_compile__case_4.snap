@@ -4,5 +4,4 @@ expression: "case(input, writeout_sym(&result.instructions, &symbol_table))"
 ---
 a
 -----
-000	get_structure a/0, X1
 

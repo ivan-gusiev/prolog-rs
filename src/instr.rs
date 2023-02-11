@@ -41,8 +41,8 @@ impl Display for Instruction {
             Instruction::Proceed => write!(f, "proceed"),
             Instruction::PutVariable(x, a) => write!(f, "put_variable {x}, {a}"),
             Instruction::PutValue(x, a) => write!(f, "put_value {x}, {a}"),
-            Instruction::GetVariable(x, a) => write!(f, "put_variable {x}, {a}"),
-            Instruction::GetValue(x, a) => write!(f, "put_value {x}, {a}"),
+            Instruction::GetVariable(x, a) => write!(f, "get_variable {x}, {a}"),
+            Instruction::GetValue(x, a) => write!(f, "get_value {x}, {a}"),
         }
     }
 }

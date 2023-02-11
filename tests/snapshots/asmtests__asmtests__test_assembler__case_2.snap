@@ -20,7 +20,7 @@ expression: "case(input, output)"
 002	get_structure h/2, X2
 003	unify_variable X5
 004	unify_variable X6
-005	put_value X5, X3
+005	get_value X5, X3
 006	get_structure f/1, X6
 007	unify_variable X7
 008	get_structure a/0, X7

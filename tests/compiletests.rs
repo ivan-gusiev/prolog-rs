@@ -7,8 +7,8 @@ mod compiletests {
     use insta::assert_display_snapshot;
     use parameterized::parameterized;
     use prolog_rs::{
-        compile::{compile_program, compile_query_l1},
-        lang::{parse_term, parse_struct},
+        compile::{compile_program_l1, compile_query_l1},
+        lang::{parse_struct},
         symbol::SymbolTable,
         util::{case, writeout_sym},
     };
@@ -40,8 +40,8 @@ mod compiletests {
     })]
     fn test_program_compile(input: &str) {
         let mut symbol_table = SymbolTable::new();
-        let query = parse_term(input, &mut symbol_table).unwrap();
-        let result = compile_program(query);
+        let query = parse_struct(input, &mut symbol_table).unwrap();
+        let result = compile_program_l1(query);
 
         assert_display_snapshot!(case(
             input,

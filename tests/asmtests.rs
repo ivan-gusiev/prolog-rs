@@ -51,7 +51,7 @@ mod asmtests {
         QUERY_L1,
         PROGRAM_L1,
     })]
-    fn test_query_compile(input: &str) {
+    fn test_assembler(input: &str) {
         let mut symbol_table = prolog_rs::symbol::SymbolTable::new();
         let result = Instruction::from_assembly(input, &mut symbol_table)
             .map(|instructions| writeout_sym(&instructions, &symbol_table));
