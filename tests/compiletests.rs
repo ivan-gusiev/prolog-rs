@@ -10,7 +10,7 @@ mod compiletests {
         compile::{compile_program_l1, compile_query_l1},
         lang::parse_struct,
         symbol::SymbolTable,
-        util::{case, writeout_sym},
+        util::{case, writeout_compile_result},
     };
 
     #[parameterized(input = {
@@ -27,7 +27,7 @@ mod compiletests {
 
         assert_display_snapshot!(case(
             input,
-            writeout_sym(&result.instructions, &symbol_table)
+            writeout_compile_result(&result, &symbol_table)
         ));
     }
 
@@ -45,7 +45,7 @@ mod compiletests {
 
         assert_display_snapshot!(case(
             input,
-            writeout_sym(&result.instructions, &symbol_table)
+            writeout_compile_result(&result, &symbol_table)
         ));
     }
 }

@@ -1,16 +1,16 @@
 ---
 source: tests/compiletests.rs
-expression: "case(input, writeout_sym(&result.instructions, &symbol_table))"
+expression: "case(input, writeout_compile_result(&result, &symbol_table))"
 ---
 p(f(X), h(Y, f(a)), Y)
 -----
-000	put_structure a/0, X7
-001	put_structure f/1, X6
-002	set_value X7
-003	put_structure f/1, X1
-004	set_variable X4
-005	put_structure h/2, X2
-006	set_variable X5
-007	set_value X6
-008	put_value X5, X3
+000	put_structure a/0, X7	
+001	put_structure f/1, X6	
+002	set_value X7	
+003	put_structure f/1, X1	
+004	set_variable X4	// X4=X
+005	put_structure h/2, X2	
+006	set_variable X5	// X5=Y
+007	set_value X6	
+008	put_value X5, X3	// X5=Y
 

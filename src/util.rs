@@ -1,9 +1,9 @@
 use std::fmt::{Debug, Display, Error, Write};
 
 use crate::{
-    compile::VarMapping,
+    compile::{VarMapping, CompileResult},
     symbol::{to_display, SymDisplay, SymbolTable},
-    Machine,
+    Machine, data::RegPtr, instr::Instruction,
 };
 
 pub fn writeout<T: Display, I: Iterator<Item = T>>(items: I) -> String {
@@ -91,4 +91,82 @@ pub fn write_program_result(
 
     write_program_result_impl(machine, symbol_table, query_mapping, program_mapping)
         .unwrap_or_else(|e| format!("{e}"))
+}
+
+pub fn writeout_annotated_mappings(
+    machine: &Machine,
+    query_mapping: &VarMapping,
+    program_mapping: &VarMapping,
+    symbol_table: &SymbolTable,
+) -> String {
+    fn writeout_annotated_mappings_impl(
+        machine: &Machine,
+        query_mapping: &VarMapping,
+        program_mapping: &VarMapping,
+        symbol_table: &SymbolTable,
+    ) -> Result<String, Error> {
+        let mut out = String::new();
+        let mut vars = Vec::<String>::with_capacity(2);
+        for reg_id in 1..=machine.iter_reg().len() {
+            let reg = RegPtr(reg_id);
+            vars.clear();
+            if let Some(var) = query_mapping.get(&reg) {
+                vars.push(format!("query.{}", var.sym_to_str(symbol_table)))
+            }
+            if let Some(var) = program_mapping.get(&reg) {
+                vars.push(format!("program.{}", var.sym_to_str(symbol_table)))
+            }
+            let annotations = if vars.is_empty() { String::new() } else { format!("// {}", vars.join(", ")) };
+            writeln!(out, "{}\t{}", reg, annotations)?
+        }
+        Ok(out)
+    }
+
+    writeout_annotated_mappings_impl(machine, query_mapping, program_mapping, symbol_table)
+        .unwrap_or_else(|e| format!("{e}"))
+}
+
+pub fn writeout_compile_result(
+    compile_result: &CompileResult,
+    symbol_table: &SymbolTable,
+) -> String {
+    fn writeout_compile_result_impl(
+        compile_result: &CompileResult,
+        symbol_table: &SymbolTable,
+    ) -> Vec<String> {
+        let mut out = Vec::<String>::new();
+        let mut annotations = Vec::<String>::with_capacity(2);
+        let process_reg = |reg: &RegPtr, ann: &mut Vec<String>| {
+            if let Some(var) = compile_result.var_mapping.get(reg) {
+                ann.push(format!("{}={}", reg, to_display(&var, symbol_table)))
+            }
+        };
+        let process_regs = |rs: &[&RegPtr], ann: &mut Vec<String>| {
+            for r in rs {
+                process_reg(r, ann)
+            }
+        };
+
+        for instr in compile_result.instructions.iter() {
+            annotations.clear();
+            match instr {
+                Instruction::GetStructure(_, reg) |
+                Instruction::PutStructure(_, reg) |
+                Instruction::UnifyValue(reg) |
+                Instruction::UnifyVariable(reg) |
+                Instruction::SetValue(reg) |
+                Instruction::SetVariable(reg) => process_reg(reg, &mut annotations),
+                Instruction::GetValue(r1, r2) |
+                Instruction::GetVariable(r1, r2) |
+                Instruction::PutValue(r1, r2) |
+                Instruction::PutVariable(r1, r2) => process_regs(&[r1, r2], &mut annotations),
+                _ => ()
+            }
+            let comment = if annotations.is_empty() { String::new() } else { format!("// {}", annotations.join(", ")) };
+            out.push(format!("{}\t{}", instr, comment))
+        }
+        out
+    }
+
+    writeout(writeout_compile_result_impl(compile_result, symbol_table).iter())
 }
