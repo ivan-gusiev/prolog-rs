@@ -1,9 +1,11 @@
 use std::fmt::{Debug, Display, Error, Write};
 
 use crate::{
-    compile::{VarMapping, CompileResult},
+    compile::{CompileResult, VarMapping},
+    data::RegPtr,
+    instr::Instruction,
     symbol::{to_display, SymDisplay, SymbolTable},
-    Machine, data::RegPtr, instr::Instruction,
+    Machine,
 };
 
 pub fn writeout<T: Display, I: Iterator<Item = T>>(items: I) -> String {
@@ -116,7 +118,11 @@ pub fn writeout_annotated_mappings(
             if let Some(var) = program_mapping.get(&reg) {
                 vars.push(format!("program.{}", var.sym_to_str(symbol_table)))
             }
-            let annotations = if vars.is_empty() { String::new() } else { format!("// {}", vars.join(", ")) };
+            let annotations = if vars.is_empty() {
+                String::new()
+            } else {
+                format!("// {}", vars.join(", "))
+            };
             writeln!(out, "{}\t{}", reg, annotations)?
         }
         Ok(out)
@@ -150,19 +156,23 @@ pub fn writeout_compile_result(
         for instr in compile_result.instructions.iter() {
             annotations.clear();
             match instr {
-                Instruction::GetStructure(_, reg) |
-                Instruction::PutStructure(_, reg) |
-                Instruction::UnifyValue(reg) |
-                Instruction::UnifyVariable(reg) |
-                Instruction::SetValue(reg) |
-                Instruction::SetVariable(reg) => process_reg(reg, &mut annotations),
-                Instruction::GetValue(r1, r2) |
-                Instruction::GetVariable(r1, r2) |
-                Instruction::PutValue(r1, r2) |
-                Instruction::PutVariable(r1, r2) => process_regs(&[r1, r2], &mut annotations),
-                _ => ()
+                Instruction::GetStructure(_, reg)
+                | Instruction::PutStructure(_, reg)
+                | Instruction::UnifyValue(reg)
+                | Instruction::UnifyVariable(reg)
+                | Instruction::SetValue(reg)
+                | Instruction::SetVariable(reg) => process_reg(reg, &mut annotations),
+                Instruction::GetValue(r1, r2)
+                | Instruction::GetVariable(r1, r2)
+                | Instruction::PutValue(r1, r2)
+                | Instruction::PutVariable(r1, r2) => process_regs(&[r1, r2], &mut annotations),
+                _ => (),
             }
-            let comment = if annotations.is_empty() { String::new() } else { format!("// {}", annotations.join(", ")) };
+            let comment = if annotations.is_empty() {
+                String::new()
+            } else {
+                format!("// {}", annotations.join(", "))
+            };
             out.push(format!("{}\t{}", instr, comment))
         }
         out

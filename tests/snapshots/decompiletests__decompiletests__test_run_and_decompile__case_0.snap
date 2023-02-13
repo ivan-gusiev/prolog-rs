@@ -1,6 +1,6 @@
 ---
 source: tests/decompiletests.rs
-expression: "case(program_str.to_owned() + \" | ?- \" + query_str,\n    result + \"\\n\" + mappings.as_str())"
+expression: "case(program_str.to_owned() + \" | ?- \" + query_str, result)"
 ---
 p(Z, h(Z,W), f(W)) | ?- p(f(X), h(Y, f(a)), Y)
 -----
@@ -13,7 +13,6 @@ PROGRAM
 ____
 000	W	(X5) =	<STR,3>	// f(a)
 001	Z	(X4) =	<STR,13>	// f(f(a))
-
 
 X1	
 X2	

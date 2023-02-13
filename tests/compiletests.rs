@@ -25,10 +25,7 @@ mod compiletests {
         let query = parse_struct(input, &mut symbol_table).unwrap();
         let result = compile_query_l1(query);
 
-        assert_display_snapshot!(case(
-            input,
-            writeout_compile_result(&result, &symbol_table)
-        ));
+        assert_display_snapshot!(case(input, writeout_compile_result(&result, &symbol_table)));
     }
 
     #[parameterized(input = {
@@ -43,9 +40,6 @@ mod compiletests {
         let query = parse_struct(input, &mut symbol_table).unwrap();
         let result = compile_program_l1(query);
 
-        assert_display_snapshot!(case(
-            input,
-            writeout_compile_result(&result, &symbol_table)
-        ));
+        assert_display_snapshot!(case(input, writeout_compile_result(&result, &symbol_table)));
     }
 }

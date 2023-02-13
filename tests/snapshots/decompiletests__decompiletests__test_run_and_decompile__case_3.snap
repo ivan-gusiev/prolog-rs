@@ -2,19 +2,12 @@
 source: tests/decompiletests.rs
 expression: "case(program_str.to_owned() + \" | ?- \" + query_str, result)"
 ---
-f(X, g(X,a)) | ?- f(b, Y)
+a | ?- b
 -----
 QUERY
 ----
-000	Y	(X3) =	<STR,1>	// b
 
 PROGRAM
 ____
-000	X	(X3) =	<STR,1>	// b
 
-X1	
-X2	
-X3	// query.Y, program.X
-X4	
-X5	
 

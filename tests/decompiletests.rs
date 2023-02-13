@@ -9,8 +9,8 @@ mod decompiletests {
     use insta::assert_display_snapshot;
     use parameterized::parameterized;
     use prolog_rs::{
-        compile::{compile_program_l1, compile_program, compile_query_l1, compile_query},
-        lang::{parse_term, parse_struct, Term, VarName},
+        compile::{compile_program, compile_program_l1, compile_query, compile_query_l1},
+        lang::{parse_struct, parse_term, Term, VarName},
         run_code,
         symbol::SymbolTable,
         util::{case, write_program_result, writeout_annotated_mappings},
@@ -19,12 +19,14 @@ mod decompiletests {
 
     #[parameterized(program_str = {
         "p(Z, h(Z,W), f(W))",
-        "f(X, g(X,a))", 
+        "f(X, g(X,a))",
+        "f(b, Y)",
         "a"
     }, query_str = {
         "p(f(X), h(Y, f(a)), Y)", 
-        "f(b, Y)", 
-        "D"
+        "f(b, Y)",
+        "f(X, g(X,a))",
+        "b"
     })]
     fn test_run_and_decompile(program_str: &str, query_str: &str) {
         let mut symbol_table = SymbolTable::new();
@@ -45,12 +47,14 @@ mod decompiletests {
             &symbol_table,
             &query_result.var_mapping,
             &program_result.var_mapping,
-        );
-        let mappings = writeout_annotated_mappings(&machine, &query_result.var_mapping, &program_result.var_mapping, &symbol_table);
-        assert_display_snapshot!(case(
-            program_str.to_owned() + " | ?- " + query_str,
-            result + "\n" + mappings.as_str()
-        ));
+        ) + writeout_annotated_mappings(
+            &machine,
+            &query_result.var_mapping,
+            &program_result.var_mapping,
+            &symbol_table,
+        )
+        .as_str();
+        assert_display_snapshot!(case(program_str.to_owned() + " | ?- " + query_str, result));
     }
 
     #[parameterized(lhs = {

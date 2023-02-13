@@ -11,6 +11,8 @@
 - [x] Type `?- X` then `X`. It cannot figure out the unification. 
     * WONTFIX: after L1 you cannot have root variables
 - [ ] Unify `f(X, g(X,a))` and `f(b, Y)`. The variable mapping does not seem to be right.
+    * fix the variable descriptions by dereferencing mappings:
+    * before code execution, turn all RegPtr's into HeapPtr's
 
 ### Done ✓
 - [x] WAM assembly parser
