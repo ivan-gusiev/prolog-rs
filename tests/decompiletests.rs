@@ -4,17 +4,18 @@ extern crate prolog_rs;
 
 #[cfg(test)]
 mod decompiletests {
-    use std::collections::HashSet;
+    use std::collections::{HashMap, HashSet};
 
-    use insta::assert_display_snapshot;
+    use insta::{assert_debug_snapshot, assert_display_snapshot};
     use parameterized::parameterized;
     use prolog_rs::{
         compile::{compile_program, compile_program_l1, compile_query, compile_query_l1},
-        lang::{parse_struct, parse_term, Term, VarName},
+        data::{Data, HeapPtr},
+        lang::{parse_struct, parse_term, Functor, Term, VarName},
         run_code,
-        symbol::SymbolTable,
-        util::{case, write_program_result, writeout_annotated_mappings},
-        Machine,
+        symbol::{SymDisplay, SymbolTable},
+        util::{case, collapse, write_program_result, writeout_annotated_mappings},
+        Machine, VarBindings,
     };
 
     #[parameterized(program_str = {
@@ -98,5 +99,20 @@ mod decompiletests {
         let lr = get_unification_set(lhs, rhs);
         let rl = get_unification_set(rhs, lhs);
         assert_eq!(lr, rl)
+    }
+
+    #[test]
+    fn test_bad_addr() {
+        let mut machine = Machine::new();
+        let mut symbol_table = SymbolTable::new();
+        let ptr = HeapPtr(0);
+        let var_bindings = VarBindings::from_hash(HashMap::new());
+        machine.set_heap(ptr, Data::Functor(Functor(symbol_table.intern("f"), 2)));
+
+        let result = machine
+            .decompile_addr(ptr.into(), &var_bindings)
+            .map(|term| term.sym_to_str(&symbol_table))
+            .map_err(|e| format!("{}", e));
+        assert_debug_snapshot!(collapse(result));
     }
 }

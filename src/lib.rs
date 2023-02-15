@@ -10,7 +10,12 @@ use compile::VarMapping;
 use data::{Addr, CodePtr, Data, HeapPtr, Mode, Ref, RegPtr, Str};
 use instr::Instruction;
 use lang::{Functor, Term, VarName};
-use std::fmt::{Display, Write};
+use std::{
+    collections::HashMap,
+    fmt::{Display, Write},
+    hash::Hash,
+    iter::FromIterator,
+};
 use symbol::{to_display, SymDisplay, SymbolTable};
 
 use util::{writeout, writeout_sym};
@@ -158,31 +163,134 @@ impl Machine {
         self.pdl.is_empty()
     }
 
-    pub fn trace_reg(&self, reg: RegPtr) -> Addr {
-        deref(self, reg.into())
+    pub fn trace_reg(&self, reg: RegPtr) -> Option<HeapPtr> {
+        match self.get_reg(reg) {
+            Data::Ref(Ref(ptr)) | Data::Str(Str(ptr)) => Some(ptr),
+            _ => None,
+        }
+    }
+
+    pub fn bind_variables(&self, var_mapping: &VarMapping) -> MachineResult<VarBindings> {
+        let mut result = HashMap::<VarName, HeapPtr>::new();
+        for (name, reg) in var_mapping.mappings() {
+            if let Some(heap) = self.trace_reg(*reg) {
+                result.insert(*name, heap);
+            } else {
+                return Err(MachineFailure::NonVarBind);
+            }
+        }
+        Ok(VarBindings::from_iter(result))
+    }
+
+    pub fn load_variables(&self, var_bindings: &VarBindings) -> MachineResult<VarValues> {
+        let var_labels = var_bindings.invert();
+        let mut result = HashMap::<VarName, Term>::new();
+        for (&name, &heap_ptr) in var_bindings.info() {
+            result.insert(
+                name,
+                self.decompile_addr_impl(heap_ptr.into(), &var_labels)?,
+            );
+        }
+        Ok(VarValues::from_hash(result))
+    }
+
+    pub fn decompile_addr(&self, addr: Addr, var_bindings: &VarBindings) -> MachineResult<Term> {
+        self.decompile_addr_impl(addr, &var_bindings.invert())
+    }
+
+    fn decompile_addr_impl(
+        &self,
+        addr: Addr,
+        var_labels: &HashMap<HeapPtr, VarName>,
+    ) -> MachineResult<Term> {
+        let decompile_functor = |ptr: HeapPtr, f: Functor| {
+            let mut subterms = Vec::<Term>::new();
+            for i in 1..=f.arity() {
+                subterms.push(self.decompile_addr_impl((ptr + i as usize).into(), var_labels)?)
+            }
+            Struct::new(f, &subterms)
+                .map(Term::Struct)
+                .map_err(|_| MachineFailure::BadArity)
+        };
+
+        let decompile_str = |Str(ptr): Str| match self.get_heap(ptr) {
+            Data::Functor(f) => decompile_functor(ptr, f),
+            _ => Err(MachineFailure::NoStrFunctor),
+        };
+
+        let decompile_ref = |Ref(mut ptr): Ref| {
+            let mut last_name: Option<VarName> = None;
+            loop {
+                if let Some(new_name) = var_labels.get(&ptr) {
+                    last_name = Some(*new_name)
+                }
+
+                match self.get_heap(ptr) {
+                    Data::Ref(Ref(next_ptr)) => {
+                        if ptr != next_ptr {
+                            ptr = next_ptr
+                        } else if let Some(name) = last_name {
+                            break Ok(Term::Variable(name));
+                        } else {
+                            break Err(MachineFailure::UnknownVariable);
+                        }
+                    }
+                    Data::Str(str) => break decompile_str(str),
+                    Data::Functor(f) => break decompile_functor(ptr, f),
+                    Data::Empty => break Err(MachineFailure::EmptyRef),
+                }
+            }
+        };
+
+        let decompile_heap = |ptr: HeapPtr| match self.get_heap(ptr) {
+            Data::Ref(r) => decompile_ref(r),
+            Data::Str(str) => decompile_str(str),
+            Data::Functor(f) => decompile_functor(ptr, f),
+            Data::Empty => Err(MachineFailure::EmptyRef),
+        };
+
+        let decompile_reg = |ptr: RegPtr| match self.get_reg(ptr) {
+            Data::Ref(r) => decompile_ref(r),
+            Data::Str(str) => decompile_str(str),
+            _ => Err(MachineFailure::InvalidRegData),
+        };
+
+        match addr {
+            Addr::Reg(reg_ptr) => decompile_reg(reg_ptr),
+            Addr::Heap(heap_ptr) => decompile_heap(heap_ptr),
+        }
     }
 
     pub fn decompile(&self, addr: Addr, var_mapping: &VarMapping) -> Option<Term> {
+        fn decompile_functor(
+            machine: &Machine,
+            ptr: HeapPtr,
+            f: Functor,
+            var_mapping: &VarMapping,
+        ) -> Option<Term> {
+            let mut subterms = Vec::<Term>::new();
+            for i in 1..=f.arity() {
+                if let Some(subterm) = machine.decompile((ptr + i as usize).into(), var_mapping) {
+                    subterms.push(subterm)
+                } else {
+                    println!("Could not decompile subterm");
+                    return None;
+                }
+            }
+            Struct::new(f, &subterms).ok().map(Term::Struct)
+        }
+
         fn decompile_str(
             machine: &Machine,
             Str(ptr): Str,
             var_mapping: &VarMapping,
         ) -> Option<Term> {
             match machine.get_heap(ptr) {
-                Data::Functor(f) => {
-                    let mut subterms = Vec::<Term>::new();
-                    for i in 1..=f.arity() {
-                        if let Some(subterm) =
-                            machine.decompile((ptr + i as usize).into(), var_mapping)
-                        {
-                            subterms.push(subterm)
-                        } else {
-                            return None;
-                        }
-                    }
-                    Struct::new(f, &subterms).ok().map(Term::Struct)
+                Data::Functor(f) => decompile_functor(machine, ptr, f, var_mapping),
+                _ => {
+                    println!("COULD NOT DECOMPILE STR");
+                    None
                 }
-                _ => None,
             }
         }
 
@@ -200,11 +308,16 @@ impl Machine {
                             }
                         }
                     }
+                    println!("Could not decompile ref");
                     None
                 }
                 Data::Ref(next_ref) => decompile_ref(machine, next_ref, var_mapping),
                 Data::Str(str) => decompile_str(machine, str, var_mapping),
-                _ => None,
+                Data::Functor(f) => decompile_functor(machine, ptr, f, var_mapping),
+                _ => {
+                    println!("COULD NOT DECOMPILE REF");
+                    None
+                }
             }
         }
 
@@ -216,18 +329,22 @@ impl Machine {
             match machine.get_heap(ptr) {
                 Data::Ref(r) => decompile_ref(machine, r, var_mapping),
                 Data::Str(str) => decompile_str(machine, str, var_mapping),
-                _ => None,
+                Data::Functor(f) => decompile_functor(machine, ptr, f, var_mapping),
+                _ => {
+                    println!("COULD NOT DECOMPILE HEAP");
+                    None
+                }
             }
         }
 
         fn decompile_reg(machine: &Machine, ptr: RegPtr, var_mapping: &VarMapping) -> Option<Term> {
-            /*if let Some(known_var) = var_mapping.get(&ptr) {
-                return Some(Term::Variable(known_var));
-            }*/
             match machine.get_reg(ptr) {
                 Data::Ref(r) => decompile_ref(machine, r, var_mapping),
                 Data::Str(str) => decompile_str(machine, str, var_mapping),
-                _ => None,
+                _ => {
+                    println!("COULD NOT DECOMPILE REG");
+                    None
+                }
             }
         }
 
@@ -246,11 +363,13 @@ impl Machine {
 
         mappings
             .into_iter()
-            .filter_map(|(name, reg)| {
-                let addr = self.trace_reg(reg);
-                let value = self.get_store(addr);
-                self.decompile(addr, var_mapping)
-                    .map(|term| VarDescription(name, reg, value, term))
+            .filter_map(|(name, reg)| match self.trace_reg(reg) {
+                Some(heap) => {
+                    let value = self.get_heap(heap);
+                    self.decompile(heap.into(), var_mapping)
+                        .map(|term| VarDescription(name, reg, value, term))
+                }
+                None => None,
             })
             .collect()
     }
@@ -284,6 +403,11 @@ impl Default for Machine {
 pub enum MachineFailure {
     RegBind,
     NoStrFunctor,
+    BadArity,
+    NonVarBind,
+    EmptyRef,
+    UnknownVariable, // TODO: this should really be a decompilation failure, not machine failure
+    InvalidRegData,
 }
 
 impl MachineFailure {
@@ -291,6 +415,11 @@ impl MachineFailure {
         match self {
             Self::RegBind => "Attempted to bind two registers",
             Self::NoStrFunctor => "Struct does not point to a functor",
+            Self::BadArity => "Some functor subterms not found on heap",
+            Self::NonVarBind => "Attemted to bind variable to a non-var register",
+            Self::EmptyRef => "Term points to an empty heap cell",
+            Self::UnknownVariable => "Decompilation of a variable with unknown name",
+            Self::InvalidRegData => "Register contains something other than reference to heap",
         }
     }
 }
@@ -303,6 +432,7 @@ impl Display for MachineFailure {
 
 type IResult = Result<Option<CodePtr>, MachineFailure>;
 type MResult = Result<(), MachineFailure>;
+type MachineResult<T> = Result<T, MachineFailure>;
 
 #[derive(Debug)]
 pub struct VarDescription(VarName, RegPtr, Data, Term);
@@ -338,11 +468,84 @@ impl VarDescription {
     }
 }
 
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct VarInfo<T>(HashMap<VarName, T>);
+
+impl<T: Display> Display for VarInfo<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut pairs = self.0.iter();
+        write!(f, "{{")?;
+        if let Some((s, t)) = pairs.next() {
+            write!(f, "{}={}", s, t)?;
+            while let Some((s, t)) = pairs.next() {
+                write!(f, ", {}={}", s, t)?;
+            }
+        }
+        write!(f, "}}")
+    }
+}
+
+impl<T: SymDisplay> SymDisplay for VarInfo<T> {
+    fn sym_fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        symbol_table: &SymbolTable,
+    ) -> std::fmt::Result {
+        let mut pairs = self.0.iter();
+        write!(f, "{{")?;
+        if let Some((s, t)) = pairs.next() {
+            write!(f, "{}={}", s, to_display(t, symbol_table))?;
+            while let Some((s, t)) = pairs.next() {
+                write!(f, ", {}={}", s, to_display(t, symbol_table))?;
+            }
+        }
+        write!(f, "}}")
+    }
+}
+
+impl<T> FromIterator<(VarName, T)> for VarInfo<T> {
+    fn from_iter<I: IntoIterator<Item = (VarName, T)>>(iter: I) -> Self {
+        Self(HashMap::from_iter(iter))
+    }
+}
+
+impl<T> VarInfo<T> {
+    pub fn from_hash(hash_map: HashMap<VarName, T>) -> VarInfo<T> {
+        Self(hash_map)
+    }
+
+    pub fn get(&self, variable: VarName) -> Option<&T> {
+        self.0.get(&variable)
+    }
+
+    pub fn info(&self) -> impl Iterator<Item = (&VarName, &T)> {
+        self.0.iter()
+    }
+
+    pub fn transform<NewT, F>(&self, mut mapper: F) -> VarInfo<NewT>
+    where
+        F: FnMut(&T) -> NewT,
+    {
+        VarInfo::<NewT>::from_iter(self.info().map(|(v, t)| (*v, mapper(t))))
+    }
+}
+
+impl<T: Eq + Hash + Clone> VarInfo<T> {
+    pub fn invert(&self) -> HashMap<T, VarName> {
+        HashMap::from_iter(self.info().map(|(k, v)| (v.clone(), *k)))
+    }
+}
+
+pub type VarBindings = VarInfo<HeapPtr>;
+
+pub type VarValues = VarInfo<Term>;
+
 #[derive(Debug, Default)]
 pub struct RunningContext {
     pub machine: Machine,
     pub symbol_table: SymbolTable,
     pub query_variables: VarMapping,
+    pub program_variables: VarMapping,
 }
 
 fn deref(machine: &Machine, mut addr: Addr) -> Addr {

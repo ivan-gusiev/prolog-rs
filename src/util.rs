@@ -8,10 +8,17 @@ use crate::{
     Machine,
 };
 
-pub fn writeout<T: Display, I: Iterator<Item = T>>(items: I) -> String {
-    fn writeout_impl<T: Display, I: Iterator<Item = T>>(items: I) -> Result<String, Error> {
+pub fn collapse<T>(result: Result<T, T>) -> T {
+    match result {
+        Ok(x) => x,
+        Err(x) => x,
+    }
+}
+
+pub fn writeout<T: Display, I: IntoIterator<Item = T>>(items: I) -> String {
+    fn writeout_impl<T: Display, I: IntoIterator<Item = T>>(items: I) -> Result<String, Error> {
         let mut out = String::new();
-        for (idx, item) in items.enumerate() {
+        for (idx, item) in items.into_iter().enumerate() {
             writeln!(out, "{idx:#03}\t{item}")?;
         }
         Ok(out)

@@ -1,6 +1,5 @@
 use crate::rustyline::error::ReadlineError;
 use crate::rustyline::{Editor, Result as RustyResult};
-use prolog_rs::compile::VarMapping;
 use prolog_rs::{Machine, RunningContext};
 
 extern crate prolog_rs;
@@ -26,7 +25,7 @@ fn main() -> RustyResult<()> {
                                 &context.machine,
                                 &context.symbol_table,
                                 &context.query_variables,
-                                &VarMapping::default()
+                                &context.program_variables,
                             )
                         );
                     }
@@ -83,6 +82,7 @@ fn parse_and_run_program(input: &str, context: &mut RunningContext) -> Result<()
     let code = compile_program(query);
 
     context.machine.set_code(&code.instructions);
+    context.program_variables = code.var_mapping;
     run_code(&mut context.machine).map_err(|e| e.message())?;
 
     output_result(context);

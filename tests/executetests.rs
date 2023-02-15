@@ -15,8 +15,8 @@ mod executetests {
         instr::Instruction,
         lang::{parse_struct, Functor, VarName},
         run_code,
-        symbol::{to_display, SymbolTable},
-        util::{case, writeout_sym},
+        symbol::{to_display, SymDisplay, SymbolTable},
+        util::{case, writeout, writeout_sym},
         Machine,
     };
 
@@ -57,17 +57,38 @@ mod executetests {
         let query_result = compile_query_l1(query);
         machine.set_code(&query_result.instructions);
         run_code(&mut machine).expect("machine failure");
+        let query_vars = query_result
+            .var_mapping
+            .mappings()
+            .map(|(name, reg)| (*name, machine.trace_reg(*reg).unwrap()))
+            .collect::<Vec<_>>();
 
         let program_result = compile_program_l1(program);
         machine.set_code(&program_result.instructions);
         run_code(&mut machine).expect("machine failure");
+
+        let query_terms = query_vars
+            .into_iter()
+            .map(|(name, heap)| {
+                (
+                    name,
+                    machine.decompile(heap.into(), &query_result.var_mapping),
+                )
+            })
+            .map(|(name, maybe_term)| {
+                let term_str = maybe_term
+                    .map(|term| term.sym_to_str(&symbol_table))
+                    .unwrap_or("???".to_string());
+                format!("{} = {}", to_display(&name, &symbol_table), term_str)
+            })
+            .collect::<Vec<_>>();
 
         let input = format!("({query_text}, {program_text})");
         let output = if machine.get_fail() {
             machine.dbg(&symbol_table)
         } else {
             format!(
-                "{}\n{}\n{}",
+                "{}\n{}\n{}\n{}",
                 machine.dbg(&symbol_table),
                 writeout_sym(
                     &machine.describe_vars(&query_result.var_mapping),
@@ -76,7 +97,8 @@ mod executetests {
                 writeout_sym(
                     &machine.describe_vars(&program_result.var_mapping),
                     &symbol_table
-                )
+                ),
+                writeout(query_terms)
             )
         };
         assert_display_snapshot!(case(input, output));
