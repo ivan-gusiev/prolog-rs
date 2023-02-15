@@ -4,7 +4,7 @@ use std::ops;
 
 use crate::symbol::SymDisplay;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub struct HeapPtr(pub usize);
 
 impl ops::Add<usize> for HeapPtr {
@@ -177,3 +177,4 @@ impl From<HeapPtr> for Addr {
         Addr::Heap(ptr)
     }
 }
+

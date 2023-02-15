@@ -1,17 +1,25 @@
 use std::fmt::{Debug, Display, Error, Write};
 
 use crate::{
-    compile::{CompileResult, VarMapping},
+    compile::CompileResult,
     data::RegPtr,
     instr::Instruction,
     symbol::{to_display, SymDisplay, SymbolTable},
+    var::VarBindings,
     Machine,
 };
 
-pub fn writeout<T: Display, I: Iterator<Item = T>>(items: I) -> String {
-    fn writeout_impl<T: Display, I: Iterator<Item = T>>(items: I) -> Result<String, Error> {
+pub fn collapse<T>(result: Result<T, T>) -> T {
+    match result {
+        Ok(x) => x,
+        Err(x) => x,
+    }
+}
+
+pub fn writeout<T: Display, I: IntoIterator<Item = T>>(items: I) -> String {
+    fn writeout_impl<T: Display, I: IntoIterator<Item = T>>(items: I) -> Result<String, Error> {
         let mut out = String::new();
-        for (idx, item) in items.enumerate() {
+        for (idx, item) in items.into_iter().enumerate() {
             writeln!(out, "{idx:#03}\t{item}")?;
         }
         Ok(out)
@@ -66,45 +74,51 @@ pub fn case_dbg<T: Debug, U: Debug>(input: T, output: U) -> String {
 pub fn write_program_result(
     machine: &Machine,
     symbol_table: &SymbolTable,
-    query_mapping: &VarMapping,
-    program_mapping: &VarMapping,
+    query_bindings: &VarBindings,
+    program_bindings: &VarBindings,
 ) -> String {
     fn write_program_result_impl(
         machine: &Machine,
         symbol_table: &SymbolTable,
-        query_mapping: &VarMapping,
-        program_mapping: &VarMapping,
+        query_bindings: &VarBindings,
+        program_bindings: &VarBindings,
     ) -> Result<String, Error> {
         let mut out = String::new();
         writeln!(out, "QUERY\n----")?;
         writeln!(
             out,
             "{}",
-            writeout_sym(&machine.describe_vars(query_mapping), symbol_table)
+            writeout_sym(
+                &machine.describe_vars(query_bindings).map_err(|_| Error)?,
+                symbol_table
+            )
         )?;
         writeln!(out, "PROGRAM\n____")?;
         writeln!(
             out,
             "{}",
-            writeout_sym(&machine.describe_vars(program_mapping), symbol_table)
+            writeout_sym(
+                &machine.describe_vars(program_bindings).map_err(|_| Error)?,
+                symbol_table
+            )
         )?;
         Ok(out)
     }
 
-    write_program_result_impl(machine, symbol_table, query_mapping, program_mapping)
+    write_program_result_impl(machine, symbol_table, query_bindings, program_bindings)
         .unwrap_or_else(|e| format!("{e}"))
 }
 
 pub fn writeout_annotated_mappings(
     machine: &Machine,
-    query_mapping: &VarMapping,
-    program_mapping: &VarMapping,
+    query_bindings: &VarBindings,
+    program_bindings: &VarBindings,
     symbol_table: &SymbolTable,
 ) -> String {
     fn writeout_annotated_mappings_impl(
         machine: &Machine,
-        query_mapping: &VarMapping,
-        program_mapping: &VarMapping,
+        query_bindings: &VarBindings,
+        program_bindings: &VarBindings,
         symbol_table: &SymbolTable,
     ) -> Result<String, Error> {
         let mut out = String::new();
@@ -112,10 +126,10 @@ pub fn writeout_annotated_mappings(
         for reg_id in 1..=machine.iter_reg().len() {
             let reg = RegPtr(reg_id);
             vars.clear();
-            if let Some(var) = query_mapping.get(&reg) {
+            if let Some(var) = query_bindings.get(&machine.trace_reg(reg).unwrap()) {
                 vars.push(format!("query.{}", var.sym_to_str(symbol_table)))
             }
-            if let Some(var) = program_mapping.get(&reg) {
+            if let Some(var) = program_bindings.get(&machine.trace_reg(reg).unwrap()) {
                 vars.push(format!("program.{}", var.sym_to_str(symbol_table)))
             }
             let annotations = if vars.is_empty() {
@@ -128,7 +142,7 @@ pub fn writeout_annotated_mappings(
         Ok(out)
     }
 
-    writeout_annotated_mappings_impl(machine, query_mapping, program_mapping, symbol_table)
+    writeout_annotated_mappings_impl(machine, query_bindings, program_bindings, symbol_table)
         .unwrap_or_else(|e| format!("{e}"))
 }
 

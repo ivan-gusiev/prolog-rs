@@ -6,6 +6,7 @@ use std::iter::FromIterator;
 use data::RegPtr;
 use instr::Instruction;
 use lang::{Functor, Struct, Term, VarName};
+use var::VarMapping;
 
 // TODO: for some reason rustc requires `extern crate` definitions, fix this
 extern crate topological_sort;
@@ -178,16 +179,7 @@ fn flatten_term(query: Term) -> (Vec<FlattenedTerm<RegPtr>>, HashMap<VarName, Re
     (result, var_map)
 }
 
-// TODO: unfuck it by mapping everything
-
-#[derive(Debug)]
 struct FlattenedReg(RegPtr, FlattenedTerm<RegPtr>);
-
-impl Display for FlattenedReg {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} = {}", self.0, self.1)
-    }
-}
 
 impl FlattenedReg {
     fn to_tuple(&self) -> (RegPtr, &FlattenedTerm<RegPtr>) {
@@ -416,7 +408,7 @@ pub fn compile_query(query: Term) -> CompileResult {
 
     CompileResult {
         instructions: result,
-        var_mapping: vars.into(),
+        var_mapping: VarMapping::from_inverse(vars),
     }
 }
 
@@ -479,7 +471,7 @@ pub fn compile_query_l1(query: Struct) -> CompileResult {
 
     CompileResult {
         instructions: result,
-        var_mapping: vars.into(),
+        var_mapping: VarMapping::from_inverse(vars),
     }
 }
 
@@ -505,7 +497,7 @@ pub fn compile_program(program: Term) -> CompileResult {
 
     CompileResult {
         instructions: result,
-        var_mapping: vars.into(),
+        var_mapping: VarMapping::from_inverse(vars),
     }
 }
 
@@ -569,34 +561,7 @@ pub fn compile_program_l1(program: Struct) -> CompileResult {
 
     CompileResult {
         instructions: result,
-        var_mapping: vars.into(),
-    }
-}
-
-#[derive(Debug, Default, PartialEq, Eq)]
-pub struct VarMapping(HashMap<RegPtr, VarName>);
-
-impl From<HashMap<VarName, RegPtr>> for VarMapping {
-    fn from(value: HashMap<VarName, RegPtr>) -> Self {
-        let mut result = HashMap::<RegPtr, VarName>::new();
-        for (v, r) in value.into_iter() {
-            result.insert(r, v);
-        }
-        Self(result)
-    }
-}
-
-impl VarMapping {
-    pub fn mappings(&self) -> impl Iterator<Item = (&VarName, &RegPtr)> {
-        self.0.iter().map(|(r, v)| (v, r))
-    }
-
-    pub fn get(&self, ptr: &RegPtr) -> Option<VarName> {
-        self.0.get(ptr).copied()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        var_mapping: VarMapping::from_inverse(vars),
     }
 }
 
@@ -671,11 +636,10 @@ fn test_compile_query() {
         compile_query(query),
         CompileResult {
             instructions,
-            var_mapping: HashMap::from([
-                (symbol_table.intern("W"), RegPtr(5)),
-                (symbol_table.intern("Z"), RegPtr(2))
+            var_mapping: VarMapping::from_iter([
+                (RegPtr(5), symbol_table.intern("W")),
+                (RegPtr(2), symbol_table.intern("Z"))
             ])
-            .into()
         }
     )
 }
@@ -701,11 +665,10 @@ fn test_compile_query_l1() {
         compile_query_l1(query),
         CompileResult {
             instructions,
-            var_mapping: HashMap::from([
-                (symbol_table.intern("W"), RegPtr(5)),
-                (symbol_table.intern("Z"), RegPtr(4))
+            var_mapping: VarMapping::from_iter([
+                (RegPtr(4), symbol_table.intern("Z")),
+                (RegPtr(5), symbol_table.intern("W"))
             ])
-            .into()
         }
     )
 }
@@ -727,7 +690,7 @@ fn test_compile_query2_l1() {
         compile_query_l1(query),
         CompileResult {
             instructions,
-            var_mapping: HashMap::from([(symbol_table.intern("Y"), RegPtr(3))]).into()
+            var_mapping: VarMapping::from_iter([(RegPtr(3), symbol_table.intern("Y"))])
         }
     )
 }
@@ -759,11 +722,10 @@ fn test_compile_program() {
         compile_program(program),
         CompileResult {
             instructions,
-            var_mapping: HashMap::from([
-                (symbol_table.intern("X"), RegPtr(5)),
-                (symbol_table.intern("Y"), RegPtr(4))
+            var_mapping: VarMapping::from_iter([
+                (RegPtr(4), symbol_table.intern("Y")),
+                (RegPtr(5), symbol_table.intern("X"))
             ])
-            .into()
         }
     )
 }
@@ -792,11 +754,10 @@ fn test_compile_program_l1() {
         compile_program_l1(program),
         CompileResult {
             instructions,
-            var_mapping: HashMap::from([
-                (symbol_table.intern("X"), RegPtr(4)),
-                (symbol_table.intern("Y"), RegPtr(5))
+            var_mapping: VarMapping::from_iter([
+                (RegPtr(4), symbol_table.intern("X")),
+                (RegPtr(5), symbol_table.intern("Y"))
             ])
-            .into()
         }
     )
 }

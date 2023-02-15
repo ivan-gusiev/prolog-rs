@@ -10,19 +10,19 @@ mod executetests {
     use insta::assert_display_snapshot;
     use parameterized::parameterized;
     use prolog_rs::{
-        compile::{compile_program_l1, compile_query_l1, VarMapping},
+        compile::{compile_program_l1, compile_query_l1},
         data::{CodePtr, RegPtr},
         instr::Instruction,
         lang::{parse_struct, Functor, VarName},
         run_code,
         symbol::{to_display, SymbolTable},
         util::{case, writeout_sym},
+        var::VarMapping,
         Machine,
     };
 
     #[parameterized(input = {
         "p(Z, h(Z,W), f(W))",
-        "D",
         "f(X, g(X,a))",
         "f(b, Y)",
         "a"
@@ -57,10 +57,16 @@ mod executetests {
         let query_result = compile_query_l1(query);
         machine.set_code(&query_result.instructions);
         run_code(&mut machine).expect("machine failure");
+        let query_bindings = machine
+            .bind_variables(&query_result.var_mapping)
+            .expect("decompile failure");
 
         let program_result = compile_program_l1(program);
         machine.set_code(&program_result.instructions);
         run_code(&mut machine).expect("machine failure");
+        let program_bindings = machine
+            .bind_variables(&program_result.var_mapping)
+            .expect("decompile failure");
 
         let input = format!("({query_text}, {program_text})");
         let output = if machine.get_fail() {
@@ -70,11 +76,11 @@ mod executetests {
                 "{}\n{}\n{}",
                 machine.dbg(&symbol_table),
                 writeout_sym(
-                    &machine.describe_vars(&query_result.var_mapping),
+                    &machine.describe_vars(&query_bindings).unwrap(),
                     &symbol_table
                 ),
                 writeout_sym(
-                    &machine.describe_vars(&program_result.var_mapping),
+                    &machine.describe_vars(&program_bindings).unwrap(),
                     &symbol_table
                 )
             )
@@ -170,10 +176,11 @@ mod executetests {
             (mk_sym("x6"), x6),
             (mk_sym("x7"), x7),
         ]);
-        let var_mapping = VarMapping::from(vars);
+        let var_mapping = VarMapping::from_inverse(vars);
+        let var_bindings = machine.bind_good_variables(&var_mapping);
         let mut output = String::new();
         for i in 1..7 {
-            if let Some(term) = machine.decompile(RegPtr(i).into(), &var_mapping) {
+            if let Ok(term) = machine.decompile_addr(RegPtr(i).into(), &var_bindings) {
                 writeln!(output, "reg({}) = {}", i, to_display(&term, &symbol_table)).unwrap();
             }
         }

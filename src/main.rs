@@ -1,6 +1,5 @@
 use crate::rustyline::error::ReadlineError;
 use crate::rustyline::{Editor, Result as RustyResult};
-use prolog_rs::compile::VarMapping;
 use prolog_rs::{Machine, RunningContext};
 
 extern crate prolog_rs;
@@ -26,7 +25,7 @@ fn main() -> RustyResult<()> {
                                 &context.machine,
                                 &context.symbol_table,
                                 &context.query_variables,
-                                &VarMapping::default()
+                                &context.program_variables,
                             )
                         );
                     }
@@ -62,41 +61,43 @@ fn main() -> RustyResult<()> {
 }
 
 fn parse_and_run_query(input: &str, context: &mut RunningContext) -> Result<(), String> {
-    use prolog_rs::{compile::compile_query, lang::parse_term, run_code};
+    use prolog_rs::{compile::compile_query_l1, lang::parse_term, run_code};
 
     let query = parse_term(input.trim_start_matches("?-"), &mut context.symbol_table)?;
 
-    let code = compile_query(query);
+    let code = compile_query_l1(query.into_struct().unwrap());
 
     context.machine = Machine::new();
     context.machine.set_code(&code.instructions);
-    context.query_variables = code.var_mapping;
-    run_code(&mut context.machine).map_err(|e| e.message())?;
+    run_code(&mut context.machine)?;
+    context.query_variables = context.machine.bind_variables(&code.var_mapping)?;
     Ok(())
 }
 
 fn parse_and_run_program(input: &str, context: &mut RunningContext) -> Result<(), String> {
-    use prolog_rs::{compile::compile_program, lang::parse_term, run_code};
+    use prolog_rs::{compile::compile_program_l1, lang::parse_term, run_code};
 
-    let query = parse_term(input, &mut context.symbol_table)?;
+    let program = parse_term(input, &mut context.symbol_table)?;
 
-    let code = compile_program(query);
+    let code = compile_program_l1(program.into_struct().unwrap());
 
     context.machine.set_code(&code.instructions);
-    run_code(&mut context.machine).map_err(|e| e.message())?;
+    run_code(&mut context.machine)?;
+    context.program_variables = context.machine.bind_variables(&code.var_mapping)?;
 
-    output_result(context);
+    output_result(context)?;
     Ok(())
 }
 
-fn output_result(context: &RunningContext) {
+fn output_result(context: &RunningContext) -> Result<(), String> {
     if context.machine.get_fail() {
-        println!("no")
+        Ok(println!("no"))
     } else if context.query_variables.is_empty() {
-        println!("yes")
+        Ok(println!("yes"))
     } else {
-        for desc in context.machine.describe_vars(&context.query_variables) {
+        for desc in context.machine.describe_vars(&context.query_variables)? {
             println!("{}", desc.short(&context.symbol_table))
         }
+        Ok(())
     }
 }

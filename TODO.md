@@ -6,6 +6,8 @@
 - [ ] byte-address `call p/n` instead of index-address into array
 - [ ] compile: term_map seems to be useless (`term_map[Ti] == Xi`)
 - [ ] compile: don't forget to add `call` and `proceed` instructions
+- [ ] is it possible for `Machine::decompile_variable` to be non-recursive?
+- [ ] update `[A-Z]+\.md` files
 
 ### Bugs
 - [x] Type `?- X` then `X`. It cannot figure out the unification. 

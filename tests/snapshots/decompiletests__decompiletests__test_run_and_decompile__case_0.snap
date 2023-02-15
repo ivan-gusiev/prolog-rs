@@ -6,13 +6,13 @@ p(Z, h(Z,W), f(W)) | ?- p(f(X), h(Y, f(a)), Y)
 -----
 QUERY
 ----
-000	X	(X4) =	<STR,13>	// f(f(a))
+000	X	(X4) =	<REF,10>	// f(f(a))
 001	Y	(X5) =	<STR,3>	// f(a)
 
 PROGRAM
 ____
 000	W	(X5) =	<STR,3>	// f(a)
-001	Z	(X4) =	<STR,13>	// f(f(a))
+001	Z	(X4) =	<REF,10>	// f(f(a))
 
 X1	
 X2	
