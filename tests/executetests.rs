@@ -10,13 +10,14 @@ mod executetests {
     use insta::assert_display_snapshot;
     use parameterized::parameterized;
     use prolog_rs::{
-        compile::{compile_program_l1, compile_query_l1, VarMapping},
+        compile::{compile_program_l1, compile_query_l1},
         data::{CodePtr, RegPtr},
         instr::Instruction,
         lang::{parse_struct, Functor, VarName},
         run_code,
         symbol::{to_display, SymDisplay, SymbolTable},
         util::{case, writeout, writeout_sym},
+        var::VarMapping,
         Machine,
     };
 
@@ -59,8 +60,8 @@ mod executetests {
         run_code(&mut machine).expect("machine failure");
         let query_vars = query_result
             .var_mapping
-            .mappings()
-            .map(|(name, reg)| (*name, machine.trace_reg(*reg).unwrap()))
+            .info()
+            .map(|(reg, name)| (*name, machine.trace_reg(*reg).unwrap()))
             .collect::<Vec<_>>();
 
         let program_result = compile_program_l1(program);
@@ -192,7 +193,7 @@ mod executetests {
             (mk_sym("x6"), x6),
             (mk_sym("x7"), x7),
         ]);
-        let var_mapping = VarMapping::from(vars);
+        let var_mapping = VarMapping::from_inverse(vars);
         let mut output = String::new();
         for i in 1..7 {
             if let Some(term) = machine.decompile(RegPtr(i).into(), &var_mapping) {

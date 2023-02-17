@@ -15,7 +15,8 @@ mod decompiletests {
         run_code,
         symbol::{SymDisplay, SymbolTable},
         util::{case, collapse, write_program_result, writeout_annotated_mappings},
-        Machine, VarBindings,
+        var::VarBindings,
+        Machine,
     };
 
     #[parameterized(program_str = {

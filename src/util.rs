@@ -1,10 +1,11 @@
 use std::fmt::{Debug, Display, Error, Write};
 
 use crate::{
-    compile::{CompileResult, VarMapping},
+    compile::CompileResult,
     data::RegPtr,
     instr::Instruction,
     symbol::{to_display, SymDisplay, SymbolTable},
+    var::VarMapping,
     Machine,
 };
 

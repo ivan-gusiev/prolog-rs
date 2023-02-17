@@ -1,0 +1,5 @@
+---
+source: tests/decompiletests.rs
+expression: collapse(result)
+---
+"EmptyRef"

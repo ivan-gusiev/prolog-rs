@@ -5,18 +5,14 @@ pub mod instr;
 pub mod lang;
 pub mod symbol;
 pub mod util;
+pub mod var;
 
-use compile::VarMapping;
 use data::{Addr, CodePtr, Data, HeapPtr, Mode, Ref, RegPtr, Str};
 use instr::Instruction;
 use lang::{Functor, Term, VarName};
-use std::{
-    collections::HashMap,
-    fmt::{Display, Write},
-    hash::Hash,
-    iter::FromIterator,
-};
+use std::fmt::{Display, Write};
 use symbol::{to_display, SymDisplay, SymbolTable};
+use var::{VarBindings, VarMapping, VarValues};
 
 use util::{writeout, writeout_sym};
 
@@ -163,46 +159,26 @@ impl Machine {
         self.pdl.is_empty()
     }
 
-    pub fn trace_reg(&self, reg: RegPtr) -> Option<HeapPtr> {
+    pub fn trace_reg(&self, reg: RegPtr) -> MachineResult<HeapPtr> {
         match self.get_reg(reg) {
-            Data::Ref(Ref(ptr)) | Data::Str(Str(ptr)) => Some(ptr),
-            _ => None,
+            Data::Ref(Ref(ptr)) | Data::Str(Str(ptr)) => Ok(ptr),
+            _ => Err(MachineFailure::NonVarBind),
         }
     }
 
     pub fn bind_variables(&self, var_mapping: &VarMapping) -> MachineResult<VarBindings> {
-        let mut result = HashMap::<VarName, HeapPtr>::new();
-        for (name, reg) in var_mapping.mappings() {
-            if let Some(heap) = self.trace_reg(*reg) {
-                result.insert(*name, heap);
-            } else {
-                return Err(MachineFailure::NonVarBind);
-            }
-        }
-        Ok(VarBindings::from_iter(result))
+        var_mapping.traverse(|&reg| self.trace_reg(reg))
     }
 
     pub fn load_variables(&self, var_bindings: &VarBindings) -> MachineResult<VarValues> {
-        let var_labels = var_bindings.invert();
-        let mut result = HashMap::<VarName, Term>::new();
-        for (&name, &heap_ptr) in var_bindings.info() {
-            result.insert(
-                name,
-                self.decompile_addr_impl(heap_ptr.into(), &var_labels)?,
-            );
-        }
-        Ok(VarValues::from_hash(result))
+        var_bindings.traverse(|&ptr| self.decompile_addr(ptr.into(), var_bindings))
     }
 
     pub fn decompile_addr(&self, addr: Addr, var_bindings: &VarBindings) -> MachineResult<Term> {
-        self.decompile_addr_impl(addr, &var_bindings.invert())
+        self.decompile_addr_impl(addr, &var_bindings)
     }
 
-    fn decompile_addr_impl(
-        &self,
-        addr: Addr,
-        var_labels: &HashMap<HeapPtr, VarName>,
-    ) -> MachineResult<Term> {
+    fn decompile_addr_impl(&self, addr: Addr, var_labels: &VarBindings) -> MachineResult<Term> {
         let decompile_functor = |ptr: HeapPtr, f: Functor| {
             let mut subterms = Vec::<Term>::new();
             for i in 1..=f.arity() {
@@ -222,7 +198,7 @@ impl Machine {
             let mut last_name: Option<VarName> = None;
             loop {
                 if let Some(new_name) = var_labels.get(&ptr) {
-                    last_name = Some(*new_name)
+                    last_name = Some(new_name)
                 }
 
                 match self.get_heap(ptr) {
@@ -356,20 +332,16 @@ impl Machine {
 
     pub fn describe_vars(self: &Machine, var_mapping: &VarMapping) -> Vec<VarDescription> {
         let mut mappings = var_mapping
-            .mappings()
-            .map(|(&n, &r)| (n, r))
+            .info()
+            .map(|(&r, &n)| (n, r))
             .collect::<Vec<(VarName, RegPtr)>>();
         mappings.sort_by_key(|(v, _)| *v);
 
         mappings
             .into_iter()
-            .filter_map(|(name, reg)| match self.trace_reg(reg) {
-                Some(heap) => {
-                    let value = self.get_heap(heap);
-                    self.decompile(heap.into(), var_mapping)
-                        .map(|term| VarDescription(name, reg, value, term))
-                }
-                None => None,
+            .filter_map(|(name, reg)| {
+                self.decompile(reg.into(), var_mapping)
+                    .map(|term| VarDescription(name, reg, self.get_reg(reg), term))
             })
             .collect()
     }
@@ -467,78 +439,6 @@ impl VarDescription {
         (self.0, self.3.clone())
     }
 }
-
-#[derive(Debug, Default, PartialEq, Eq)]
-pub struct VarInfo<T>(HashMap<VarName, T>);
-
-impl<T: Display> Display for VarInfo<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut pairs = self.0.iter();
-        write!(f, "{{")?;
-        if let Some((s, t)) = pairs.next() {
-            write!(f, "{}={}", s, t)?;
-            while let Some((s, t)) = pairs.next() {
-                write!(f, ", {}={}", s, t)?;
-            }
-        }
-        write!(f, "}}")
-    }
-}
-
-impl<T: SymDisplay> SymDisplay for VarInfo<T> {
-    fn sym_fmt(
-        &self,
-        f: &mut std::fmt::Formatter<'_>,
-        symbol_table: &SymbolTable,
-    ) -> std::fmt::Result {
-        let mut pairs = self.0.iter();
-        write!(f, "{{")?;
-        if let Some((s, t)) = pairs.next() {
-            write!(f, "{}={}", s, to_display(t, symbol_table))?;
-            while let Some((s, t)) = pairs.next() {
-                write!(f, ", {}={}", s, to_display(t, symbol_table))?;
-            }
-        }
-        write!(f, "}}")
-    }
-}
-
-impl<T> FromIterator<(VarName, T)> for VarInfo<T> {
-    fn from_iter<I: IntoIterator<Item = (VarName, T)>>(iter: I) -> Self {
-        Self(HashMap::from_iter(iter))
-    }
-}
-
-impl<T> VarInfo<T> {
-    pub fn from_hash(hash_map: HashMap<VarName, T>) -> VarInfo<T> {
-        Self(hash_map)
-    }
-
-    pub fn get(&self, variable: VarName) -> Option<&T> {
-        self.0.get(&variable)
-    }
-
-    pub fn info(&self) -> impl Iterator<Item = (&VarName, &T)> {
-        self.0.iter()
-    }
-
-    pub fn transform<NewT, F>(&self, mut mapper: F) -> VarInfo<NewT>
-    where
-        F: FnMut(&T) -> NewT,
-    {
-        VarInfo::<NewT>::from_iter(self.info().map(|(v, t)| (*v, mapper(t))))
-    }
-}
-
-impl<T: Eq + Hash + Clone> VarInfo<T> {
-    pub fn invert(&self) -> HashMap<T, VarName> {
-        HashMap::from_iter(self.info().map(|(k, v)| (v.clone(), *k)))
-    }
-}
-
-pub type VarBindings = VarInfo<HeapPtr>;
-
-pub type VarValues = VarInfo<Term>;
 
 #[derive(Debug, Default)]
 pub struct RunningContext {
