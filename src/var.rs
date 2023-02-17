@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fmt::Display, hash::Hash, iter::FromIterator};
 
 use crate::{
-    data::{HeapPtr, RegPtr},
+    data::{Data, HeapPtr, RegPtr},
     lang::{Term, VarName},
     symbol::{to_display, SymDisplay, SymbolTable},
 };
@@ -74,14 +74,6 @@ impl<T: Eq + Hash> VarInfo<T> {
         self.0.iter()
     }
 
-    pub fn transform<NewT, F>(&self, mut mapper: F) -> VarInfo<NewT>
-    where
-        F: FnMut(&T) -> NewT,
-        NewT: Eq + Hash,
-    {
-        VarInfo::<NewT>::from_iter(self.info().map(|(t, v)| (mapper(t), *v)))
-    }
-
     pub fn traverse<NewT, F, E>(&self, mut mapper: F) -> Result<VarInfo<NewT>, E>
     where
         F: FnMut(&T) -> Result<NewT, E>,
@@ -95,16 +87,46 @@ impl<T: Eq + Hash> VarInfo<T> {
     }
 }
 
-/* // TODO: remove this
-impl<T> VarInfo<T> where T: Eq + Hash + Clone {
-    pub fn invert(&self) -> HashMap<VarName, T> {
-        HashMap::from_iter(self.info().map(|(k, v)| (v.clone(), *k)))
-    }
-}
-*/
-
 pub type VarMapping = VarInfo<RegPtr>;
 
 pub type VarBindings = VarInfo<HeapPtr>;
 
 pub type VarValues = VarInfo<Term>;
+
+#[derive(Debug)]
+pub struct VarDescription(VarName, RegPtr, Data, Term);
+
+impl SymDisplay for VarDescription {
+    fn sym_fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        symbol_table: &SymbolTable,
+    ) -> Result<(), std::fmt::Error> {
+        write!(
+            f,
+            "{}\t({}) =\t{}\t// {}",
+            to_display(&self.0, symbol_table),
+            self.1,
+            to_display(&self.2, symbol_table),
+            to_display(&self.3, symbol_table),
+        )
+    }
+}
+
+impl VarDescription {
+    pub fn new(name: VarName, reg: RegPtr, data: Data, term: Term) -> Self {
+        Self(name, reg, data, term)
+    }
+
+    pub fn short(&self, symbol_table: &SymbolTable) -> String {
+        format!(
+            "{0} = {1}",
+            to_display(&self.0, symbol_table),
+            to_display(&self.3, symbol_table)
+        )
+    }
+
+    pub fn to_assignment(&self) -> (VarName, Term) {
+        (self.0, self.3.clone())
+    }
+}

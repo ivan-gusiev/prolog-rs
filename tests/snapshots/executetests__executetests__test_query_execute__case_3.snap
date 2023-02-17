@@ -2,9 +2,6 @@
 source: tests/executetests.rs
 expression: "case(input, output)"
 ---
-f(b, Y)
+a
 -----
-000	<STR,1>
-001	b/0
-002	<REF,2>
 

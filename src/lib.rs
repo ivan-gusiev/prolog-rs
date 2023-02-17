@@ -11,8 +11,8 @@ use data::{Addr, CodePtr, Data, HeapPtr, Mode, Ref, RegPtr, Str};
 use instr::Instruction;
 use lang::{Functor, Term, VarName};
 use std::fmt::{Display, Write};
-use symbol::{to_display, SymDisplay, SymbolTable};
-use var::{VarBindings, VarMapping, VarValues};
+use symbol::SymbolTable;
+use var::{VarBindings, VarDescription, VarMapping, VarValues};
 
 use util::{writeout, writeout_sym};
 
@@ -341,7 +341,7 @@ impl Machine {
             .into_iter()
             .filter_map(|(name, reg)| {
                 self.decompile(reg.into(), var_mapping)
-                    .map(|term| VarDescription(name, reg, self.get_reg(reg), term))
+                    .map(|term| VarDescription::new(name, reg, self.get_reg(reg), term))
             })
             .collect()
     }
@@ -405,40 +405,6 @@ impl Display for MachineFailure {
 type IResult = Result<Option<CodePtr>, MachineFailure>;
 type MResult = Result<(), MachineFailure>;
 type MachineResult<T> = Result<T, MachineFailure>;
-
-#[derive(Debug)]
-pub struct VarDescription(VarName, RegPtr, Data, Term);
-
-impl SymDisplay for VarDescription {
-    fn sym_fmt(
-        &self,
-        f: &mut std::fmt::Formatter<'_>,
-        symbol_table: &SymbolTable,
-    ) -> Result<(), std::fmt::Error> {
-        write!(
-            f,
-            "{}\t({}) =\t{}\t// {}",
-            to_display(&self.0, symbol_table),
-            self.1,
-            to_display(&self.2, symbol_table),
-            to_display(&self.3, symbol_table),
-        )
-    }
-}
-
-impl VarDescription {
-    pub fn short(&self, symbol_table: &SymbolTable) -> String {
-        format!(
-            "{0} = {1}",
-            to_display(&self.0, symbol_table),
-            to_display(&self.3, symbol_table)
-        )
-    }
-
-    pub fn to_assignment(&self) -> (VarName, Term) {
-        (self.0, self.3.clone())
-    }
-}
 
 #[derive(Debug, Default)]
 pub struct RunningContext {

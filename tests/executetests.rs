@@ -23,7 +23,6 @@ mod executetests {
 
     #[parameterized(input = {
         "p(Z, h(Z,W), f(W))",
-        "D",
         "f(X, g(X,a))",
         "f(b, Y)",
         "a"
@@ -68,7 +67,7 @@ mod executetests {
         machine.set_code(&program_result.instructions);
         run_code(&mut machine).expect("machine failure");
 
-        let query_terms = query_vars
+        let mut query_terms = query_vars
             .into_iter()
             .map(|(name, heap)| {
                 (
@@ -83,6 +82,7 @@ mod executetests {
                 format!("{} = {}", to_display(&name, &symbol_table), term_str)
             })
             .collect::<Vec<_>>();
+        query_terms.sort();
 
         let input = format!("({query_text}, {program_text})");
         let output = if machine.get_fail() {

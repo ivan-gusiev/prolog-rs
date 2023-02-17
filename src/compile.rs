@@ -179,16 +179,7 @@ fn flatten_term(query: Term) -> (Vec<FlattenedTerm<RegPtr>>, HashMap<VarName, Re
     (result, var_map)
 }
 
-// TODO: unfuck it by mapping everything
-
-#[derive(Debug)]
 struct FlattenedReg(RegPtr, FlattenedTerm<RegPtr>);
-
-impl Display for FlattenedReg {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} = {}", self.0, self.1)
-    }
-}
 
 impl FlattenedReg {
     fn to_tuple(&self) -> (RegPtr, &FlattenedTerm<RegPtr>) {

@@ -2,6 +2,13 @@
 source: tests/executetests.rs
 expression: "case(input, output)"
 ---
-D
+f(X, g(X,a))
 -----
+000	<STR,1>
+001	a/0
+002	<REF,2>
+003	<STR,4>
+004	g/2
+005	<REF,2>
+006	<STR,1>
 
