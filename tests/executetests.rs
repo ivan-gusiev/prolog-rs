@@ -15,8 +15,8 @@ mod executetests {
         instr::Instruction,
         lang::{parse_struct, Functor, VarName},
         run_code,
-        symbol::{to_display, SymDisplay, SymbolTable},
-        util::{case, writeout, writeout_sym},
+        symbol::{to_display, SymbolTable},
+        util::{case, writeout_sym},
         var::VarMapping,
         Machine,
     };
@@ -57,49 +57,32 @@ mod executetests {
         let query_result = compile_query_l1(query);
         machine.set_code(&query_result.instructions);
         run_code(&mut machine).expect("machine failure");
-        let query_vars = query_result
-            .var_mapping
-            .info()
-            .map(|(reg, name)| (*name, machine.trace_reg(*reg).unwrap()))
-            .collect::<Vec<_>>();
+        let query_bindings = machine
+            .bind_variables(&query_result.var_mapping)
+            .expect("decompile failure");
 
         let program_result = compile_program_l1(program);
         machine.set_code(&program_result.instructions);
         run_code(&mut machine).expect("machine failure");
-
-        let mut query_terms = query_vars
-            .into_iter()
-            .map(|(name, heap)| {
-                (
-                    name,
-                    machine.decompile(heap.into(), &query_result.var_mapping),
-                )
-            })
-            .map(|(name, maybe_term)| {
-                let term_str = maybe_term
-                    .map(|term| term.sym_to_str(&symbol_table))
-                    .unwrap_or("???".to_string());
-                format!("{} = {}", to_display(&name, &symbol_table), term_str)
-            })
-            .collect::<Vec<_>>();
-        query_terms.sort();
+        let program_bindings = machine
+            .bind_variables(&program_result.var_mapping)
+            .expect("decompile failure");
 
         let input = format!("({query_text}, {program_text})");
         let output = if machine.get_fail() {
             machine.dbg(&symbol_table)
         } else {
             format!(
-                "{}\n{}\n{}\n{}",
+                "{}\n{}\n{}",
                 machine.dbg(&symbol_table),
                 writeout_sym(
-                    &machine.describe_vars(&query_result.var_mapping),
+                    &machine.describe_vars(&query_bindings).unwrap(),
                     &symbol_table
                 ),
                 writeout_sym(
-                    &machine.describe_vars(&program_result.var_mapping),
+                    &machine.describe_vars(&program_bindings).unwrap(),
                     &symbol_table
-                ),
-                writeout(query_terms)
+                )
             )
         };
         assert_display_snapshot!(case(input, output));
@@ -194,9 +177,10 @@ mod executetests {
             (mk_sym("x7"), x7),
         ]);
         let var_mapping = VarMapping::from_inverse(vars);
+        let var_bindings = machine.bind_good_variables(&var_mapping);
         let mut output = String::new();
         for i in 1..7 {
-            if let Some(term) = machine.decompile(RegPtr(i).into(), &var_mapping) {
+            if let Ok(term) = machine.decompile_addr(RegPtr(i).into(), &var_bindings) {
                 writeln!(output, "reg({}) = {}", i, to_display(&term, &symbol_table)).unwrap();
             }
         }

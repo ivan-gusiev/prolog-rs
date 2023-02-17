@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fmt::Display, hash::Hash, iter::FromIterator};
 
 use crate::{
-    data::{Data, HeapPtr, RegPtr},
+    data::{Addr, Data, HeapPtr, RegPtr},
     lang::{Term, VarName},
     symbol::{to_display, SymDisplay, SymbolTable},
 };
@@ -70,6 +70,7 @@ impl<T: Eq + Hash> VarInfo<T> {
         self.0.is_empty()
     }
 
+    // TODO: rename
     pub fn info(&self) -> impl Iterator<Item = (&T, &VarName)> {
         self.0.iter()
     }
@@ -85,6 +86,23 @@ impl<T: Eq + Hash> VarInfo<T> {
         }
         Ok(VarInfo::from_hash(result))
     }
+
+    pub fn traverse_filter<NewT, F, E>(&self, mut mapper: F) -> VarInfo<NewT>
+    where
+        F: FnMut(&T) -> Result<NewT, E>,
+        NewT: Eq + Hash,
+    {
+        let mut result = HashMap::<NewT, VarName>::new();
+        for (t, v) in self.info() {
+            match mapper(t) {
+                Ok(newt) => {
+                    result.insert(newt, *v);
+                }
+                Err(_) => (),
+            }
+        }
+        VarInfo::from_hash(result)
+    }
 }
 
 pub type VarMapping = VarInfo<RegPtr>;
@@ -94,7 +112,7 @@ pub type VarBindings = VarInfo<HeapPtr>;
 pub type VarValues = VarInfo<Term>;
 
 #[derive(Debug)]
-pub struct VarDescription(VarName, RegPtr, Data, Term);
+pub struct VarDescription(VarName, Addr, Data, Term);
 
 impl SymDisplay for VarDescription {
     fn sym_fmt(
@@ -114,8 +132,8 @@ impl SymDisplay for VarDescription {
 }
 
 impl VarDescription {
-    pub fn new(name: VarName, reg: RegPtr, data: Data, term: Term) -> Self {
-        Self(name, reg, data, term)
+    pub fn new(name: VarName, addr: Addr, data: Data, term: Term) -> Self {
+        Self(name, addr, data, term)
     }
 
     pub fn short(&self, symbol_table: &SymbolTable) -> String {

@@ -170,10 +170,15 @@ impl Machine {
         var_mapping.traverse(|&reg| self.trace_reg(reg))
     }
 
+    pub fn bind_good_variables(&self, var_mapping: &VarMapping) -> VarBindings {
+        var_mapping.traverse_filter(|&reg| self.trace_reg(reg))
+    }
+
     pub fn load_variables(&self, var_bindings: &VarBindings) -> MachineResult<VarValues> {
         var_bindings.traverse(|&ptr| self.decompile_addr(ptr.into(), var_bindings))
     }
 
+    // TODO: rename to decompile
     pub fn decompile_addr(&self, addr: Addr, var_bindings: &VarBindings) -> MachineResult<Term> {
         self.decompile_addr_impl(addr, &var_bindings)
     }
@@ -237,111 +242,21 @@ impl Machine {
         }
     }
 
-    pub fn decompile(&self, addr: Addr, var_mapping: &VarMapping) -> Option<Term> {
-        fn decompile_functor(
-            machine: &Machine,
-            ptr: HeapPtr,
-            f: Functor,
-            var_mapping: &VarMapping,
-        ) -> Option<Term> {
-            let mut subterms = Vec::<Term>::new();
-            for i in 1..=f.arity() {
-                if let Some(subterm) = machine.decompile((ptr + i as usize).into(), var_mapping) {
-                    subterms.push(subterm)
-                } else {
-                    println!("Could not decompile subterm");
-                    return None;
-                }
-            }
-            Struct::new(f, &subterms).ok().map(Term::Struct)
-        }
-
-        fn decompile_str(
-            machine: &Machine,
-            Str(ptr): Str,
-            var_mapping: &VarMapping,
-        ) -> Option<Term> {
-            match machine.get_heap(ptr) {
-                Data::Functor(f) => decompile_functor(machine, ptr, f, var_mapping),
-                _ => {
-                    println!("COULD NOT DECOMPILE STR");
-                    None
-                }
-            }
-        }
-
-        fn decompile_ref(
-            machine: &Machine,
-            Ref(ptr): Ref,
-            var_mapping: &VarMapping,
-        ) -> Option<Term> {
-            match machine.get_heap(ptr) {
-                h @ Data::Ref(Ref(r)) if r == ptr => {
-                    for (i, val) in machine.iter_reg().enumerate() {
-                        if *val == h {
-                            if let Some(known_var) = var_mapping.get(&RegPtr(i)) {
-                                return Some(Term::Variable(known_var));
-                            }
-                        }
-                    }
-                    println!("Could not decompile ref");
-                    None
-                }
-                Data::Ref(next_ref) => decompile_ref(machine, next_ref, var_mapping),
-                Data::Str(str) => decompile_str(machine, str, var_mapping),
-                Data::Functor(f) => decompile_functor(machine, ptr, f, var_mapping),
-                _ => {
-                    println!("COULD NOT DECOMPILE REF");
-                    None
-                }
-            }
-        }
-
-        fn decompile_heap(
-            machine: &Machine,
-            ptr: HeapPtr,
-            var_mapping: &VarMapping,
-        ) -> Option<Term> {
-            match machine.get_heap(ptr) {
-                Data::Ref(r) => decompile_ref(machine, r, var_mapping),
-                Data::Str(str) => decompile_str(machine, str, var_mapping),
-                Data::Functor(f) => decompile_functor(machine, ptr, f, var_mapping),
-                _ => {
-                    println!("COULD NOT DECOMPILE HEAP");
-                    None
-                }
-            }
-        }
-
-        fn decompile_reg(machine: &Machine, ptr: RegPtr, var_mapping: &VarMapping) -> Option<Term> {
-            match machine.get_reg(ptr) {
-                Data::Ref(r) => decompile_ref(machine, r, var_mapping),
-                Data::Str(str) => decompile_str(machine, str, var_mapping),
-                _ => {
-                    println!("COULD NOT DECOMPILE REG");
-                    None
-                }
-            }
-        }
-
-        match addr {
-            Addr::Reg(reg_ptr) => decompile_reg(self, reg_ptr, var_mapping),
-            Addr::Heap(heap_ptr) => decompile_heap(self, heap_ptr, var_mapping),
-        }
-    }
-
-    pub fn describe_vars(self: &Machine, var_mapping: &VarMapping) -> Vec<VarDescription> {
+    pub fn describe_vars(
+        self: &Machine,
+        var_mapping: &VarBindings,
+    ) -> MachineResult<Vec<VarDescription>> {
         let mut mappings = var_mapping
             .info()
             .map(|(&r, &n)| (n, r))
-            .collect::<Vec<(VarName, RegPtr)>>();
+            .collect::<Vec<(VarName, HeapPtr)>>();
         mappings.sort_by_key(|(v, _)| *v);
 
         mappings
             .into_iter()
-            .filter_map(|(name, reg)| {
-                self.decompile(reg.into(), var_mapping)
-                    .map(|term| VarDescription::new(name, reg, self.get_reg(reg), term))
+            .map(|(name, ptr)| {
+                self.decompile_addr(ptr.into(), var_mapping)
+                    .map(|term| VarDescription::new(name, ptr.into(), self.get_heap(ptr), term))
             })
             .collect()
     }
@@ -402,6 +317,12 @@ impl Display for MachineFailure {
     }
 }
 
+impl From<MachineFailure> for String {
+    fn from(value: MachineFailure) -> Self {
+        format!("{}", value)
+    }
+}
+
 type IResult = Result<Option<CodePtr>, MachineFailure>;
 type MResult = Result<(), MachineFailure>;
 type MachineResult<T> = Result<T, MachineFailure>;
@@ -410,8 +331,8 @@ type MachineResult<T> = Result<T, MachineFailure>;
 pub struct RunningContext {
     pub machine: Machine,
     pub symbol_table: SymbolTable,
-    pub query_variables: VarMapping,
-    pub program_variables: VarMapping,
+    pub query_variables: VarBindings,
+    pub program_variables: VarBindings,
 }
 
 fn deref(machine: &Machine, mut addr: Addr) -> Addr {

@@ -39,23 +39,26 @@ mod decompiletests {
         let query_result = compile_query_l1(query);
         machine.set_code(&query_result.instructions);
         run_code(&mut machine).expect("machine failure");
+        let query_bindings = machine
+            .bind_variables(&query_result.var_mapping)
+            .expect("decompile failure");
 
         let program_result = compile_program_l1(program);
         machine.set_code(&program_result.instructions);
         run_code(&mut machine).expect("machine failure");
+        let program_bindings = machine
+            .bind_variables(&program_result.var_mapping)
+            .expect("decompile failure");
 
-        let result = write_program_result(
-            &machine,
-            &symbol_table,
-            &query_result.var_mapping,
-            &program_result.var_mapping,
-        ) + writeout_annotated_mappings(
-            &machine,
-            &query_result.var_mapping,
-            &program_result.var_mapping,
-            &symbol_table,
-        )
-        .as_str();
+        let result =
+            write_program_result(&machine, &symbol_table, &query_bindings, &program_bindings)
+                + writeout_annotated_mappings(
+                    &machine,
+                    &query_bindings,
+                    &program_bindings,
+                    &symbol_table,
+                )
+                .as_str();
         assert_display_snapshot!(case(program_str.to_owned() + " | ?- " + query_str, result));
     }
 
@@ -76,20 +79,26 @@ mod decompiletests {
             let query_result = compile_query(query);
             machine.set_code(&query_result.instructions);
             run_code(&mut machine).expect("machine failure");
+            let query_bindings = machine
+                .bind_variables(&query_result.var_mapping)
+                .expect("decompile failure");
 
             let program_result = compile_program(program);
             machine.set_code(&program_result.instructions);
             run_code(&mut machine).expect("machine failure");
+            let program_bindings = machine
+                .bind_variables(&program_result.var_mapping)
+                .expect("decompile failure");
 
             if machine.get_fail() {
                 HashSet::new()
             } else {
                 let mut result = HashSet::new();
-                let qdesc = machine.describe_vars(&query_result.var_mapping);
+                let qdesc = machine.describe_vars(&query_bindings).unwrap();
                 for vd in qdesc {
                     result.insert(vd.to_assignment());
                 }
-                let pdesc = machine.describe_vars(&program_result.var_mapping);
+                let pdesc = machine.describe_vars(&program_bindings).unwrap();
                 for vd in pdesc {
                     result.insert(vd.to_assignment());
                 }

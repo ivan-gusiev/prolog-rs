@@ -69,8 +69,8 @@ fn parse_and_run_query(input: &str, context: &mut RunningContext) -> Result<(), 
 
     context.machine = Machine::new();
     context.machine.set_code(&code.instructions);
-    context.query_variables = code.var_mapping;
-    run_code(&mut context.machine).map_err(|e| e.message())?;
+    run_code(&mut context.machine)?;
+    context.query_variables = context.machine.bind_variables(&code.var_mapping)?;
     Ok(())
 }
 
@@ -82,21 +82,22 @@ fn parse_and_run_program(input: &str, context: &mut RunningContext) -> Result<()
     let code = compile_program(query);
 
     context.machine.set_code(&code.instructions);
-    context.program_variables = code.var_mapping;
-    run_code(&mut context.machine).map_err(|e| e.message())?;
+    run_code(&mut context.machine)?;
+    context.program_variables = context.machine.bind_variables(&code.var_mapping)?;
 
-    output_result(context);
+    output_result(context)?;
     Ok(())
 }
 
-fn output_result(context: &RunningContext) {
+fn output_result(context: &RunningContext) -> Result<(), String> {
     if context.machine.get_fail() {
-        println!("no")
+        Ok(println!("no"))
     } else if context.query_variables.is_empty() {
-        println!("yes")
+        Ok(println!("yes"))
     } else {
-        for desc in context.machine.describe_vars(&context.query_variables) {
+        for desc in context.machine.describe_vars(&context.query_variables)? {
             println!("{}", desc.short(&context.symbol_table))
         }
+        Ok(())
     }
 }
