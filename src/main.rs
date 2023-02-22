@@ -61,11 +61,11 @@ fn main() -> RustyResult<()> {
 }
 
 fn parse_and_run_query(input: &str, context: &mut RunningContext) -> Result<(), String> {
-    use prolog_rs::{compile::compile_query, lang::parse_term, run_code};
+    use prolog_rs::{compile::compile_query_l1, lang::parse_term, run_code};
 
     let query = parse_term(input.trim_start_matches("?-"), &mut context.symbol_table)?;
 
-    let code = compile_query(query);
+    let code = compile_query_l1(query.into_struct().unwrap());
 
     context.machine = Machine::new();
     context.machine.set_code(&code.instructions);
@@ -75,11 +75,11 @@ fn parse_and_run_query(input: &str, context: &mut RunningContext) -> Result<(), 
 }
 
 fn parse_and_run_program(input: &str, context: &mut RunningContext) -> Result<(), String> {
-    use prolog_rs::{compile::compile_program, lang::parse_term, run_code};
+    use prolog_rs::{compile::compile_program_l1, lang::parse_term, run_code};
 
-    let query = parse_term(input, &mut context.symbol_table)?;
+    let program = parse_term(input, &mut context.symbol_table)?;
 
-    let code = compile_program(query);
+    let code = compile_program_l1(program.into_struct().unwrap());
 
     context.machine.set_code(&code.instructions);
     run_code(&mut context.machine)?;
