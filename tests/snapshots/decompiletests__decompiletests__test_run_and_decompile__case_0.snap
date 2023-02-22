@@ -6,20 +6,19 @@ p(Z, h(Z,W), f(W)) | ?- p(f(X), h(Y, f(a)), Y)
 -----
 QUERY
 ----
-000	X	(X4) =	<REF,10>	// f(f(a))
-001	Y	(X5) =	<STR,3>	// f(a)
+000	X	(HEAP[7]) =	<STR,3>	// f(a)
+001	Y	(HEAP[10]) =	<STR,6>	// f(f(a))
 
 PROGRAM
 ____
-000	W	(X5) =	<STR,3>	// f(a)
-001	Z	(X4) =	<REF,10>	// f(f(a))
+000	W	(HEAP[3]) =	f/1	// f(a)
+001	Z	(HEAP[6]) =	f/1	// f(f(a))
 
-X1	
+X1	// program.Z
 X2	
-X3	
-X4	// query.X, program.Z
-X5	// query.Y, program.W
-X6	
+X3	// query.Y
+X4	// program.Z
+X5	// program.W
+X6	// program.W
 X7	
-X8	
 

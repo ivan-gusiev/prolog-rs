@@ -64,14 +64,15 @@ mod executetests {
         let program_result = compile_program_l1(program);
         machine.set_code(&program_result.instructions);
         run_code(&mut machine).expect("machine failure");
-        let program_bindings = machine
-            .bind_variables(&program_result.var_mapping)
-            .expect("decompile failure");
 
         let input = format!("({query_text}, {program_text})");
         let output = if machine.get_fail() {
             machine.dbg(&symbol_table)
         } else {
+            let program_bindings = machine
+            .bind_variables(&program_result.var_mapping)
+            .expect("decompile failure");
+
             format!(
                 "{}\n{}\n{}",
                 machine.dbg(&symbol_table),

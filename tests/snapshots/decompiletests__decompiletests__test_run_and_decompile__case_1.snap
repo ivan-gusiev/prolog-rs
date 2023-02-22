@@ -6,15 +6,14 @@ f(X, g(X,a)) | ?- f(b, Y)
 -----
 QUERY
 ----
-000	Y	(X3) =	<STR,1>	// b
+000	Y	(HEAP[2]) =	<STR,4>	// g(b, a)
 
 PROGRAM
 ____
-000	X	(X3) =	<STR,1>	// b
+000	X	(HEAP[1]) =	b/0	// b
 
-X1	
-X2	
-X3	// query.Y, program.X
+X1	// program.X
+X2	// query.Y
+X3	// program.X
 X4	
-X5	
 

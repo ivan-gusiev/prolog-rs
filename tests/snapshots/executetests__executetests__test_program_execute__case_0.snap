@@ -20,20 +20,20 @@ code:
 008	get_structure a/0, X7
 
 heap:
-000	<REF,8>
+000	<STR,9>
 001	<STR,2>
 002	h/2
 003	<REF,0>
-004	<REF,11>
+004	<REF,10>
 005	<STR,6>
 006	f/1
 007	<REF,4>
 008	<STR,9>
 009	f/1
-010	<REF,4>
+010	<STR,12>
 011	<STR,12>
 012	f/1
-013	<REF,14>
+013	<STR,15>
 014	<STR,15>
 015	a/0
 
@@ -50,12 +50,9 @@ regs:
 pdl:
 
 
-000	W	(X5) =	<REF,0>	// f(f(a))
-001	Z	(X4) =	<REF,10>	// f(a)
+000	W	(HEAP[4]) =	<REF,10>	// f(a)
+001	Z	(HEAP[0]) =	<STR,9>	// f(f(a))
 
-000	X	(X4) =	<REF,10>	// f(a)
-001	Y	(X5) =	<REF,0>	// f(f(a))
-
-000	W = f(a)
-001	Z = f(f(a))
+000	X	(HEAP[10]) =	<STR,12>	// f(a)
+001	Y	(HEAP[0]) =	<STR,9>	// f(f(a))
 

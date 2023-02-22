@@ -7,6 +7,7 @@ pub mod symbol;
 pub mod util;
 pub mod var;
 
+use compile::CompileResult;
 use data::{Addr, CodePtr, Data, HeapPtr, Mode, Ref, RegPtr, Str};
 use instr::Instruction;
 use lang::{Functor, Term, VarName};
@@ -80,8 +81,11 @@ impl Machine {
         self.reg[index] = value
     }
 
-    pub fn iter_reg(&self) -> std::slice::Iter<'_, Data> {
-        self.reg.iter()
+    pub fn iter_reg(&self) -> impl ExactSizeIterator<Item = (RegPtr, &Data)> {
+        self.reg
+            .iter()
+            .enumerate()
+            .map(|(idx, data)| (RegPtr(idx), data))
     }
 
     pub fn get_code(&self) -> Vec<Instruction> {
@@ -157,6 +161,19 @@ impl Machine {
 
     pub fn is_pdl_empty(&self) -> bool {
         self.pdl.is_empty()
+    }
+
+    pub fn step(&mut self) -> MResult {
+        if self.get_fail() {
+            return Err(MachineFailure::FailState);
+        }
+
+        let index: usize = self.get_p().into();
+        if let Some(instruction) = self.code.get(index) {
+            execute_instruction(self, *instruction)
+        } else {
+            return Err(MachineFailure::OutOfBoundsP);
+        }
     }
 
     pub fn trace_reg(&self, reg: RegPtr) -> MachineResult<HeapPtr> {
@@ -247,7 +264,7 @@ impl Machine {
         var_mapping: &VarBindings,
     ) -> MachineResult<Vec<VarDescription>> {
         let mut mappings = var_mapping
-            .info()
+            .iter()
             .map(|(&r, &n)| (n, r))
             .collect::<Vec<(VarName, HeapPtr)>>();
         mappings.sort_by_key(|(v, _)| *v);
@@ -288,25 +305,27 @@ impl Default for Machine {
 
 #[derive(Debug)]
 pub enum MachineFailure {
-    RegBind,
     NoStrFunctor,
     BadArity,
     NonVarBind,
     EmptyRef,
     UnknownVariable, // TODO: this should really be a decompilation failure, not machine failure
     InvalidRegData,
+    FailState,
+    OutOfBoundsP,
 }
 
 impl MachineFailure {
     pub fn message(&self) -> &'static str {
         match self {
-            Self::RegBind => "Attempted to bind two registers",
             Self::NoStrFunctor => "Struct does not point to a functor",
             Self::BadArity => "Some functor subterms not found on heap",
             Self::NonVarBind => "Attemted to bind variable to a non-var register",
             Self::EmptyRef => "Term points to an empty heap cell",
             Self::UnknownVariable => "Decompilation of a variable with unknown name",
             Self::InvalidRegData => "Register contains something other than reference to heap",
+            Self::FailState => "Attempted to execute an instruction in failed state",
+            Self::OutOfBoundsP => "Instruction pointer P is out of code bounds",
         }
     }
 }
@@ -327,14 +346,6 @@ type IResult = Result<Option<CodePtr>, MachineFailure>;
 type MResult = Result<(), MachineFailure>;
 type MachineResult<T> = Result<T, MachineFailure>;
 
-#[derive(Debug, Default)]
-pub struct RunningContext {
-    pub machine: Machine,
-    pub symbol_table: SymbolTable,
-    pub query_variables: VarBindings,
-    pub program_variables: VarBindings,
-}
-
 fn deref(machine: &Machine, mut addr: Addr) -> Addr {
     loop {
         match machine.get_store(addr) {
@@ -345,7 +356,7 @@ fn deref(machine: &Machine, mut addr: Addr) -> Addr {
     addr
 }
 
-fn bind(machine: &mut Machine, lhs: Addr, rhs: Addr) -> MResult {
+/*fn bind(machine: &mut Machine, lhs: Addr, rhs: Addr) -> MResult {
     match (lhs, rhs) {
         (Addr::Reg(_), Addr::Reg(_)) => Err(MachineFailure::RegBind),
         (Addr::Heap(_), Addr::Reg(_)) => bind(machine, rhs, lhs),
@@ -353,6 +364,16 @@ fn bind(machine: &mut Machine, lhs: Addr, rhs: Addr) -> MResult {
             machine.set_store(lhs, Ref(rhs_heap).into());
             Ok(())
         }
+    }
+}*/
+
+fn bind(machine: &mut Machine, lhs: Addr, rhs: Addr) -> MResult {
+    let l = machine.get_store(lhs);
+    let r = machine.get_store(rhs);
+    match (l, r) {
+        (Data::Ref(al), Data::Ref(ar)) if al.0 > ar.0 => bind(machine, rhs, lhs),
+        (Data::Ref(_), x) => Ok(machine.set_store(lhs, x)),
+        _ => bind(machine, rhs, lhs),
     }
 }
 
@@ -534,4 +555,21 @@ pub fn run_code(machine: &mut Machine) -> MResult {
         }
     }
     Ok(())
+}
+
+#[derive(Debug, Default)]
+pub struct PrologApp {
+    pub machine: Machine,
+    pub symbol_table: SymbolTable,
+    pub query: Option<CompileResult>,
+    pub program: Option<CompileResult>,
+    pub query_variables: VarBindings,
+    pub program_variables: VarBindings,
+    pub immediate_execution: bool,
+}
+
+impl PrologApp {
+    pub fn ready_to_run(&self) -> bool {
+        self.query.is_some() && self.program.is_some()
+    }
 }
