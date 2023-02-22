@@ -13,8 +13,8 @@ mod decompiletests {
         data::{Data, HeapPtr},
         lang::{parse_struct, parse_term, Functor, Term, VarName},
         run_code,
-        symbol::{SymDisplay, SymbolTable, to_display},
-        util::{case, collapse, write_program_result, writeout_annotated_mappings, writeout},
+        symbol::{to_display, SymDisplay, SymbolTable},
+        util::{case, collapse, write_program_result, writeout, writeout_annotated_mappings},
         var::VarBindings,
         Machine,
     };
@@ -70,7 +70,10 @@ mod decompiletests {
         "f(b, Y)"
     })]
     fn test_symmetric_unification(lhs: &str, rhs: &str) {
-        fn get_unification_set(query_str: &str, program_str: &str) -> (SymbolTable, HashSet<(VarName, Term)>) {
+        fn get_unification_set(
+            query_str: &str,
+            program_str: &str,
+        ) -> (SymbolTable, HashSet<(VarName, Term)>) {
             let mut symbol_table = SymbolTable::new();
             let query = parse_term(query_str, &mut symbol_table).unwrap();
             let program = parse_term(program_str, &mut symbol_table).unwrap();
@@ -106,13 +109,17 @@ mod decompiletests {
             }
         }
 
-        fn output((symbol_table, set) : (SymbolTable, HashSet<(VarName, Term)>)) -> String {
+        fn output((symbol_table, set): (SymbolTable, HashSet<(VarName, Term)>)) -> String {
             let mut items = set
-            .into_iter()
-            .map(|(nm, t)| format!("{}={}", 
-                to_display(&nm, &symbol_table), 
-                to_display(&t, &symbol_table)))
-            .collect::<Vec<_>>();
+                .into_iter()
+                .map(|(nm, t)| {
+                    format!(
+                        "{}={}",
+                        to_display(&nm, &symbol_table),
+                        to_display(&t, &symbol_table)
+                    )
+                })
+                .collect::<Vec<_>>();
             items.sort();
             writeout(items)
         }

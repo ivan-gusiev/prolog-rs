@@ -159,6 +159,19 @@ impl Machine {
         self.pdl.is_empty()
     }
 
+    pub fn step(&mut self) -> MResult {
+        if self.get_fail() {
+            return Err(MachineFailure::FailState);
+        }
+
+        let index: usize = self.get_p().into();
+        if let Some(instruction) = self.code.get(index) {
+            execute_instruction(self, *instruction)
+        } else {
+            return Err(MachineFailure::OutOfBoundsP);
+        }
+    }
+
     pub fn trace_reg(&self, reg: RegPtr) -> MachineResult<HeapPtr> {
         match self.get_reg(reg) {
             Data::Ref(Ref(ptr)) | Data::Str(Str(ptr)) => Ok(ptr),
@@ -295,6 +308,8 @@ pub enum MachineFailure {
     EmptyRef,
     UnknownVariable, // TODO: this should really be a decompilation failure, not machine failure
     InvalidRegData,
+    FailState,
+    OutOfBoundsP,
 }
 
 impl MachineFailure {
@@ -307,6 +322,8 @@ impl MachineFailure {
             Self::EmptyRef => "Term points to an empty heap cell",
             Self::UnknownVariable => "Decompilation of a variable with unknown name",
             Self::InvalidRegData => "Register contains something other than reference to heap",
+            Self::FailState => "Attempted to execute an instruction in failed state",
+            Self::OutOfBoundsP => "Instruction pointer P is out of code bounds",
         }
     }
 }

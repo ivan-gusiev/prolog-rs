@@ -1,9 +1,11 @@
-use crate::rustyline::error::ReadlineError;
-use crate::rustyline::{Editor, Result as RustyResult};
-use prolog_rs::{Machine, RunningContext};
+use crate::rustyline::{error::ReadlineError, Editor, Result as RustyResult};
+use app::debugmode::start_debugmode;
+use prolog_rs::{run_code, Machine, RunningContext};
 
 extern crate prolog_rs;
 extern crate rustyline;
+
+mod app;
 
 fn main() -> RustyResult<()> {
     let mut rl = Editor::<()>::new()?;
@@ -15,6 +17,8 @@ fn main() -> RustyResult<()> {
                 match str.trim() {
                     "exit" => break,
                     "" => (),
+                    "debug" => start_debugmode(&mut context.machine)
+                        .map_err(|_| ReadlineError::Interrupted)?,
                     "dbg" => {
                         println!("{}", context.machine.dbg(&context.symbol_table));
                     }
@@ -29,6 +33,10 @@ fn main() -> RustyResult<()> {
                             )
                         );
                     }
+                    "run" => match run_code(&mut context.machine) {
+                        Ok(()) => {}
+                        Err(err) => println!("{err}"),
+                    },
                     query if query.starts_with("?-") => {
                         match parse_and_run_query(query, &mut context) {
                             Ok(()) => query_ready = true,
@@ -61,7 +69,7 @@ fn main() -> RustyResult<()> {
 }
 
 fn parse_and_run_query(input: &str, context: &mut RunningContext) -> Result<(), String> {
-    use prolog_rs::{compile::compile_query_l1, lang::parse_term, run_code};
+    use prolog_rs::{compile::compile_query_l1, lang::parse_term};
 
     let query = parse_term(input.trim_start_matches("?-"), &mut context.symbol_table)?;
 
@@ -69,13 +77,13 @@ fn parse_and_run_query(input: &str, context: &mut RunningContext) -> Result<(), 
 
     context.machine = Machine::new();
     context.machine.set_code(&code.instructions);
-    run_code(&mut context.machine)?;
+    //run_code(&mut context.machine)?;
     context.query_variables = context.machine.bind_variables(&code.var_mapping)?;
     Ok(())
 }
 
 fn parse_and_run_program(input: &str, context: &mut RunningContext) -> Result<(), String> {
-    use prolog_rs::{compile::compile_program_l1, lang::parse_term, run_code};
+    use prolog_rs::{compile::compile_program_l1, lang::parse_term};
 
     let program = parse_term(input, &mut context.symbol_table)?;
 
