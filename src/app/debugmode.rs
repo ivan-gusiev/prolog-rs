@@ -1,6 +1,8 @@
 extern crate crossterm;
 extern crate tui;
 
+use prolog_rs::{data::RegPtr, symbol::SymDisplay};
+
 use self::crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
@@ -15,47 +17,63 @@ use self::tui::{
 };
 use std::{error::Error, io};
 
-use crate::Machine;
+use crate::PrologApp;
 
 struct App<'a> {
     flags_state: TableState,
     regs_state: TableState,
     code_state: TableState,
     data_state: TableState,
-    machine: &'a mut Machine,
+    prolog: &'a mut PrologApp,
 }
 
 impl<'a> App<'a> {
-    fn new(machine: &'a mut Machine) -> App<'a> {
+    fn new(machine: &'a mut PrologApp) -> App<'a> {
         App {
             flags_state: TableState::default(),
             regs_state: TableState::default(),
             code_state: TableState::default(),
             data_state: TableState::default(),
-            machine,
+            prolog: machine,
         }
     }
 
     fn flags(&self) -> Vec<(&'a str, String)> {
+        let machine = &self.prolog.machine;
         vec![
-            ("H", self.machine.get_h().to_string()),
-            ("S", self.machine.get_s().to_string()),
-            ("P", self.machine.get_p().to_string()),
-            ("Mode", self.machine.get_mode().to_string()),
-            ("Fail", self.machine.get_fail().to_string()),
+            ("H", machine.get_h().to_string()),
+            ("S", machine.get_s().to_string()),
+            ("P", machine.get_p().to_string()),
+            ("Mode", machine.get_mode().to_string()),
+            ("Fail", machine.get_fail().to_string()),
         ]
     }
 
-    fn regs(&self) -> Vec<(String, String)> {
-        self.machine
+    fn regs(&self) -> Vec<(String, String, String)> {
+        let annotate_reg = |reg: RegPtr| {
+            let mut annotations = Vec::<String>::new();
+            if let Some(q) = self.prolog.query.as_ref() {
+                if let Some(x) = q.var_mapping.get(&reg) {
+                    annotations.push(format!("q.{}", x.sym_to_str(&self.prolog.symbol_table)))
+                }
+            }
+            if let Some(p) = self.prolog.program.as_ref() {
+                if let Some(x) = p.var_mapping.get(&reg) {
+                    annotations.push(format!("p.{}", x.sym_to_str(&self.prolog.symbol_table)))
+                }
+            }
+            annotations.join(", ")
+        };
+
+        self.prolog
+            .machine
             .iter_reg()
-            .enumerate()
-            .map(|(i, val)| (format!("X{} =", i), val.to_string()))
+            .map(|(reg, val)| (reg.to_string(), val.to_string(), annotate_reg(reg)))
             .collect()
     }
 
     fn next_instruction(&mut self) {
-        _ = self.machine.step();
+        _ = self.prolog.machine.step();
     }
 }
 
@@ -139,14 +157,22 @@ where
     'b: 'a,
 {
     let name_style = Style::default().fg(Color::White);
-    let rows = app.regs().into_iter().map(|(name, value)| {
+    let rows = app.regs().into_iter().map(|(name, value, ann)| {
         let height = 1;
-        let cells = vec![Cell::from(name).style(name_style), Cell::from(value)];
+        let cells = vec![
+            Cell::from(name).style(name_style),
+            Cell::from(value),
+            Cell::from(ann),
+        ];
         Row::new(cells).height(height as u16)
     });
     Table::new(rows)
         .block(Block::default().borders(Borders::ALL).title("Registers"))
-        .widths(&[Constraint::Length(5), Constraint::Min(10)])
+        .widths(&[
+            Constraint::Length(5),
+            Constraint::Percentage(50),
+            Constraint::Percentage(50),
+        ])
 }
 
 fn render_code<'a, 'b>(app: &App<'b>) -> Table<'a>
@@ -156,6 +182,7 @@ where
     let selected_style = Style::default().add_modifier(Modifier::REVERSED);
     let name_style = Style::default().fg(Color::White);
     let rows = app
+        .prolog
         .machine
         .get_code()
         .into_iter()
@@ -180,14 +207,19 @@ where
     'b: 'a,
 {
     let name_style = Style::default().fg(Color::White);
-    let rows = app.machine.iter_heap().enumerate().map(|(i, instr)| {
-        let height = 1;
-        let cells = vec![
-            Cell::from(format!("{:03}", i)).style(name_style),
-            Cell::from(instr.to_string()),
-        ];
-        Row::new(cells).height(height as u16)
-    });
+    let rows = app
+        .prolog
+        .machine
+        .iter_heap()
+        .enumerate()
+        .map(|(i, instr)| {
+            let height = 1;
+            let cells = vec![
+                Cell::from(format!("{:03}", i)).style(name_style),
+                Cell::from(instr.to_string()),
+            ];
+            Row::new(cells).height(height as u16)
+        });
     Table::new(rows)
         .block(Block::default().borders(Borders::ALL).title("Data"))
         .widths(&[Constraint::Length(3), Constraint::Percentage(100)])
@@ -203,7 +235,8 @@ fn render_help<'a>() -> Paragraph<'a> {
 fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let layout = calculate_layout(f);
 
-    app.code_state.select(Some(app.machine.get_p().into()));
+    app.code_state
+        .select(Some(app.prolog.machine.get_p().into()));
 
     f.render_stateful_widget(render_flags(app), layout.flags, &mut app.flags_state);
     f.render_stateful_widget(
@@ -216,7 +249,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     f.render_widget(render_help(), layout.footer);
 }
 
-pub fn start_debugmode<'a>(machine: &'a mut Machine) -> Result<(), Box<dyn Error>> {
+pub fn start_debugmode<'a>(prolog: &'a mut PrologApp) -> Result<(), Box<dyn Error>> {
     // setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -225,7 +258,7 @@ pub fn start_debugmode<'a>(machine: &'a mut Machine) -> Result<(), Box<dyn Error
     let mut terminal = Terminal::new(backend)?;
 
     // create app and run it
-    let app = App::new(machine);
+    let app = App::new(prolog);
     let res = run_app(&mut terminal, app);
 
     // restore terminal

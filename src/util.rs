@@ -123,7 +123,7 @@ pub fn writeout_annotated_mappings(
     ) -> Result<String, Error> {
         let mut out = String::new();
         let mut vars = Vec::<String>::with_capacity(2);
-        for reg_id in 1..=machine.iter_reg().len() {
+        for reg_id in 1..machine.iter_reg().len() {
             let reg = RegPtr(reg_id);
             vars.clear();
             if let Some(var) = query_bindings.get(&machine.trace_reg(reg).unwrap()) {

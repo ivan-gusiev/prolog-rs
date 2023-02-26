@@ -71,8 +71,12 @@ impl<T: Eq + Hash> VarInfo<T> {
     }
 
     // TODO: rename
-    pub fn info(&self) -> impl Iterator<Item = (&T, &VarName)> {
+    pub fn iter(&self) -> impl Iterator<Item = (&T, &VarName)> {
         self.0.iter()
+    }
+
+    pub fn append(&mut self, other: Self) {
+        self.0.extend(other.0)
     }
 
     pub fn traverse<NewT, F, E>(&self, mut mapper: F) -> Result<VarInfo<NewT>, E>
@@ -81,7 +85,7 @@ impl<T: Eq + Hash> VarInfo<T> {
         NewT: Eq + Hash,
     {
         let mut result = HashMap::<NewT, VarName>::new();
-        for (t, v) in self.info() {
+        for (t, v) in self.iter() {
             result.insert(mapper(t)?, *v);
         }
         Ok(VarInfo::from_hash(result))
@@ -93,7 +97,7 @@ impl<T: Eq + Hash> VarInfo<T> {
         NewT: Eq + Hash,
     {
         let mut result = HashMap::<NewT, VarName>::new();
-        for (t, v) in self.info() {
+        for (t, v) in self.iter() {
             match mapper(t) {
                 Ok(newt) => {
                     result.insert(newt, *v);

@@ -1,6 +1,13 @@
 use crate::rustyline::{error::ReadlineError, Editor, Result as RustyResult};
 use app::debugmode::start_debugmode;
-use prolog_rs::{run_code, Machine, RunningContext};
+use prolog_rs::{
+    compile::{compile_program_l1, compile_query_l1, CompileResult},
+    instr::Instruction,
+    lang::parse_struct,
+    run_code,
+    util::write_program_result,
+    PrologApp,
+};
 
 extern crate prolog_rs;
 extern crate rustyline;
@@ -9,45 +16,59 @@ mod app;
 
 fn main() -> RustyResult<()> {
     let mut rl = Editor::<()>::new()?;
-    let mut context = RunningContext::default();
-    let mut query_ready = false;
+    let mut prolog = PrologApp::default();
     loop {
         match rl.readline("> ") {
             Ok(str) => {
                 match str.trim() {
                     "exit" => break,
                     "" => (),
-                    "debug" => start_debugmode(&mut context.machine)
-                        .map_err(|_| ReadlineError::Interrupted)?,
+                    "+x" => {
+                        prolog.immediate_execution = true;
+                        println!("Immediate execution: enabled");
+                    }
+                    "-x" => {
+                        prolog.immediate_execution = false;
+                        println!("Immediate execution: disabled");
+                    }
+                    "debug" => {
+                        start_debugmode(&mut prolog).map_err(|_| ReadlineError::Interrupted)?
+                    }
                     "dbg" => {
-                        println!("{}", context.machine.dbg(&context.symbol_table));
+                        println!("{}", prolog.machine.dbg(&prolog.symbol_table));
                     }
-                    "vars" => {
-                        println!(
-                            "{}",
-                            prolog_rs::util::write_program_result(
-                                &context.machine,
-                                &context.symbol_table,
-                                &context.query_variables,
-                                &context.program_variables,
-                            )
-                        );
+                    "load" => {
+                        let mut code = Vec::<Instruction>::new();
+                        if let Some(query) = prolog.query.as_ref() {
+                            code.extend(query.instructions.iter())
+                        }
+                        if let Some(program) = prolog.program.as_ref() {
+                            code.extend(program.instructions.iter())
+                        }
+                        prolog.machine.set_code(code.as_slice())
                     }
-                    "run" => match run_code(&mut context.machine) {
-                        Ok(()) => {}
-                        Err(err) => println!("{err}"),
-                    },
+                    "vars" => succeed(print_vars(&prolog)),
+                    "run" => succeed(run_and_output(&mut prolog)),
                     query if query.starts_with("?-") => {
-                        match parse_and_run_query(query, &mut context) {
-                            Ok(()) => query_ready = true,
+                        match parse_and_compile_query(query, &mut prolog) {
+                            Ok(term) => {
+                                prolog.query = Some(term);
+                                if prolog.ready_to_run() && prolog.immediate_execution {
+                                    succeed(run_and_output(&mut prolog));
+                                }
+                            }
                             Err(err) => println!("{err}"),
                         }
                     }
-                    program if query_ready => match parse_and_run_program(program, &mut context) {
-                        Ok(()) => (),
+                    program => match parse_and_compile_program(program, &mut prolog) {
+                        Ok(term) => {
+                            prolog.program = Some(term);
+                            if prolog.ready_to_run() && prolog.immediate_execution {
+                                succeed(run_and_output(&mut prolog));
+                            }
+                        }
                         Err(err) => println!("{err}"),
                     },
-                    _ => println!("Please enter the query first!"),
                 }
                 rl.add_history_entry(str);
             }
@@ -68,36 +89,38 @@ fn main() -> RustyResult<()> {
     Ok(())
 }
 
-fn parse_and_run_query(input: &str, context: &mut RunningContext) -> Result<(), String> {
-    use prolog_rs::{compile::compile_query_l1, lang::parse_term};
-
-    let query = parse_term(input.trim_start_matches("?-"), &mut context.symbol_table)?;
-
-    let code = compile_query_l1(query.into_struct().unwrap());
-
-    context.machine = Machine::new();
-    context.machine.set_code(&code.instructions);
-    //run_code(&mut context.machine)?;
-    context.query_variables = context.machine.bind_variables(&code.var_mapping)?;
-    Ok(())
+fn parse_and_compile_query(input: &str, context: &mut PrologApp) -> Result<CompileResult, String> {
+    let query = parse_struct(input.trim_start_matches("?-"), &mut context.symbol_table)?;
+    Ok(compile_query_l1(query))
 }
 
-fn parse_and_run_program(input: &str, context: &mut RunningContext) -> Result<(), String> {
-    use prolog_rs::{compile::compile_program_l1, lang::parse_term};
+fn parse_and_compile_program(
+    input: &str,
+    context: &mut PrologApp,
+) -> Result<CompileResult, String> {
+    let program = parse_struct(input, &mut context.symbol_table)?;
+    Ok(compile_program_l1(program))
+}
 
-    let program = parse_term(input, &mut context.symbol_table)?;
+fn run_and_output(context: &mut PrologApp) -> Result<(), String> {
+    let query_result = context.query.as_ref().unwrap();
+    let program_result = context.program.as_ref().unwrap();
 
-    let code = compile_program_l1(program.into_struct().unwrap());
-
-    context.machine.set_code(&code.instructions);
+    context.machine.set_code(&query_result.instructions);
     run_code(&mut context.machine)?;
-    context.program_variables = context.machine.bind_variables(&code.var_mapping)?;
+    context.query_variables = context.machine.bind_variables(&query_result.var_mapping)?;
+
+    context.machine.set_code(&program_result.instructions);
+    run_code(&mut context.machine)?;
+    context.program_variables = context
+        .machine
+        .bind_variables(&program_result.var_mapping)?;
 
     output_result(context)?;
     Ok(())
 }
 
-fn output_result(context: &RunningContext) -> Result<(), String> {
+fn output_result(context: &PrologApp) -> Result<(), String> {
     if context.machine.get_fail() {
         Ok(println!("no"))
     } else if context.query_variables.is_empty() {
@@ -107,5 +130,25 @@ fn output_result(context: &RunningContext) -> Result<(), String> {
             println!("{}", desc.short(&context.symbol_table))
         }
         Ok(())
+    }
+}
+
+fn print_vars(app: &PrologApp) -> Result<(), String> {
+    println!(
+        "{}",
+        write_program_result(
+            &app.machine,
+            &app.symbol_table,
+            &app.query_variables,
+            &app.program_variables
+        )
+    );
+    Ok(())
+}
+
+fn succeed<T: ToString>(result: Result<(), T>) -> () {
+    match result {
+        Ok(()) => {}
+        Err(e) => println!("{}", e.to_string()),
     }
 }
