@@ -64,10 +64,12 @@ mod decompiletests {
 
     #[parameterized(lhs = {
         "p(Z, h(Z,W), f(W))",
-        "f(X, g(X,a))"
+        "f(X, g(X,a))",
+        "h(l(p(A, Y), p(B, Y)))", 
     }, rhs = {
         "p(f(X), h(Y, f(a)), Y)", 
-        "f(b, Y)"
+        "f(b, Y)",
+        "h(l(p(u, v), p(w, H)))",
     })]
     fn test_symmetric_unification(lhs: &str, rhs: &str) {
         fn get_unification_set(

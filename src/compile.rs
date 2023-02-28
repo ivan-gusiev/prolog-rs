@@ -425,7 +425,7 @@ pub fn compile_query_l1(query: Struct) -> CompileResult {
 
     // set up general purpose registers
     for reg @ RegPtr(struct_index) in structs {
-        if struct_index <= max_argument as usize {
+        if struct_index < max_argument as usize {
             continue;
         }
 
@@ -441,7 +441,6 @@ pub fn compile_query_l1(query: Struct) -> CompileResult {
             }
         }
     }
-
     // set up argument registers
     for i in 1..(max_argument as usize) {
         let areg = RegPtr(i);
@@ -542,7 +541,7 @@ pub fn compile_program_l1(program: Struct) -> CompileResult {
 
     // set up general purpose registers
     for reg @ RegPtr(struct_index) in structs {
-        if struct_index <= max_argument as usize {
+        if struct_index < max_argument as usize {
             continue;
         }
 
@@ -757,6 +756,76 @@ fn test_compile_program_l1() {
             var_mapping: VarMapping::from_iter([
                 (RegPtr(4), symbol_table.intern("X")),
                 (RegPtr(5), symbol_table.intern("Y"))
+            ])
+        }
+    )
+}
+
+#[test]
+fn test_compile_query_line() {
+    use lang::parse_struct;
+    let mut symbol_table = SymbolTable::new();
+    // same query with longer names
+    // horizontal(line(point(X1, Y), point(X2, Y)))
+    let query = parse_struct("h(l(p(A, Y), p(B, Y)))", &mut symbol_table).unwrap();
+    let instructions = Instruction::from_assembly(
+        r#"
+        put_structure p/2, X2
+        set_variable X4
+        set_variable X5
+        put_structure p/2, X3
+        set_variable X6
+        set_value X5
+        put_structure l/2, A1
+        set_value X2
+        set_value X3
+        "#,
+        &mut symbol_table,
+    )
+    .unwrap();
+    assert_eq!(
+        compile_query_l1(query),
+        CompileResult {
+            instructions,
+            var_mapping: VarMapping::from_iter([
+                (RegPtr(4), symbol_table.intern("A")),
+                (RegPtr(5), symbol_table.intern("Y")),
+                (RegPtr(6), symbol_table.intern("B")),
+            ])
+        }
+    )
+}
+
+#[test]
+fn test_compile_program_line() {
+    use lang::parse_struct;
+    let mut symbol_table = SymbolTable::new();
+    // same query with longer names
+    // horizontal(line(point(X1, Y), point(X2, Y)))
+    let query = parse_struct("h(l(p(A, Y), p(B, Y)))", &mut symbol_table).unwrap();
+    let instructions = Instruction::from_assembly(
+        r#"
+        get_structure l/2, A1
+        unify_variable X2
+        unify_variable X3
+        get_structure p/2, X2
+        unify_variable X4
+        unify_variable X5
+        get_structure p/2, X3
+        unify_variable X6
+        unify_value X5
+        "#,
+        &mut symbol_table,
+    )
+    .unwrap();
+    assert_eq!(
+        compile_program_l1(query),
+        CompileResult {
+            instructions,
+            var_mapping: VarMapping::from_iter([
+                (RegPtr(4), symbol_table.intern("A")),
+                (RegPtr(5), symbol_table.intern("Y")),
+                (RegPtr(6), symbol_table.intern("B")),
             ])
         }
     )

@@ -36,11 +36,13 @@ pub fn writeout_table2<T: Display, U: Display>(ts: &[T], us: &[U]) -> String {
     writeout(items)
 }
 
-pub fn writeout_dict<T: Display, U: Display, D>(dict: D) -> String
+pub fn writeout_dict<T: Display + Ord, U: Display, D>(dict: D) -> String
 where
     D: IntoIterator<Item = (T, U)>,
 {
-    let items = dict.into_iter().map(|(t, u)| format!("{}\t{}", t, u));
+    let mut items_vec = dict.into_iter().collect::<Vec<_>>();
+    items_vec.sort_by(|(a, _), (b, _)| a.cmp(b));
+    let items = items_vec.into_iter().map(|(t, u)| format!("{}\t{}", t, u));
     writeout(items)
 }
 
@@ -187,10 +189,15 @@ pub fn writeout_compile_result(
             } else {
                 format!("// {}", annotations.join(", "))
             };
-            out.push(format!("{}\t{}", instr, comment))
+            out.push(format!("{}\t{}", to_display(instr, symbol_table), comment))
         }
         out
     }
 
-    writeout(writeout_compile_result_impl(compile_result, symbol_table).iter())
+    writeout(
+        writeout_compile_result_impl(compile_result, symbol_table)
+            .iter()
+            .map(String::as_str)
+            .map(str::trim),
+    )
 }

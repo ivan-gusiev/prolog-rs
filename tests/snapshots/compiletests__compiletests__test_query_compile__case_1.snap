@@ -4,9 +4,9 @@ expression: "case(input, writeout_compile_result(&result, &symbol_table))"
 ---
 f(X, g(X,a))
 -----
-000	put_structure a/0, X4	
+000	put_structure a/0, X4
 001	put_variable X3, X1	// X3=X
-002	put_structure g/2, X2	
+002	put_structure g/2, X2
 003	set_value X3	// X3=X
-004	set_value X4	
+004	set_value X4
 

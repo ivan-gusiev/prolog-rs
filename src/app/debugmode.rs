@@ -209,19 +209,14 @@ where
     'b: 'a,
 {
     let name_style = Style::default().fg(Color::White);
-    let rows = app
-        .prolog
-        .machine
-        .iter_heap()
-        .enumerate()
-        .map(|(i, data)| {
-            let height = 1;
-            let cells = vec![
-                Cell::from(format!("{:03}", i)).style(name_style),
-                Cell::from(data.sym_to_str(&app.prolog.symbol_table)),
-            ];
-            Row::new(cells).height(height as u16)
-        });
+    let rows = app.prolog.machine.iter_heap().enumerate().map(|(i, data)| {
+        let height = 1;
+        let cells = vec![
+            Cell::from(format!("{:03}", i)).style(name_style),
+            Cell::from(data.sym_to_str(&app.prolog.symbol_table)),
+        ];
+        Row::new(cells).height(height as u16)
+    });
     Table::new(rows)
         .block(Block::default().borders(Borders::ALL).title("Data"))
         .widths(&[Constraint::Length(3), Constraint::Percentage(100)])

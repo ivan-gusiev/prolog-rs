@@ -1,0 +1,19 @@
+---
+source: tests/compiletests.rs
+expression: "case(input, writeout_compile_result(&result, &symbol_table))"
+---
+horizontal(line(pt(three, Y), pt(four, five)))
+-----
+000	put_structure three/0, X4
+001	put_structure four/0, X6
+002	put_structure five/0, X7
+003	put_structure pt/2, X2
+004	set_value X4
+005	set_variable X5	// X5=Y
+006	put_structure pt/2, X3
+007	set_value X6
+008	set_value X7
+009	put_structure line/2, X1
+010	set_value X2
+011	set_value X3
+

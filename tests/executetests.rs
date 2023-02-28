@@ -46,6 +46,7 @@ mod executetests {
         ("p(Z, h(Z,W), f(W))", "p(f(X), h(Y, f(a)), Y)"),
         ("f(b, Y)", "f(X, g(X,a))"),
         ("f(X, g(X,a))", "p(f(X), h(Y, f(a)), Y)"),
+        ("h(l(p(A, Y), p(B, Y)))", "h(l(p(u, v), p(w, H)))"),
     })]
     fn test_program_execute(input: (&str, &str)) {
         let (query_text, program_text) = input;
@@ -70,8 +71,8 @@ mod executetests {
             machine.dbg(&symbol_table)
         } else {
             let program_bindings = machine
-            .bind_variables(&program_result.var_mapping)
-            .expect("decompile failure");
+                .bind_variables(&program_result.var_mapping)
+                .expect("decompile failure");
 
             format!(
                 "{}\n{}\n{}",
