@@ -179,7 +179,7 @@ impl Machine {
     pub fn trace_reg(&self, reg: RegPtr) -> MachineResult<HeapPtr> {
         match self.get_reg(reg) {
             Data::Ref(Ref(ptr)) | Data::Str(Str(ptr)) => Ok(ptr),
-            x => panic!("{} bound to garbage {}", reg, x), //Err(MachineFailure::NonVarBind),
+            _ => Err(MachineFailure::NonVarBind),
         }
     }
 

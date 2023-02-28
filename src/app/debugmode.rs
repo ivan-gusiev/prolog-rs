@@ -50,16 +50,17 @@ impl<'a> App<'a> {
     }
 
     fn regs(&self) -> Vec<(String, String, String)> {
+        let st = &self.prolog.symbol_table;
         let annotate_reg = |reg: RegPtr| {
             let mut annotations = Vec::<String>::new();
             if let Some(q) = self.prolog.query.as_ref() {
                 if let Some(x) = q.var_mapping.get(&reg) {
-                    annotations.push(format!("q.{}", x.sym_to_str(&self.prolog.symbol_table)))
+                    annotations.push(format!("q.{}", x.sym_to_str(st)))
                 }
             }
             if let Some(p) = self.prolog.program.as_ref() {
                 if let Some(x) = p.var_mapping.get(&reg) {
-                    annotations.push(format!("p.{}", x.sym_to_str(&self.prolog.symbol_table)))
+                    annotations.push(format!("p.{}", x.sym_to_str(st)))
                 }
             }
             annotations.join(", ")
@@ -68,7 +69,7 @@ impl<'a> App<'a> {
         self.prolog
             .machine
             .iter_reg()
-            .map(|(reg, val)| (reg.to_string(), val.to_string(), annotate_reg(reg)))
+            .map(|(reg, val)| (reg.to_string(), val.sym_to_str(st), annotate_reg(reg)))
             .collect()
     }
 
@@ -181,6 +182,7 @@ where
 {
     let selected_style = Style::default().add_modifier(Modifier::REVERSED);
     let name_style = Style::default().fg(Color::White);
+    let st = &app.prolog.symbol_table;
     let rows = app
         .prolog
         .machine
@@ -191,7 +193,7 @@ where
             let height = 1;
             let cells = vec![
                 Cell::from(format!("{:03}", i)).style(name_style),
-                Cell::from(instr.to_string()),
+                Cell::from(instr.sym_to_str(st)),
             ];
             Row::new(cells).height(height as u16)
         });
@@ -212,11 +214,11 @@ where
         .machine
         .iter_heap()
         .enumerate()
-        .map(|(i, instr)| {
+        .map(|(i, data)| {
             let height = 1;
             let cells = vec![
                 Cell::from(format!("{:03}", i)).style(name_style),
-                Cell::from(instr.to_string()),
+                Cell::from(data.sym_to_str(&app.prolog.symbol_table)),
             ];
             Row::new(cells).height(height as u16)
         });
