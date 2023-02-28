@@ -1,0 +1,16 @@
+---
+source: tests/compiletests.rs
+expression: "case(input, writeout_compile_result(&result, &symbol_table))"
+---
+horizontal(line(pt(X1, Y), pt(X2, Y)))
+-----
+000	get_structure line/2, X1
+001	unify_variable X2
+002	unify_variable X3
+003	get_structure pt/2, X2
+004	unify_variable X4	// X4=X1
+005	unify_variable X5	// X5=Y
+006	get_structure pt/2, X3
+007	unify_variable X6	// X6=X2
+008	unify_value X5	// X5=Y
+
