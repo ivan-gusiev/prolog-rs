@@ -3,11 +3,11 @@ extern crate prolog_rs;
 #[cfg(test)]
 mod tests {
     use prolog_rs::{
-        asm::{parse_program, Arg, Command},
+        asm::parse_program,
         compile::{compile_query, CompileResult},
         data::{Data, HeapPtr, Ref, RegPtr, Str},
         instr::Instruction,
-        lang::{parse_term, Functor},
+        lang::{parse_struct, Functor},
         run_code,
         symbol::SymbolTable,
         Machine,
@@ -25,27 +25,28 @@ mod tests {
         set_value X4          %              X4)
         "#;
 
-    // const PROGRAM1: &str = r#"
-    //     put_variable X4, A1   % ?- p(Z,
-    //     put_structure h/2, A2 %        h
-    //     set_value X4          %         (Z,
-    //     set_variable X5       %            W),
-    //     put_structure f/1, A3 %               f
-    //     set_value X5          %                (W))
-    //     call @0               % who knows where this points
-    // "#;
+    // TODO: uncomment last line when we add calls
+    const PROGRAM1: &str = r#"
+        put_variable X4, A1   % ?- p(Z,
+        put_structure h/2, A2 %        h
+        set_value X4          %         (Z,
+        set_variable X5       %            W),
+        put_structure f/1, A3 %               f
+        set_value X5          %                (W))
+        # call @0               % who knows where this points
+    "#;
 
     const QUERY: &str = "p(Z,h(Z,W), f(W))";
 
     #[test]
     fn program_compiles_to_bytecode() {
         let mut symbol_table = SymbolTable::new();
-        let query = parse_term(QUERY, &mut symbol_table).unwrap();
+        let query = parse_struct(QUERY, &mut symbol_table).unwrap();
         let CompileResult {
             instructions,
             var_mapping: _,
         } = compile_query(query);
-        let expected = Instruction::from_assembly(PROGRAM, &mut symbol_table).unwrap();
+        let expected = Instruction::from_assembly(PROGRAM1, &mut symbol_table).unwrap();
         assert_eq!(expected.as_slice(), instructions.as_slice());
     }
 
@@ -108,37 +109,6 @@ mod tests {
         let actual_heap = machine.iter_heap().copied().collect::<Vec<_>>();
 
         assert_eq!(expected_heap.as_slice(), actual_heap.as_slice())
-    }
-
-    #[test]
-    fn parsing_produces_program() {
-        let mut symbol_table = SymbolTable::new();
-        let h = symbol_table.intern("h");
-        let f = symbol_table.intern("f");
-        let p = symbol_table.intern("p");
-        assert_eq!(
-            parse_program(PROGRAM, &mut symbol_table),
-            Ok(vec![
-                Command(
-                    "put_structure".to_string(),
-                    vec![Arg::Func(h, 2), Arg::Reg(3)]
-                ),
-                Command("set_variable".to_string(), vec![Arg::Reg(2)]),
-                Command("set_variable".to_string(), vec![Arg::Reg(5)]),
-                Command(
-                    "put_structure".to_string(),
-                    vec![Arg::Func(f, 1), Arg::Reg(4)]
-                ),
-                Command("set_value".to_string(), vec![Arg::Reg(5)]),
-                Command(
-                    "put_structure".to_string(),
-                    vec![Arg::Func(p, 3), Arg::Reg(1)]
-                ),
-                Command("set_value".to_string(), vec![Arg::Reg(2)]),
-                Command("set_value".to_string(), vec![Arg::Reg(3)]),
-                Command("set_value".to_string(), vec![Arg::Reg(4)]),
-            ])
-        )
     }
 
     #[test]

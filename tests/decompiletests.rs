@@ -9,9 +9,9 @@ mod decompiletests {
     use insta::{assert_debug_snapshot, assert_display_snapshot};
     use parameterized::parameterized;
     use prolog_rs::{
-        compile::{compile_program, compile_program_l1, compile_query, compile_query_l1},
+        compile::{compile_program, compile_query},
         data::{Data, HeapPtr},
-        lang::{parse_struct, parse_term, Functor, Term, VarName},
+        lang::{parse_struct, Functor, Term, VarName},
         run_code,
         symbol::{to_display, SymDisplay, SymbolTable},
         util::{case, collapse, write_program_result, writeout, writeout_annotated_mappings},
@@ -36,14 +36,14 @@ mod decompiletests {
         let program = parse_struct(program_str, &mut symbol_table).unwrap();
         let mut machine = Machine::new();
 
-        let query_result = compile_query_l1(query);
+        let query_result = compile_query(query);
         machine.set_code(&query_result.instructions);
         run_code(&mut machine).expect("machine failure");
         let query_bindings = machine
             .bind_variables(&query_result.var_mapping)
             .expect("decompile failure");
 
-        let program_result = compile_program_l1(program);
+        let program_result = compile_program(program);
         machine.set_code(&program_result.instructions);
         run_code(&mut machine).expect("machine failure");
         let program_bindings = machine
@@ -77,8 +77,8 @@ mod decompiletests {
             program_str: &str,
         ) -> (SymbolTable, HashSet<(VarName, Term)>) {
             let mut symbol_table = SymbolTable::new();
-            let query = parse_term(query_str, &mut symbol_table).unwrap();
-            let program = parse_term(program_str, &mut symbol_table).unwrap();
+            let query = parse_struct(query_str, &mut symbol_table).unwrap();
+            let program = parse_struct(program_str, &mut symbol_table).unwrap();
             let mut machine = Machine::new();
 
             let query_result = compile_query(query);

@@ -18,6 +18,7 @@ code:
 006	get_structure f/1, X6
 007	unify_variable X7
 008	get_structure a/0, X7
+009	proceed
 
 heap:
 000	<STR,9>

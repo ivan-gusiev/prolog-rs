@@ -21,6 +21,7 @@ code:
 009	get_structure u/0, X4
 010	get_structure v/0, X5
 011	get_structure w/0, X6
+012	proceed
 
 heap:
 000	<STR,1>

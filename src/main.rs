@@ -1,7 +1,7 @@
 use crate::rustyline::{error::ReadlineError, Editor, Result as RustyResult};
 use app::debugmode::start_debugmode;
 use prolog_rs::{
-    compile::{compile_program_l1, compile_query_l1, CompileResult},
+    compile::{compile_program, compile_query, CompileResult},
     instr::Instruction,
     lang::parse_struct,
     run_code,
@@ -91,7 +91,7 @@ fn main() -> RustyResult<()> {
 
 fn parse_and_compile_query(input: &str, context: &mut PrologApp) -> Result<CompileResult, String> {
     let query = parse_struct(input.trim_start_matches("?-"), &mut context.symbol_table)?;
-    Ok(compile_query_l1(query))
+    Ok(compile_query(query))
 }
 
 fn parse_and_compile_program(
@@ -99,7 +99,7 @@ fn parse_and_compile_program(
     context: &mut PrologApp,
 ) -> Result<CompileResult, String> {
     let program = parse_struct(input, &mut context.symbol_table)?;
-    Ok(compile_program_l1(program))
+    Ok(compile_program(program))
 }
 
 fn run_and_output(context: &mut PrologApp) -> Result<(), String> {

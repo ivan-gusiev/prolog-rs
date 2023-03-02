@@ -14,6 +14,7 @@ code:
 002	unify_value X3
 003	unify_variable X4
 004	get_structure a/0, X4
+005	proceed
 
 heap:
 000	<STR,1>
