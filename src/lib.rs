@@ -261,9 +261,9 @@ impl Machine {
 
     pub fn describe_vars(
         self: &Machine,
-        var_mapping: &VarBindings,
+        var_binding: &VarBindings,
     ) -> MachineResult<Vec<VarDescription>> {
-        let mut mappings = var_mapping
+        let mut mappings = var_binding
             .iter()
             .map(|(&r, &n)| (n, r))
             .collect::<Vec<(VarName, HeapPtr)>>();
@@ -272,7 +272,7 @@ impl Machine {
         mappings
             .into_iter()
             .map(|(name, ptr)| {
-                self.decompile_addr(ptr.into(), var_mapping)
+                self.decompile_addr(ptr.into(), var_binding)
                     .map(|term| VarDescription::new(name, ptr.into(), self.get_heap(ptr), term))
             })
             .collect()
@@ -355,17 +355,6 @@ fn deref(machine: &Machine, mut addr: Addr) -> Addr {
     }
     addr
 }
-
-/*fn bind(machine: &mut Machine, lhs: Addr, rhs: Addr) -> MResult {
-    match (lhs, rhs) {
-        (Addr::Reg(_), Addr::Reg(_)) => Err(MachineFailure::RegBind),
-        (Addr::Heap(_), Addr::Reg(_)) => bind(machine, rhs, lhs),
-        (_, Addr::Heap(rhs_heap)) => {
-            machine.set_store(lhs, Ref(rhs_heap).into());
-            Ok(())
-        }
-    }
-}*/
 
 fn bind(machine: &mut Machine, lhs: Addr, rhs: Addr) -> MResult {
     let l = machine.get_store(lhs);

@@ -13,4 +13,5 @@ horizontal(line(pt(X1, Y), pt(X2, Y)))
 006	get_structure pt/2, X3
 007	unify_variable X6	// X6=X2
 008	unify_value X5	// X5=Y
+009	proceed
 

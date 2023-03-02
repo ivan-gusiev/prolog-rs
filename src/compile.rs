@@ -558,6 +558,10 @@ pub fn compile_program_l1(program: Struct) -> CompileResult {
         }
     }
 
+    // epilogue
+    result.push(Instruction::Proceed);
+
+
     CompileResult {
         instructions: result,
         var_mapping: VarMapping::from_inverse(vars),
@@ -745,6 +749,7 @@ fn test_compile_program_l1() {
         get_structure f/1, X6
         unify_variable X7
         get_structure a/0, X7
+        proceed
         "#,
         &mut symbol_table,
     )
@@ -814,6 +819,7 @@ fn test_compile_program_line() {
         get_structure p/2, X3
         unify_variable X6
         unify_value X5
+        proceed
         "#,
         &mut symbol_table,
     )

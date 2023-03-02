@@ -10,4 +10,5 @@ p(Z, h(Z,W), f(W))
 003	unify_variable X5	// X5=W
 004	get_structure f/1, X3
 005	unify_value X5	// X5=W
+006	proceed
 
