@@ -198,9 +198,8 @@ fn flatten_struct(root_struct: Struct) -> (Vec<FlattenedReg>, HashMap<VarName, R
 fn extract_structs(terms: &[FlattenedReg]) -> Vec<RegPtr> {
     let mut structs = vec![];
     for term in terms.iter() {
-        match term {
-            FlattenedReg(reg, FlattenedTerm::Struct(_)) => structs.push(*reg),
-            _ => (),
+        if let FlattenedReg(reg, FlattenedTerm::Struct(_)) = term {
+            structs.push(*reg)
         }
     }
     structs
@@ -320,7 +319,7 @@ pub fn compile_program(program: Struct) -> CompileResult {
     let registers = &registers_with_root[1..];
     let reg_map: HashMap<RegPtr, &FlattenedTerm<RegPtr>> =
         HashMap::from_iter(registers.iter().map(FlattenedReg::to_tuple));
-    let structs = extract_structs(&registers);
+    let structs = extract_structs(registers);
     let mut seen = HashSet::<RegPtr>::new();
     let mut result = vec![];
 

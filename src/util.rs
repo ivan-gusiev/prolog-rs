@@ -29,10 +29,7 @@ pub fn writeout<T: Display, I: IntoIterator<Item = T>>(items: I) -> String {
 }
 
 pub fn writeout_table2<T: Display, U: Display>(ts: &[T], us: &[U]) -> String {
-    let items = ts
-        .iter()
-        .zip(us.iter())
-        .map(|(t, u)| format!("{}\t{}", t, u));
+    let items = ts.iter().zip(us.iter()).map(|(t, u)| format!("{t}\t{u}"));
     writeout(items)
 }
 
@@ -42,7 +39,7 @@ where
 {
     let mut items_vec = dict.into_iter().collect::<Vec<_>>();
     items_vec.sort_by(|(a, _), (b, _)| a.cmp(b));
-    let items = items_vec.into_iter().map(|(t, u)| format!("{}\t{}", t, u));
+    let items = items_vec.into_iter().map(|(t, u)| format!("{t}\t{u}"));
     writeout(items)
 }
 
@@ -139,7 +136,7 @@ pub fn writeout_annotated_mappings(
             } else {
                 format!("// {}", vars.join(", "))
             };
-            writeln!(out, "{}\t{}", reg, annotations)?
+            writeln!(out, "{reg}\t{annotations}")?
         }
         Ok(out)
     }

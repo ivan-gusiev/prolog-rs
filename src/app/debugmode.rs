@@ -192,7 +192,7 @@ where
         .map(|(i, instr)| {
             let height = 1;
             let cells = vec![
-                Cell::from(format!("{:03}", i)).style(name_style),
+                Cell::from(format!("{i:03}")).style(name_style),
                 Cell::from(instr.sym_to_str(st)),
             ];
             Row::new(cells).height(height as u16)
@@ -212,7 +212,7 @@ where
     let rows = app.prolog.machine.iter_heap().enumerate().map(|(i, data)| {
         let height = 1;
         let cells = vec![
-            Cell::from(format!("{:03}", i)).style(name_style),
+            Cell::from(format!("{i:03}")).style(name_style),
             Cell::from(data.sym_to_str(&app.prolog.symbol_table)),
         ];
         Row::new(cells).height(height as u16)
@@ -223,7 +223,7 @@ where
 }
 
 fn render_help<'a>() -> Paragraph<'a> {
-    const TEXT: &'static str = r#"
+    const TEXT: &str = r#"
  q      quit
  SPACE  execute instruction"#;
     Paragraph::new(TEXT).block(Block::default().borders(Borders::ALL).title("Help"))
@@ -246,7 +246,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     f.render_widget(render_help(), layout.footer);
 }
 
-pub fn start_debugmode<'a>(prolog: &'a mut PrologApp) -> Result<(), Box<dyn Error>> {
+pub fn start_debugmode(prolog: &mut PrologApp) -> Result<(), Box<dyn Error>> {
     // setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -268,7 +268,7 @@ pub fn start_debugmode<'a>(prolog: &'a mut PrologApp) -> Result<(), Box<dyn Erro
     terminal.show_cursor()?;
 
     if let Err(err) = res {
-        println!("{:?}", err)
+        println!("{err:?}")
     }
 
     Ok(())

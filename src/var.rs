@@ -20,9 +20,9 @@ impl<T: Display + Eq + Hash> Display for VarInfo<T> {
         let mut pairs = self.0.iter();
         write!(f, "{{")?;
         if let Some((t, s)) = pairs.next() {
-            write!(f, "{}={}", s, t)?;
-            while let Some((t, s)) = pairs.next() {
-                write!(f, ", {}={}", s, t)?;
+            write!(f, "{s}={t}")?;
+            for (t, s) in pairs {
+                write!(f, ", {s}={t}")?;
             }
         }
         write!(f, "}}")
@@ -39,7 +39,7 @@ impl<T: SymDisplay + Eq + Hash> SymDisplay for VarInfo<T> {
         write!(f, "{{")?;
         if let Some((t, s)) = pairs.next() {
             write!(f, "{}={}", s, to_display(t, symbol_table))?;
-            while let Some((t, s)) = pairs.next() {
+            for (t, s) in pairs {
                 write!(f, ", {}={}", s, to_display(t, symbol_table))?;
             }
         }
@@ -98,11 +98,8 @@ impl<T: Eq + Hash> VarInfo<T> {
     {
         let mut result = HashMap::<NewT, VarName>::new();
         for (t, v) in self.iter() {
-            match mapper(t) {
-                Ok(newt) => {
-                    result.insert(newt, *v);
-                }
-                Err(_) => (),
+            if let Ok(newt) = mapper(t) {
+                result.insert(newt, *v);
             }
         }
         VarInfo::from_hash(result)

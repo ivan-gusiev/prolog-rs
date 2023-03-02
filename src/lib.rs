@@ -172,7 +172,7 @@ impl Machine {
         if let Some(instruction) = self.code.get(index) {
             execute_instruction(self, *instruction)
         } else {
-            return Err(MachineFailure::OutOfBoundsP);
+            Err(MachineFailure::OutOfBoundsP)
         }
     }
 
@@ -197,7 +197,7 @@ impl Machine {
 
     // TODO: rename to decompile
     pub fn decompile_addr(&self, addr: Addr, var_bindings: &VarBindings) -> MachineResult<Term> {
-        self.decompile_addr_impl(addr, &var_bindings)
+        self.decompile_addr_impl(addr, var_bindings)
     }
 
     fn decompile_addr_impl(&self, addr: Addr, var_labels: &VarBindings) -> MachineResult<Term> {
@@ -338,7 +338,7 @@ impl Display for MachineFailure {
 
 impl From<MachineFailure> for String {
     fn from(value: MachineFailure) -> Self {
-        format!("{}", value)
+        format!("{value}")
     }
 }
 
@@ -361,7 +361,10 @@ fn bind(machine: &mut Machine, lhs: Addr, rhs: Addr) -> MResult {
     let r = machine.get_store(rhs);
     match (l, r) {
         (Data::Ref(al), Data::Ref(ar)) if al.0 > ar.0 => bind(machine, rhs, lhs),
-        (Data::Ref(_), x) => Ok(machine.set_store(lhs, x)),
+        (Data::Ref(_), x) => {
+            machine.set_store(lhs, x);
+            Ok(())
+        }
         _ => bind(machine, rhs, lhs),
     }
 }

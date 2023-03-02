@@ -146,7 +146,7 @@ fn print_vars(app: &PrologApp) -> Result<(), String> {
     Ok(())
 }
 
-fn succeed<T: ToString>(result: Result<(), T>) -> () {
+fn succeed<T: ToString>(result: Result<(), T>) {
     match result {
         Ok(()) => {}
         Err(e) => println!("{}", e.to_string()),

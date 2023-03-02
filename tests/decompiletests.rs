@@ -144,7 +144,7 @@ mod decompiletests {
         let result = machine
             .decompile_addr(ptr.into(), &var_bindings)
             .map(|term| term.sym_to_str(&symbol_table))
-            .map_err(|e| format!("{}", e));
+            .map_err(|e| format!("{e}"));
         assert_debug_snapshot!(collapse(result));
     }
 }
