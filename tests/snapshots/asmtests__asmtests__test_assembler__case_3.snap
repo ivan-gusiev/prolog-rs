@@ -1,0 +1,12 @@
+---
+source: tests/asmtests.rs
+expression: "case(input, output)"
+---
+
+x/0:proceed
+    call x/0
+    
+-----
+000	proceed
+001	call @0
+

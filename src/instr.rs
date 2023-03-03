@@ -1,11 +1,16 @@
 use asm::{parse_program, Arg, Command};
 use data::RegPtr;
 use lang::Functor;
-use std::fmt::{Display, Formatter};
+use std::{
+    collections::HashMap,
+    fmt::{Display, Formatter},
+};
 
 use crate::{
+    asm::Label,
     data::CodePtr,
     symbol::{to_display, SymDisplay, SymbolTable},
+    util::WriteVec,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -78,9 +83,17 @@ impl Instruction {
     ) -> Result<Vec<Instruction>, String> {
         let lines = parse_program(program, symbol_table)?;
         let mut instructions: Vec<Instruction> = vec![];
+        let mut label_map: HashMap<Label, CodePtr> = HashMap::new();
+
+        // first assign labels to instructions
+        for (i, Command(labels, _, _)) in lines.iter().enumerate() {
+            for label in labels {
+                label_map.insert(*label, CodePtr(i));
+            }
+        }
 
         for line in lines {
-            instructions.push(command_to_instr(line)?)
+            instructions.push(command_to_instr(line, &label_map, symbol_table)?)
         }
 
         Ok(instructions)
@@ -101,19 +114,37 @@ fn arg_to_reg(arg: Arg) -> Result<RegPtr, String> {
     }
 }
 
-fn arg_to_code(arg: Arg) -> Result<CodePtr, String> {
+fn arg_to_code(
+    arg: Arg,
+    label_map: &HashMap<Label, CodePtr>,
+    symbol_table: &SymbolTable,
+) -> Result<CodePtr, String> {
     match arg {
         Arg::Code(i) => Ok(CodePtr(i)),
-        x => Err(format!("Argument {x:?} is not a register reference")),
+        Arg::Func(s, a) => label_map.get(&Label(s, a)).copied().ok_or(format!(
+            "Unbound label {}/{a}",
+            to_display(&s, symbol_table)
+        )),
+        x => Err(format!(
+            "Argument {} is not a label or instruction reference",
+            to_display(&x, symbol_table)
+        )),
     }
 }
 
-fn command_to_instr(line: Command) -> Result<Instruction, String> {
-    fn bad_args(nm: &str, args: &[Arg]) -> Result<Instruction, String> {
-        Err(format!("Incorrect arguments for {nm}: {args:?}"))
-    }
+fn command_to_instr(
+    line: Command,
+    label_map: &HashMap<Label, CodePtr>,
+    symbol_table: &SymbolTable,
+) -> Result<Instruction, String> {
+    let bad_args = |nm: &str, args: &[Arg]| {
+        Err(format!(
+            "Incorrect arguments for {nm}: {}",
+            to_display(&WriteVec::new(args), symbol_table)
+        ))
+    };
 
-    let Command(cmd, args) = line;
+    let Command(_, cmd, args) = line;
 
     match (cmd.as_str(), &args[..]) {
         ("put_structure", [f, r]) => Ok(Instruction::PutStructure(
@@ -135,11 +166,17 @@ fn command_to_instr(line: Command) -> Result<Instruction, String> {
         ("unify_value", [r]) => Ok(Instruction::UnifyValue(arg_to_reg(*r)?)),
         (nm @ "unify_value", args) => bad_args(nm, args),
         ("put_variable", [x, a]) => Ok(Instruction::PutVariable(arg_to_reg(*x)?, arg_to_reg(*a)?)),
+        (nm @ "put_variable", args) => bad_args(nm, args),
         ("put_value", [x, a]) => Ok(Instruction::PutValue(arg_to_reg(*x)?, arg_to_reg(*a)?)),
+        (nm @ "put_value", args) => bad_args(nm, args),
         ("get_variable", [x, a]) => Ok(Instruction::GetVariable(arg_to_reg(*x)?, arg_to_reg(*a)?)),
+        (nm @ "get_variable", args) => bad_args(nm, args),
         ("get_value", [x, a]) => Ok(Instruction::GetValue(arg_to_reg(*x)?, arg_to_reg(*a)?)),
-        ("call", [c]) => Ok(Instruction::Call(arg_to_code(*c)?)),
+        (nm @ "get_value", args) => bad_args(nm, args),
+        ("call", [c]) => Ok(Instruction::Call(arg_to_code(*c, label_map, symbol_table)?)),
+        (nm @ "call", args) => bad_args(nm, args),
         ("proceed", []) => Ok(Instruction::Proceed),
+        (nm @ "proceed", args) => bad_args(nm, args),
         (x, _) => Err(format!("Unknown command {x}")),
     }
 }

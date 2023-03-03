@@ -1,0 +1,16 @@
+---
+source: tests/asmtests.rs
+expression: "case(input, output)"
+---
+
+    call x/0
+    put_structure f/1, A1
+    put_variable X3, A2
+x/0:proceed
+    
+-----
+000	call @3
+001	put_structure f/1, X1
+002	put_variable X3, X2
+003	proceed
+

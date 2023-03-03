@@ -198,3 +198,59 @@ pub fn writeout_compile_result(
             .map(str::trim),
     )
 }
+
+pub struct WriteVec<'a, T> {
+    data: &'a [T],
+    separator: &'a str,
+    opener: Option<&'a str>,
+    closer: Option<&'a str>,
+}
+
+impl<'a, T> WriteVec<'a, T> {
+    pub fn new(data: &'a [T]) -> Self {
+        Self {
+            data,
+            separator: ", ",
+            opener: None,
+            closer: None,
+        }
+    }
+
+    pub fn with_separator(self, separator: &'a str) -> Self {
+        Self { separator, ..self }
+    }
+
+    pub fn with_brackets(self, opener: Option<&'a str>, closer: Option<&'a str>) -> Self {
+        Self {
+            opener,
+            closer,
+            ..self
+        }
+    }
+
+    pub fn with_square_brackets(self) -> Self {
+        self.with_brackets(Some("["), Some("]"))
+    }
+}
+
+impl<'a, T: SymDisplay> SymDisplay for WriteVec<'a, T> {
+    fn sym_fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        symbol_table: &SymbolTable,
+    ) -> Result<(), Error> {
+        if let Some(opener) = self.opener {
+            write!(f, "{opener}")?;
+        }
+        if !self.data.is_empty() {
+            write!(f, "{}", to_display(&self.data[0], symbol_table))?;
+        }
+        for item in &self.data[1..] {
+            write!(f, "{}{}", self.separator, to_display(item, symbol_table))?;
+        }
+        if let Some(closer) = self.closer {
+            write!(f, "{closer}")?;
+        }
+        Ok(())
+    }
+}

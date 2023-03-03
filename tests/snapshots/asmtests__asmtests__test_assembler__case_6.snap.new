@@ -1,0 +1,11 @@
+---
+source: tests/asmtests.rs
+assertion_line: 94
+expression: "case(input, output)"
+---
+
+labelone/0:
+labeltwo/0:put_structure @3, X2, func/0
+    
+-----
+Incorrect arguments for put_structure: @3, X2, func/0

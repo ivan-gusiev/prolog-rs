@@ -1,0 +1,11 @@
+---
+source: tests/asmtests.rs
+assertion_line: 94
+expression: "case(input, output)"
+---
+
+    label1/2: put_structure struct1/0, X2
+        
+-----
+000	put_structure struct1/0, X2
+

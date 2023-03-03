@@ -3,7 +3,6 @@ extern crate prolog_rs;
 #[cfg(test)]
 mod tests {
     use prolog_rs::{
-        asm::parse_program,
         compile::{compile_query, CompileResult},
         data::{Data, HeapPtr, Ref, RegPtr, Str},
         instr::Instruction,
@@ -109,14 +108,6 @@ mod tests {
         let actual_heap = machine.iter_heap().copied().collect::<Vec<_>>();
 
         assert_eq!(expected_heap.as_slice(), actual_heap.as_slice())
-    }
-
-    #[test]
-    fn incorrect_program_does_not_parse() {
-        assert!(matches!(
-            parse_program("42", &mut (SymbolTable::new())),
-            Err(_)
-        ))
     }
 
     #[test]

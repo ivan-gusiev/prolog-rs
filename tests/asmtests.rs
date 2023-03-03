@@ -46,10 +46,40 @@ mod asmtests {
     proceed
     "#;
 
+    const GOTO_START: &str = r#"
+x/0:proceed
+    call x/0
+    "#;
+
+    const FORWARD_REF: &str = r#"
+    call x/0
+    put_structure f/1, A1
+    put_variable X3, A2
+x/0:proceed
+    "#;
+
+    const UNBOUND_LABEL: &str = r#"
+    call catch/22
+    "#;
+
+    const SUPER_BROKEN: &str = r#"
+labelone/0:
+labeltwo/0:put_structure @3, X2, func/0
+    "#;
+
+    const DIGITS_IN_NAMES: &str = r#"
+    label1/2: put_structure struct1/0, X2
+        "#;
+
     #[parameterized(input = {
         QUERY_L0,
         QUERY_L1,
         PROGRAM_L1,
+        GOTO_START,
+        FORWARD_REF,
+        UNBOUND_LABEL,
+        SUPER_BROKEN,
+        DIGITS_IN_NAMES,
     })]
     fn test_assembler(input: &str) {
         let mut symbol_table = prolog_rs::symbol::SymbolTable::new();
