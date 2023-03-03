@@ -10,6 +10,7 @@ use var::VarMapping;
 
 // TODO: for some reason rustc requires `extern crate` definitions, fix this
 extern crate topological_sort;
+
 use self::topological_sort::TopologicalSort;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -389,11 +390,12 @@ pub struct CompileResult {
 
 #[test]
 fn test_compile_query() {
+    use instr::Assembly;
     use lang::parse_struct;
     use symbol::SymbolTable;
     let mut symbol_table = SymbolTable::new();
     let query = parse_struct("p(Z,h(Z,W),f(W))", &mut symbol_table).unwrap();
-    let instructions = Instruction::from_assembly(
+    let instructions = Assembly::from_asm(
         r#"
         put_variable X4, A1
         put_structure h/2, A2
@@ -404,7 +406,8 @@ fn test_compile_query() {
         "#,
         &mut symbol_table,
     )
-    .unwrap();
+    .unwrap()
+    .instructions;
     assert_eq!(
         compile_query(query),
         CompileResult {
@@ -419,18 +422,20 @@ fn test_compile_query() {
 
 #[test]
 fn test_compile_query2() {
+    use instr::Assembly;
     use lang::parse_struct;
     use symbol::SymbolTable;
     let mut symbol_table = SymbolTable::new();
     let query = parse_struct("f(b, Y)", &mut symbol_table).unwrap();
-    let instructions = Instruction::from_assembly(
+    let instructions = Assembly::from_asm(
         r#"
         put_structure b/0, A1
         put_variable X3, A2
         "#,
         &mut symbol_table,
     )
-    .unwrap();
+    .unwrap()
+    .instructions;
     assert_eq!(
         compile_query(query),
         CompileResult {
@@ -442,11 +447,12 @@ fn test_compile_query2() {
 
 #[test]
 fn test_compile_program() {
+    use instr::Assembly;
     use lang::parse_struct;
     use symbol::SymbolTable;
     let mut symbol_table = SymbolTable::new();
     let program = parse_struct("p(f(X), h(Y,f(a)), Y)", &mut symbol_table).unwrap();
-    let instructions = Instruction::from_assembly(
+    let instructions = Assembly::from_asm(
         r#"
         get_structure f/1, A1
         unify_variable X4
@@ -461,7 +467,8 @@ fn test_compile_program() {
         "#,
         &mut symbol_table,
     )
-    .unwrap();
+    .unwrap()
+    .instructions;
     assert_eq!(
         compile_program(program),
         CompileResult {
@@ -476,13 +483,14 @@ fn test_compile_program() {
 
 #[test]
 fn test_compile_query_line() {
+    use instr::Assembly;
     use lang::parse_struct;
-    let mut symbol_table = SymbolTable::new();
     use symbol::SymbolTable;
+    let mut symbol_table = SymbolTable::new();
     // same query with longer names
     // horizontal(line(point(X1, Y), point(X2, Y)))
     let query = parse_struct("h(l(p(A, Y), p(B, Y)))", &mut symbol_table).unwrap();
-    let instructions = Instruction::from_assembly(
+    let instructions = Assembly::from_asm(
         r#"
         put_structure p/2, X2
         set_variable X4
@@ -496,7 +504,8 @@ fn test_compile_query_line() {
         "#,
         &mut symbol_table,
     )
-    .unwrap();
+    .unwrap()
+    .instructions;
     assert_eq!(
         compile_query(query),
         CompileResult {
@@ -512,13 +521,14 @@ fn test_compile_query_line() {
 
 #[test]
 fn test_compile_program_line() {
+    use instr::Assembly;
     use lang::parse_struct;
     use symbol::SymbolTable;
     let mut symbol_table = SymbolTable::new();
     // same query with longer names
     // horizontal(line(point(X1, Y), point(X2, Y)))
     let query = parse_struct("h(l(p(A, Y), p(B, Y)))", &mut symbol_table).unwrap();
-    let instructions = Instruction::from_assembly(
+    let instructions = Assembly::from_asm(
         r#"
         get_structure l/2, A1
         unify_variable X2
@@ -533,7 +543,8 @@ fn test_compile_program_line() {
         "#,
         &mut symbol_table,
     )
-    .unwrap();
+    .unwrap()
+    .instructions;
     assert_eq!(
         compile_program(query),
         CompileResult {

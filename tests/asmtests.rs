@@ -7,7 +7,7 @@ mod asmtests {
     use insta::assert_display_snapshot;
     use parameterized::parameterized;
     use prolog_rs::{
-        instr::Instruction,
+        instr::Assembly,
         util::{case, writeout_sym},
     };
 
@@ -83,8 +83,8 @@ labeltwo/0:put_structure @3, X2, func/0
     })]
     fn test_assembler(input: &str) {
         let mut symbol_table = prolog_rs::symbol::SymbolTable::new();
-        let result = Instruction::from_assembly(input, &mut symbol_table)
-            .map(|instructions| writeout_sym(&instructions, &symbol_table));
+        let result = Assembly::from_asm(input, &mut symbol_table)
+            .map(|assembly| writeout_sym(&assembly.instructions, &symbol_table));
 
         let output = match result {
             Ok(s) => s,

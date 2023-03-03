@@ -1,6 +1,5 @@
 ---
 source: tests/asmtests.rs
-assertion_line: 94
 expression: "case(input, output)"
 ---
 

@@ -5,7 +5,7 @@ mod tests {
     use prolog_rs::{
         compile::{compile_query, CompileResult},
         data::{Data, HeapPtr, Ref, RegPtr, Str},
-        instr::Instruction,
+        instr::{Assembly, Instruction},
         lang::{parse_struct, Functor},
         run_code,
         symbol::SymbolTable,
@@ -45,7 +45,9 @@ mod tests {
             instructions,
             var_mapping: _,
         } = compile_query(query);
-        let expected = Instruction::from_assembly(PROGRAM1, &mut symbol_table).unwrap();
+        let expected = Assembly::from_asm(PROGRAM1, &mut symbol_table)
+            .unwrap()
+            .instructions;
         assert_eq!(expected.as_slice(), instructions.as_slice());
     }
 
@@ -135,15 +137,18 @@ mod tests {
             Instruction::SetValue(x4),
         ];
 
-        let parse_result = Instruction::from_assembly(PROGRAM, &mut symbol_table);
+        let parse_result = Assembly::from_asm(PROGRAM, &mut symbol_table);
 
-        assert_eq!(parse_result.unwrap().as_slice(), code.as_slice())
+        assert_eq!(
+            parse_result.unwrap().instructions.as_slice(),
+            code.as_slice()
+        )
     }
 
     #[test]
     fn parsing_incorrect_program_produces_error() {
         assert_eq!(
-            Instruction::from_assembly("put_structure X1", &mut (SymbolTable::new())),
+            Assembly::from_asm("put_structure X1", &mut (SymbolTable::new())),
             Err("Incorrect arguments for put_structure: [Reg(1)]".to_string())
         )
     }

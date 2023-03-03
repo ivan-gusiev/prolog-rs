@@ -76,11 +76,14 @@ impl SymDisplay for Instruction {
     }
 }
 
-impl Instruction {
-    pub fn from_assembly(
-        program: &str,
-        symbol_table: &mut SymbolTable,
-    ) -> Result<Vec<Instruction>, String> {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Assembly {
+    pub instructions: Vec<Instruction>,
+    pub label_map: HashMap<Label, CodePtr>,
+}
+
+impl Assembly {
+    pub fn from_asm(program: &str, symbol_table: &mut SymbolTable) -> Result<Assembly, String> {
         let lines = parse_program(program, symbol_table)?;
         let mut instructions: Vec<Instruction> = vec![];
         let mut label_map: HashMap<Label, CodePtr> = HashMap::new();
@@ -96,30 +99,35 @@ impl Instruction {
             instructions.push(command_to_instr(line, &label_map, symbol_table)?)
         }
 
-        Ok(instructions)
+        Ok(Assembly {
+            instructions,
+            label_map,
+        })
     }
 }
 
-fn arg_to_functor(arg: Arg) -> Result<Functor, String> {
-    match arg {
-        Arg::Func(f, a) => Ok(Functor(f, a)),
-        x => Err(format!("Argument {x:?} is not a register reference")),
-    }
-}
-
-fn arg_to_reg(arg: Arg) -> Result<RegPtr, String> {
-    match arg {
-        Arg::Reg(i) => Ok(RegPtr(i)),
-        x => Err(format!("Argument {x:?} is not a register reference")),
-    }
-}
-
-fn arg_to_code(
-    arg: Arg,
+fn command_to_instr(
+    line: Command,
     label_map: &HashMap<Label, CodePtr>,
     symbol_table: &SymbolTable,
-) -> Result<CodePtr, String> {
-    match arg {
+) -> Result<Instruction, String> {
+    let arg_to_functor = |arg| match arg {
+        Arg::Func(f, a) => Ok(Functor(f, a)),
+        x => Err(format!(
+            "Argument {} is not a register reference",
+            to_display(&x, symbol_table)
+        )),
+    };
+
+    let arg_to_reg = |arg| match arg {
+        Arg::Reg(i) => Ok(RegPtr(i)),
+        x => Err(format!(
+            "Argument {} is not a register reference",
+            to_display(&x, symbol_table)
+        )),
+    };
+
+    let arg_to_code = |arg| match arg {
         Arg::Code(i) => Ok(CodePtr(i)),
         Arg::Func(s, a) => label_map.get(&Label(s, a)).copied().ok_or(format!(
             "Unbound label {}/{a}",
@@ -129,14 +137,8 @@ fn arg_to_code(
             "Argument {} is not a label or instruction reference",
             to_display(&x, symbol_table)
         )),
-    }
-}
+    };
 
-fn command_to_instr(
-    line: Command,
-    label_map: &HashMap<Label, CodePtr>,
-    symbol_table: &SymbolTable,
-) -> Result<Instruction, String> {
     let bad_args = |nm: &str, args: &[Arg]| {
         Err(format!(
             "Incorrect arguments for {nm}: {}",
@@ -173,7 +175,7 @@ fn command_to_instr(
         (nm @ "get_variable", args) => bad_args(nm, args),
         ("get_value", [x, a]) => Ok(Instruction::GetValue(arg_to_reg(*x)?, arg_to_reg(*a)?)),
         (nm @ "get_value", args) => bad_args(nm, args),
-        ("call", [c]) => Ok(Instruction::Call(arg_to_code(*c, label_map, symbol_table)?)),
+        ("call", [c]) => Ok(Instruction::Call(arg_to_code(*c)?)),
         (nm @ "call", args) => bad_args(nm, args),
         ("proceed", []) => Ok(Instruction::Proceed),
         (nm @ "proceed", args) => bad_args(nm, args),
