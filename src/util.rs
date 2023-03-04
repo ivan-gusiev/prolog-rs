@@ -4,10 +4,10 @@ use std::{
 };
 
 use crate::{
-    asm::Label,
     compile::CompileResult,
     data::RegPtr,
     instr::{Assembly, Instruction},
+    lang::Functor,
     symbol::{to_display, SymDisplay, SymbolTable},
     var::VarBindings,
     Machine,
@@ -204,7 +204,7 @@ pub fn writeout_compile_result(
 }
 
 pub fn writeout_assembly(assembly: &Assembly, symbol_table: &SymbolTable) -> String {
-    let mut ptr_to_label = HashMap::<usize, Vec<Label>>::with_capacity(assembly.label_map.len());
+    let mut ptr_to_label = HashMap::<usize, Vec<Functor>>::with_capacity(assembly.label_map.len());
     for (lbl, ptr) in assembly.label_map.iter() {
         ptr_to_label
             .entry((*ptr).0)

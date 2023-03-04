@@ -79,19 +79,19 @@ impl SymDisplay for Instruction {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Assembly {
     pub instructions: Vec<Instruction>,
-    pub label_map: HashMap<Label, CodePtr>,
+    pub label_map: HashMap<Functor, CodePtr>,
 }
 
 impl Assembly {
     pub fn from_asm(program: &str, symbol_table: &mut SymbolTable) -> Result<Assembly, String> {
         let lines = parse_program(program, symbol_table)?;
         let mut instructions: Vec<Instruction> = vec![];
-        let mut label_map: HashMap<Label, CodePtr> = HashMap::new();
+        let mut label_map: HashMap<Functor, CodePtr> = HashMap::new();
 
         // first assign labels to instructions
         for (i, Command(labels, _, _)) in lines.iter().enumerate() {
             for label in labels {
-                label_map.insert(*label, CodePtr(i));
+                label_map.insert(label_to_functor(label), CodePtr(i));
             }
         }
 
@@ -106,9 +106,13 @@ impl Assembly {
     }
 }
 
+fn label_to_functor(lbl: &Label) -> Functor {
+    Functor(lbl.0, lbl.1)
+}
+
 fn command_to_instr(
     line: Command,
-    label_map: &HashMap<Label, CodePtr>,
+    label_map: &HashMap<Functor, CodePtr>,
     symbol_table: &SymbolTable,
 ) -> Result<Instruction, String> {
     let arg_to_functor = |arg| match arg {
@@ -129,7 +133,7 @@ fn command_to_instr(
 
     let arg_to_code = |arg| match arg {
         Arg::Code(i) => Ok(CodePtr(i)),
-        Arg::Func(s, a) => label_map.get(&Label(s, a)).copied().ok_or(format!(
+        Arg::Func(s, a) => label_map.get(&Functor(s, a)).copied().ok_or(format!(
             "Unbound label {}/{a}",
             to_display(&s, symbol_table)
         )),
