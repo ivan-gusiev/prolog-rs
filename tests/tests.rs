@@ -149,7 +149,7 @@ mod tests {
     fn parsing_incorrect_program_produces_error() {
         assert_eq!(
             Assembly::from_asm("put_structure X1", &mut (SymbolTable::new())),
-            Err("Incorrect arguments for put_structure: [Reg(1)]".to_string())
+            Err("Incorrect arguments for put_structure: X1".to_string())
         )
     }
 }

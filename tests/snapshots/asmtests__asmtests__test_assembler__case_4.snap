@@ -12,5 +12,5 @@ x/0:proceed
 000	call @3
 001	put_structure f/1, X1
 002	put_variable X3, X2
-003	proceed
+003	x/0: proceed
 

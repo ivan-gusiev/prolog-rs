@@ -8,7 +8,7 @@ mod asmtests {
     use parameterized::parameterized;
     use prolog_rs::{
         instr::Assembly,
-        util::{case, writeout_sym},
+        util::{case, writeout_assembly},
     };
 
     const QUERY_L0: &str = r#"
@@ -34,7 +34,7 @@ mod asmtests {
     "#;
 
     const PROGRAM_L1: &str = r#"
-    get_structure f/1, A1
+p/3:get_structure f/1, A1
     unify_variable X4
     get_structure h/2, A2
     unify_variable X5
@@ -71,6 +71,10 @@ labeltwo/0:put_structure @3, X2, func/0
     label1/2: put_structure struct1/0, X2
         "#;
 
+    const MULTI_LABEL: &str = r#"
+x/0:
+y/1: proceed"#;
+
     #[parameterized(input = {
         QUERY_L0,
         QUERY_L1,
@@ -80,11 +84,12 @@ labeltwo/0:put_structure @3, X2, func/0
         UNBOUND_LABEL,
         SUPER_BROKEN,
         DIGITS_IN_NAMES,
+        MULTI_LABEL,
     })]
     fn test_assembler(input: &str) {
         let mut symbol_table = prolog_rs::symbol::SymbolTable::new();
         let result = Assembly::from_asm(input, &mut symbol_table)
-            .map(|assembly| writeout_sym(&assembly.instructions, &symbol_table));
+            .map(|assembly| writeout_assembly(&assembly, &symbol_table));
 
         let output = match result {
             Ok(s) => s,

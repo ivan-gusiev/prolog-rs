@@ -1,9 +1,13 @@
-use std::fmt::{Debug, Display, Error, Write};
+use std::{
+    collections::HashMap,
+    fmt::{Debug, Display, Error, Write},
+};
 
 use crate::{
+    asm::Label,
     compile::CompileResult,
     data::RegPtr,
-    instr::Instruction,
+    instr::{Assembly, Instruction},
     symbol::{to_display, SymDisplay, SymbolTable},
     var::VarBindings,
     Machine,
@@ -199,11 +203,36 @@ pub fn writeout_compile_result(
     )
 }
 
+pub fn writeout_assembly(assembly: &Assembly, symbol_table: &SymbolTable) -> String {
+    let mut ptr_to_label = HashMap::<usize, Vec<Label>>::with_capacity(assembly.label_map.len());
+    for (lbl, ptr) in assembly.label_map.iter() {
+        ptr_to_label
+            .entry((*ptr).0)
+            .or_insert_with(|| vec![])
+            .push(*lbl);
+    }
+
+    let lines = assembly.instructions.iter().enumerate().map(|(i, instr)| {
+        let labels = ptr_to_label.get(&i).map(Vec::as_slice).unwrap_or(&[]);
+        let write_labels = WriteVec::new(labels)
+            .with_separator(": ")
+            .with_trailing_separator(true);
+        format!(
+            "{}{}",
+            to_display(&write_labels, symbol_table),
+            to_display(instr, symbol_table)
+        )
+    });
+
+    writeout(lines)
+}
+
 pub struct WriteVec<'a, T> {
     data: &'a [T],
     separator: &'a str,
     opener: Option<&'a str>,
     closer: Option<&'a str>,
+    trailing_separator: bool,
 }
 
 impl<'a, T> WriteVec<'a, T> {
@@ -213,6 +242,7 @@ impl<'a, T> WriteVec<'a, T> {
             separator: ", ",
             opener: None,
             closer: None,
+            trailing_separator: false,
         }
     }
 
@@ -224,6 +254,13 @@ impl<'a, T> WriteVec<'a, T> {
         Self {
             opener,
             closer,
+            ..self
+        }
+    }
+
+    pub fn with_trailing_separator(self, trailing_separator: bool) -> Self {
+        Self {
+            trailing_separator,
             ..self
         }
     }
@@ -244,9 +281,12 @@ impl<'a, T: SymDisplay> SymDisplay for WriteVec<'a, T> {
         }
         if !self.data.is_empty() {
             write!(f, "{}", to_display(&self.data[0], symbol_table))?;
-        }
-        for item in &self.data[1..] {
-            write!(f, "{}{}", self.separator, to_display(item, symbol_table))?;
+            for item in &self.data[1..] {
+                write!(f, "{}{}", self.separator, to_display(item, symbol_table))?;
+            }
+            if self.trailing_separator {
+                write!(f, "{}", self.separator)?;
+            }
         }
         if let Some(closer) = self.closer {
             write!(f, "{closer}")?;
