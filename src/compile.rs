@@ -1,15 +1,18 @@
+// TODO: for some reason rustc requires `extern crate` definitions, fix this
+extern crate topological_sort;
+
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 use std::iter::FromIterator;
 
-use data::RegPtr;
-use instr::Instruction;
+use data::{CodePtr, RegPtr};
+use instr::{Assembly, Instruction};
 use lang::{Functor, Struct, Term, VarName};
+use symbol::SymDisplay;
 use var::VarMapping;
 
-// TODO: for some reason rustc requires `extern crate` definitions, fix this
-extern crate topological_sort;
+use crate::symbol::to_display;
 
 use self::topological_sort::TopologicalSort;
 
@@ -121,7 +124,7 @@ impl FlattenedReg {
     }
 }
 
-fn flatten_struct(root_struct: Struct) -> (Vec<FlattenedReg>, HashMap<VarName, RegPtr>) {
+fn flatten_struct(root_struct: Struct) -> (Vec<FlattenedReg>, HashMap<VarName, RegPtr>, Functor) {
     let root_functor = root_struct.functor();
     let root_term = Term::Struct(root_struct);
     let mut term_map = HashMap::<TermId, RegPtr>::new();
@@ -193,7 +196,7 @@ fn flatten_struct(root_struct: Struct) -> (Vec<FlattenedReg>, HashMap<VarName, R
         .map(|(i, ft)| FlattenedReg(RegPtr(i), ft.transform(flat_to_reg)))
         .collect();
 
-    (result, var_map)
+    (result, var_map, root_functor)
 }
 
 fn extract_structs(terms: &[FlattenedReg]) -> Vec<RegPtr> {
@@ -253,13 +256,20 @@ fn order_query_structs(
     result
 }
 
-pub fn compile_query(query: Struct) -> CompileResult {
-    let (registers_with_root, vars) = flatten_struct(query);
+pub fn compile_query(
+    query: Struct,
+    programs: &HashMap<Functor, CodePtr>,
+) -> Result<CompileInfo, CompileError> {
+    let (registers_with_root, vars, root_functor) = flatten_struct(query);
+    let program_code_ptr = programs
+        .get(&root_functor)
+        .ok_or(CompileError::UnknownFunctor(root_functor))?;
+
     let registers = &registers_with_root[1..];
     let reg_map = HashMap::from_iter(registers.iter().map(FlattenedReg::to_tuple));
     let structs = order_query_structs(&reg_map, &extract_structs(registers));
     let mut seen = HashSet::<RegPtr>::new();
-    let mut result = vec![];
+    let mut instructions = vec![];
 
     let FlattenedReg(_, root) = &registers_with_root[0];
     let max_argument = root.get_str().functor().arity() + 1;
@@ -271,14 +281,14 @@ pub fn compile_query(query: Struct) -> CompileResult {
         }
 
         let FlatStruct(f, refs) = reg_map[&reg].get_str();
-        result.push(Instruction::PutStructure(*f, reg));
+        instructions.push(Instruction::PutStructure(*f, reg));
         seen.insert(reg);
         for ref_ptr in refs {
             if seen.contains(ref_ptr) {
-                result.push(Instruction::SetValue(*ref_ptr))
+                instructions.push(Instruction::SetValue(*ref_ptr))
             } else {
                 seen.insert(*ref_ptr);
-                result.push(Instruction::SetVariable(*ref_ptr))
+                instructions.push(Instruction::SetVariable(*ref_ptr))
             }
         }
     }
@@ -289,40 +299,43 @@ pub fn compile_query(query: Struct) -> CompileResult {
             FlattenedTerm::Variable(nm) => {
                 let xreg = vars[nm];
                 if seen.contains(&xreg) {
-                    result.push(Instruction::PutValue(xreg, areg));
+                    instructions.push(Instruction::PutValue(xreg, areg));
                 } else {
                     seen.insert(xreg);
-                    result.push(Instruction::PutVariable(xreg, areg));
+                    instructions.push(Instruction::PutVariable(xreg, areg));
                 }
             }
             FlattenedTerm::Struct(FlatStruct(f, refs)) => {
-                result.push(Instruction::PutStructure(*f, areg));
+                instructions.push(Instruction::PutStructure(*f, areg));
                 for ref_ptr in refs {
                     if seen.contains(ref_ptr) {
-                        result.push(Instruction::SetValue(*ref_ptr))
+                        instructions.push(Instruction::SetValue(*ref_ptr))
                     } else {
                         seen.insert(*ref_ptr);
-                        result.push(Instruction::SetVariable(*ref_ptr))
+                        instructions.push(Instruction::SetVariable(*ref_ptr))
                     }
                 }
             }
         }
     }
+    // call the corresponding program
+    instructions.push(Instruction::Call(*program_code_ptr));
 
-    CompileResult {
-        instructions: result,
+    Ok(CompileInfo {
+        instructions,
         var_mapping: VarMapping::from_inverse(vars),
-    }
+        root_functor,
+    })
 }
 
-pub fn compile_program(program: Struct) -> CompileResult {
-    let (registers_with_root, vars) = flatten_struct(program);
+pub fn compile_program(program: Struct) -> CompileInfo {
+    let (registers_with_root, vars, root_functor) = flatten_struct(program);
     let registers = &registers_with_root[1..];
     let reg_map: HashMap<RegPtr, &FlattenedTerm<RegPtr>> =
         HashMap::from_iter(registers.iter().map(FlattenedReg::to_tuple));
     let structs = extract_structs(registers);
     let mut seen = HashSet::<RegPtr>::new();
-    let mut result = vec![];
+    let mut instructions = vec![];
 
     let FlattenedReg(_, root) = &registers_with_root[0];
     let max_argument = root.get_str().functor().arity() + 1;
@@ -334,20 +347,20 @@ pub fn compile_program(program: Struct) -> CompileResult {
             FlattenedTerm::Variable(nm) => {
                 let xreg = vars[nm];
                 if seen.contains(&xreg) {
-                    result.push(Instruction::GetValue(xreg, areg));
+                    instructions.push(Instruction::GetValue(xreg, areg));
                 } else {
                     seen.insert(xreg);
-                    result.push(Instruction::GetVariable(xreg, areg));
+                    instructions.push(Instruction::GetVariable(xreg, areg));
                 }
             }
             FlattenedTerm::Struct(FlatStruct(f, refs)) => {
-                result.push(Instruction::GetStructure(*f, areg));
+                instructions.push(Instruction::GetStructure(*f, areg));
                 for ref_ptr in refs {
                     if seen.contains(ref_ptr) {
-                        result.push(Instruction::UnifyValue(*ref_ptr))
+                        instructions.push(Instruction::UnifyValue(*ref_ptr))
                     } else {
                         seen.insert(*ref_ptr);
-                        result.push(Instruction::UnifyVariable(*ref_ptr))
+                        instructions.push(Instruction::UnifyVariable(*ref_ptr))
                     }
                 }
             }
@@ -361,31 +374,65 @@ pub fn compile_program(program: Struct) -> CompileResult {
         }
 
         let FlatStruct(f, refs) = reg_map[&reg].get_str();
-        result.push(Instruction::GetStructure(*f, reg));
+        instructions.push(Instruction::GetStructure(*f, reg));
         seen.insert(reg);
         for ref_ptr in refs {
             if seen.contains(ref_ptr) {
-                result.push(Instruction::UnifyValue(*ref_ptr))
+                instructions.push(Instruction::UnifyValue(*ref_ptr))
             } else {
                 seen.insert(*ref_ptr);
-                result.push(Instruction::UnifyVariable(*ref_ptr))
+                instructions.push(Instruction::UnifyVariable(*ref_ptr))
             }
         }
     }
 
     // epilogue
-    result.push(Instruction::Proceed);
+    instructions.push(Instruction::Proceed);
 
-    CompileResult {
-        instructions: result,
+    CompileInfo {
+        instructions,
         var_mapping: VarMapping::from_inverse(vars),
+        root_functor,
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct CompileResult {
+pub struct CompileInfo {
     pub instructions: Vec<Instruction>,
     pub var_mapping: VarMapping,
+    pub root_functor: Functor,
+}
+
+impl CompileInfo {
+    pub fn append_to_assembly(self, assembly: &mut Assembly) -> VarMapping {
+        let base_address = assembly.instructions.len();
+        assembly
+            .label_map
+            .insert(self.root_functor, CodePtr(base_address));
+        assembly.instructions.extend(self.instructions);
+        self.var_mapping
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum CompileError {
+    UnknownFunctor(Functor),
+}
+
+impl SymDisplay for CompileError {
+    fn sym_fmt(
+        &self,
+        f: &mut Formatter<'_>,
+        symbol_table: &crate::symbol::SymbolTable,
+    ) -> Result<(), std::fmt::Error> {
+        match self {
+            Self::UnknownFunctor(func) => write!(
+                f,
+                "Query refers to an unknown functor {}.",
+                to_display(func, symbol_table)
+            ),
+        }
+    }
 }
 
 #[test]
@@ -393,8 +440,10 @@ fn test_compile_query() {
     use instr::Assembly;
     use lang::parse_struct;
     use symbol::SymbolTable;
+    use util::lbl_for;
     let mut symbol_table = SymbolTable::new();
     let query = parse_struct("p(Z,h(Z,W),f(W))", &mut symbol_table).unwrap();
+    let labels = lbl_for(query.functor());
     let instructions = Assembly::from_asm(
         r#"
         put_variable X4, A1
@@ -403,19 +452,21 @@ fn test_compile_query() {
         set_variable X5
         put_structure f/1, A3
         set_value X5
+        call @0
         "#,
         &mut symbol_table,
     )
     .unwrap()
     .instructions;
     assert_eq!(
-        compile_query(query),
-        CompileResult {
+        compile_query(query, &labels).unwrap(),
+        CompileInfo {
             instructions,
             var_mapping: VarMapping::from_iter([
                 (RegPtr(4), symbol_table.intern("Z")),
                 (RegPtr(5), symbol_table.intern("W"))
-            ])
+            ]),
+            root_functor: Functor(symbol_table.intern("p"), 3)
         }
     )
 }
@@ -425,22 +476,26 @@ fn test_compile_query2() {
     use instr::Assembly;
     use lang::parse_struct;
     use symbol::SymbolTable;
+    use util::lbl_for;
     let mut symbol_table = SymbolTable::new();
     let query = parse_struct("f(b, Y)", &mut symbol_table).unwrap();
+    let labels = lbl_for(query.functor());
     let instructions = Assembly::from_asm(
         r#"
         put_structure b/0, A1
         put_variable X3, A2
+        call @0
         "#,
         &mut symbol_table,
     )
     .unwrap()
     .instructions;
     assert_eq!(
-        compile_query(query),
-        CompileResult {
+        compile_query(query, &labels).unwrap(),
+        CompileInfo {
             instructions,
-            var_mapping: VarMapping::from_iter([(RegPtr(3), symbol_table.intern("Y"))])
+            var_mapping: VarMapping::from_iter([(RegPtr(3), symbol_table.intern("Y"))]),
+            root_functor: Functor(symbol_table.intern("f"), 2),
         }
     )
 }
@@ -471,12 +526,13 @@ fn test_compile_program() {
     .instructions;
     assert_eq!(
         compile_program(program),
-        CompileResult {
+        CompileInfo {
             instructions,
             var_mapping: VarMapping::from_iter([
                 (RegPtr(4), symbol_table.intern("X")),
                 (RegPtr(5), symbol_table.intern("Y"))
-            ])
+            ]),
+            root_functor: Functor(symbol_table.intern("p"), 3),
         }
     )
 }
@@ -486,10 +542,12 @@ fn test_compile_query_line() {
     use instr::Assembly;
     use lang::parse_struct;
     use symbol::SymbolTable;
+    use util::lbl_for;
     let mut symbol_table = SymbolTable::new();
     // same query with longer names
     // horizontal(line(point(X1, Y), point(X2, Y)))
     let query = parse_struct("h(l(p(A, Y), p(B, Y)))", &mut symbol_table).unwrap();
+    let labels = lbl_for(query.functor());
     let instructions = Assembly::from_asm(
         r#"
         put_structure p/2, X2
@@ -501,20 +559,22 @@ fn test_compile_query_line() {
         put_structure l/2, A1
         set_value X2
         set_value X3
+        call @0
         "#,
         &mut symbol_table,
     )
     .unwrap()
     .instructions;
     assert_eq!(
-        compile_query(query),
-        CompileResult {
+        compile_query(query, &labels).unwrap(),
+        CompileInfo {
             instructions,
             var_mapping: VarMapping::from_iter([
                 (RegPtr(4), symbol_table.intern("A")),
                 (RegPtr(5), symbol_table.intern("Y")),
                 (RegPtr(6), symbol_table.intern("B")),
-            ])
+            ]),
+            root_functor: Functor(symbol_table.intern("h"), 1),
         }
     )
 }
@@ -547,13 +607,14 @@ fn test_compile_program_line() {
     .instructions;
     assert_eq!(
         compile_program(query),
-        CompileResult {
+        CompileInfo {
             instructions,
             var_mapping: VarMapping::from_iter([
                 (RegPtr(4), symbol_table.intern("A")),
                 (RegPtr(5), symbol_table.intern("Y")),
                 (RegPtr(6), symbol_table.intern("B")),
-            ])
+            ]),
+            root_functor: Functor(symbol_table.intern("h"), 1),
         }
     )
 }

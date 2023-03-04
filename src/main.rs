@@ -1,11 +1,11 @@
 use crate::rustyline::{error::ReadlineError, Editor, Result as RustyResult};
 use app::debugmode::start_debugmode;
 use prolog_rs::{
-    compile::{compile_program, compile_query, CompileResult},
-    instr::Instruction,
+    compile::{compile_program, compile_query, CompileInfo},
     lang::parse_struct,
-    run_code,
+    symbol::SymDisplay,
     util::write_program_result,
+    var::VarBindings,
     PrologApp,
 };
 
@@ -38,14 +38,11 @@ fn main() -> RustyResult<()> {
                         println!("{}", prolog.machine.dbg(&prolog.symbol_table));
                     }
                     "load" => {
-                        let mut code = Vec::<Instruction>::new();
+                        prolog.machine.set_code(&prolog.assembly.instructions[..]);
                         if let Some(query) = prolog.query.as_ref() {
-                            code.extend(query.instructions.iter())
+                            let query_p = prolog.machine.append_code(&query.instructions[..]);
+                            prolog.machine.set_p(query_p);
                         }
-                        if let Some(program) = prolog.program.as_ref() {
-                            code.extend(program.instructions.iter())
-                        }
-                        prolog.machine.set_code(code.as_slice())
                     }
                     "vars" => succeed(print_vars(&prolog)),
                     "run" => succeed(run_and_output(&mut prolog)),
@@ -61,8 +58,9 @@ fn main() -> RustyResult<()> {
                         }
                     }
                     program => match parse_and_compile_program(program, &mut prolog) {
-                        Ok(term) => {
-                            prolog.program = Some(term);
+                        Ok(compile_result) => {
+                            prolog.program =
+                                Some(compile_result.append_to_assembly(&mut prolog.assembly));
                             if prolog.ready_to_run() && prolog.immediate_execution {
                                 succeed(run_and_output(&mut prolog));
                             }
@@ -89,32 +87,42 @@ fn main() -> RustyResult<()> {
     Ok(())
 }
 
-fn parse_and_compile_query(input: &str, context: &mut PrologApp) -> Result<CompileResult, String> {
+fn parse_and_compile_query(input: &str, context: &mut PrologApp) -> Result<CompileInfo, String> {
     let query = parse_struct(input.trim_start_matches("?-"), &mut context.symbol_table)?;
-    Ok(compile_query(query))
+    compile_query(query, &context.assembly.label_map)
+        .map_err(|err| err.sym_to_str(&context.symbol_table))
 }
 
-fn parse_and_compile_program(
-    input: &str,
-    context: &mut PrologApp,
-) -> Result<CompileResult, String> {
+fn parse_and_compile_program(input: &str, context: &mut PrologApp) -> Result<CompileInfo, String> {
     let program = parse_struct(input, &mut context.symbol_table)?;
     Ok(compile_program(program))
 }
 
 fn run_and_output(context: &mut PrologApp) -> Result<(), String> {
     let query_result = context.query.as_ref().unwrap();
-    let program_result = context.program.as_ref().unwrap();
+    let program_mapping = context.program.as_ref().unwrap();
+    let assembly = &context.assembly;
 
-    context.machine.set_code(&query_result.instructions);
-    run_code(&mut context.machine)?;
-    context.query_variables = context.machine.bind_variables(&query_result.var_mapping)?;
+    context.machine.set_code(&assembly.instructions);
+    let query_p = context.machine.append_code(&query_result.instructions);
+    context.machine.set_p(query_p);
 
-    context.machine.set_code(&program_result.instructions);
-    run_code(&mut context.machine)?;
-    context.program_variables = context
+    let mut query_vars: VarBindings = VarBindings::default();
+
+    context
         .machine
-        .bind_variables(&program_result.var_mapping)?;
+        .execute()
+        .with_call_hook(|machine| {
+            machine
+                .bind_variables(&query_result.var_mapping)
+                .map(|vars| {
+                    query_vars = vars;
+                })
+        })
+        .run()?;
+
+    context.query_variables = query_vars;
+    context.program_variables = context.machine.bind_variables(program_mapping)?;
 
     output_result(context)?;
     Ok(())

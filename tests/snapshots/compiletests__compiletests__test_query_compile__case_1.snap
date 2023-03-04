@@ -9,4 +9,5 @@ f(X, g(X,a))
 002	put_structure g/2, X2
 003	set_value X3	// X3=X
 004	set_value X4
+005	call @0
 

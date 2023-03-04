@@ -8,11 +8,11 @@ mod executetests {
     use parameterized::parameterized;
     use prolog_rs::{
         compile::{compile_program, compile_query},
+        data::CodePtr,
         lang::parse_struct,
-        run_code,
         symbol::SymbolTable,
-        util::{case, writeout_sym},
-        Machine,
+        util::{case, lbl_for, run_just_query, writeout_sym},
+        Machine, var::{VarInfo, VarBindings},
     };
 
     #[parameterized(input = {
@@ -24,10 +24,11 @@ mod executetests {
     fn test_query_execute(input: &str) {
         let mut symbol_table = SymbolTable::new();
         let query = parse_struct(input, &mut symbol_table).unwrap();
-        let result = compile_query(query);
+
+        let labels = lbl_for(query.functor());
+        let query_result = compile_query(query, &labels).unwrap();
         let mut machine = Machine::new();
-        machine.set_code(&result.instructions);
-        run_code(&mut machine).expect("machine failure");
+        run_just_query(&mut machine, &query_result.instructions).expect("machine failure");
 
         let output = writeout_sym(
             &machine.iter_heap().copied().collect::<Vec<_>>(),
@@ -49,16 +50,17 @@ mod executetests {
         let program = parse_struct(program_text, &mut symbol_table).unwrap();
         let mut machine = Machine::new();
 
-        let query_result = compile_query(query);
-        machine.set_code(&query_result.instructions);
-        run_code(&mut machine).expect("machine failure");
-        let query_bindings = machine
-            .bind_variables(&query_result.var_mapping)
-            .expect("decompile failure");
+        let labels = lbl_for(query.functor());
+        let query_result = compile_query(query, &labels).unwrap();
+        let mut query_bindings = VarBindings::default();
 
         let program_result = compile_program(program);
         machine.set_code(&program_result.instructions);
-        run_code(&mut machine).expect("machine failure");
+        let p = machine.append_code(&query_result.instructions);
+        machine.set_p(p);
+        machine.execute().with_call_hook(|m| {
+            m.bind_variables(&query_result.var_mapping).map(|vars| query_bindings = vars)
+        }) .run().expect("machine failure");
 
         let input = format!("({query_text}, {program_text})");
         let output = if machine.get_fail() {

@@ -6,8 +6,10 @@ expression: "case(input, output)"
 -----
 h: HEAP[18]
 s: HEAP[8]
+p: CODE[13]
 mode: write
 fail: false
+halt: true
 code:
 000	get_structure l/2, X1
 001	unify_variable X2
@@ -22,6 +24,16 @@ code:
 010	get_structure v/0, X5
 011	get_structure w/0, X6
 012	proceed
+013	put_structure p/2, X2
+014	set_variable X4
+015	set_variable X5
+016	put_structure p/2, X3
+017	set_variable X6
+018	set_value X5
+019	put_structure l/2, X1
+020	set_value X2
+021	set_value X3
+022	call @0
 
 heap:
 000	<STR,1>

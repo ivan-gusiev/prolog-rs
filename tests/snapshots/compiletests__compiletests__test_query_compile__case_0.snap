@@ -10,4 +10,5 @@ p(Z, h(Z,W), f(W))
 003	set_variable X5	// X5=W
 004	put_structure f/1, X3
 005	set_value X5	// X5=W
+006	call @0
 

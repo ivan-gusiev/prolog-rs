@@ -46,6 +46,7 @@ impl<'a> App<'a> {
             ("P", machine.get_p().to_string()),
             ("Mode", machine.get_mode().to_string()),
             ("Fail", machine.get_fail().to_string()),
+            ("Halt", machine.get_halt().to_string()),
         ]
     }
 
@@ -59,7 +60,7 @@ impl<'a> App<'a> {
                 }
             }
             if let Some(p) = self.prolog.program.as_ref() {
-                if let Some(x) = p.var_mapping.get(&reg) {
+                if let Some(x) = p.get(&reg) {
                     annotations.push(format!("p.{}", x.sym_to_str(st)))
                 }
             }

@@ -4,13 +4,13 @@ use std::{
 };
 
 use crate::{
-    compile::CompileResult,
-    data::RegPtr,
+    compile::CompileInfo,
+    data::{CodePtr, RegPtr},
     instr::{Assembly, Instruction},
     lang::Functor,
     symbol::{to_display, SymDisplay, SymbolTable},
     var::VarBindings,
-    Machine,
+    Machine, MachineFailure,
 };
 
 pub fn collapse<T>(result: Result<T, T>) -> T {
@@ -149,12 +149,9 @@ pub fn writeout_annotated_mappings(
         .unwrap_or_else(|e| format!("{e}"))
 }
 
-pub fn writeout_compile_result(
-    compile_result: &CompileResult,
-    symbol_table: &SymbolTable,
-) -> String {
+pub fn writeout_compile_result(compile_result: &CompileInfo, symbol_table: &SymbolTable) -> String {
     fn writeout_compile_result_impl(
-        compile_result: &CompileResult,
+        compile_result: &CompileInfo,
         symbol_table: &SymbolTable,
     ) -> Vec<String> {
         let mut out = Vec::<String>::new();
@@ -206,10 +203,11 @@ pub fn writeout_compile_result(
 pub fn writeout_assembly(assembly: &Assembly, symbol_table: &SymbolTable) -> String {
     let mut ptr_to_label = HashMap::<usize, Vec<Functor>>::with_capacity(assembly.label_map.len());
     for (lbl, ptr) in assembly.label_map.iter() {
-        ptr_to_label
-            .entry((*ptr).0)
-            .or_insert_with(|| vec![])
-            .push(*lbl);
+        let vec = ptr_to_label.entry(ptr.0).or_insert_with(Vec::new);
+        match vec.binary_search(lbl) {
+            Ok(_) => {} // element already in vector @ `pos`
+            Err(pos) => vec.insert(pos, *lbl),
+        }
     }
 
     let lines = assembly.instructions.iter().enumerate().map(|(i, instr)| {
@@ -293,4 +291,20 @@ impl<'a, T: SymDisplay> SymDisplay for WriteVec<'a, T> {
         }
         Ok(())
     }
+}
+
+pub fn run_just_query(
+    machine: &mut Machine,
+    instructions: &[Instruction],
+) -> Result<(), MachineFailure> {
+    machine.set_code(&[Instruction::Proceed]);
+    let p = machine.append_code(instructions);
+    machine.set_p(p);
+    machine.execute().run()
+}
+
+pub fn lbl_for(f: Functor) -> HashMap<Functor, CodePtr> {
+    let mut map = HashMap::new();
+    map.insert(f, CodePtr(0));
+    map
 }

@@ -3,12 +3,12 @@ extern crate prolog_rs;
 #[cfg(test)]
 mod tests {
     use prolog_rs::{
-        compile::{compile_query, CompileResult},
+        compile::{compile_query, CompileInfo},
         data::{Data, HeapPtr, Ref, RegPtr, Str},
         instr::{Assembly, Instruction},
         lang::{parse_struct, Functor},
-        run_code,
         symbol::SymbolTable,
+        util::lbl_for,
         Machine,
     };
 
@@ -32,7 +32,7 @@ mod tests {
         set_variable X5       %            W),
         put_structure f/1, A3 %               f
         set_value X5          %                (W))
-        # call @0               % who knows where this points
+        call @0               % who knows where this points
     "#;
 
     const QUERY: &str = "p(Z,h(Z,W), f(W))";
@@ -41,10 +41,12 @@ mod tests {
     fn program_compiles_to_bytecode() {
         let mut symbol_table = SymbolTable::new();
         let query = parse_struct(QUERY, &mut symbol_table).unwrap();
-        let CompileResult {
+        let labels = lbl_for(query.functor());
+        let CompileInfo {
             instructions,
             var_mapping: _,
-        } = compile_query(query);
+            root_functor: _,
+        } = compile_query(query, &labels).unwrap();
         let expected = Assembly::from_asm(PROGRAM1, &mut symbol_table)
             .unwrap()
             .instructions;
@@ -78,7 +80,7 @@ mod tests {
 
         let mut machine = Machine::new();
         machine.set_code(&code);
-        run_code(&mut machine).expect("machine failure");
+        machine.execute().run().expect("machine failure");
 
         fn str(heap: usize) -> Data {
             Data::Str(Str(HeapPtr(heap)))

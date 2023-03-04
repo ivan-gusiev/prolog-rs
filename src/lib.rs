@@ -7,11 +7,15 @@ pub mod symbol;
 pub mod util;
 pub mod var;
 
-use compile::CompileResult;
+use compile::CompileInfo;
 use data::{Addr, CodePtr, Data, HeapPtr, Mode, Ref, RegPtr, Str};
-use instr::Instruction;
+use instr::{Assembly, Instruction};
 use lang::{Functor, Term, VarName};
-use std::fmt::{Display, Write};
+use std::{
+    cell::RefCell,
+    collections::HashSet,
+    fmt::{Display, Write},
+};
 use symbol::SymbolTable;
 use var::{VarBindings, VarDescription, VarMapping, VarValues};
 
@@ -29,6 +33,7 @@ pub struct Machine {
     p: CodePtr, // instruction to be executed
     mode: Mode,
     fail: bool,
+    halt: bool,
     pdl: Vec<Addr>,
 }
 
@@ -43,6 +48,7 @@ impl Machine {
             p: CodePtr(0),
             mode: Mode::Read,
             fail: false,
+            halt: false,
             pdl: vec![],
         }
     }
@@ -95,6 +101,16 @@ impl Machine {
     pub fn set_code(&mut self, code: &[Instruction]) {
         self.code = code.to_vec();
         self.fail = false;
+        self.halt = false;
+    }
+
+    /// Returns the insertion point, so that P can be set to it
+    pub fn append_code(&mut self, code: &[Instruction]) -> CodePtr {
+        let result = CodePtr(self.code.len());
+        self.code.extend_from_slice(code);
+        self.fail = false;
+        self.halt = false;
+        result
     }
 
     pub fn get_h(&self) -> HeapPtr {
@@ -137,6 +153,14 @@ impl Machine {
         self.fail = fail
     }
 
+    pub fn get_halt(&self) -> bool {
+        self.halt
+    }
+
+    pub fn set_halt(&mut self, halt: bool) {
+        self.halt = halt
+    }
+
     pub fn get_store(&self, addr: Addr) -> Data {
         match addr {
             Addr::Heap(heap_ptr) => self.get_heap(heap_ptr),
@@ -163,17 +187,25 @@ impl Machine {
         self.pdl.is_empty()
     }
 
+    pub fn current_instruction(&self) -> Option<Instruction> {
+        let index: usize = self.get_p().into();
+        self.code.get(index).copied()
+    }
+
     pub fn step(&mut self) -> MResult {
         if self.get_fail() {
             return Err(MachineFailure::FailState);
         }
 
-        let index: usize = self.get_p().into();
-        if let Some(instruction) = self.code.get(index) {
-            execute_instruction(self, *instruction)
-        } else {
-            Err(MachineFailure::OutOfBoundsP)
-        }
+        execute_instruction(
+            self,
+            self.current_instruction()
+                .ok_or(MachineFailure::OutOfBoundsP)?,
+        )
+    }
+
+    pub fn execute(&mut self) -> ExecutionEnvironment {
+        ExecutionEnvironment::new(self)
     }
 
     pub fn trace_reg(&self, reg: RegPtr) -> MachineResult<HeapPtr> {
@@ -192,19 +224,38 @@ impl Machine {
     }
 
     pub fn load_variables(&self, var_bindings: &VarBindings) -> MachineResult<VarValues> {
-        var_bindings.traverse(|&ptr| self.decompile_addr(ptr.into(), var_bindings))
+        var_bindings.traverse(|&ptr| self.decompile(ptr.into(), var_bindings))
     }
 
-    // TODO: rename to decompile
-    pub fn decompile_addr(&self, addr: Addr, var_bindings: &VarBindings) -> MachineResult<Term> {
-        self.decompile_addr_impl(addr, var_bindings)
+    pub fn decompile(&self, addr: Addr, var_bindings: &VarBindings) -> MachineResult<Term> {
+        let seen = RefCell::new(HashSet::<Addr>::new());
+        self.decompile_impl(addr, var_bindings, seen)
     }
 
-    fn decompile_addr_impl(&self, addr: Addr, var_labels: &VarBindings) -> MachineResult<Term> {
+    fn decompile_impl(
+        &self,
+        addr: Addr,
+        var_labels: &VarBindings,
+        seen_ref: RefCell<HashSet<Addr>>,
+    ) -> MachineResult<Term> {
+        {
+            let mut seen = seen_ref.borrow_mut();
+            if seen.contains(&addr) {
+                // circular reference
+                return Err(MachineFailure::CircularRef);
+            } else {
+                seen.insert(addr);
+            }
+        };
+
         let decompile_functor = |ptr: HeapPtr, f: Functor| {
             let mut subterms = Vec::<Term>::new();
             for i in 1..=f.arity() {
-                subterms.push(self.decompile_addr_impl((ptr + i as usize).into(), var_labels)?)
+                subterms.push(self.decompile_impl(
+                    (ptr + i as usize).into(),
+                    var_labels,
+                    seen_ref.clone(),
+                )?)
             }
             Struct::new(f, &subterms)
                 .map(Term::Struct)
@@ -272,7 +323,7 @@ impl Machine {
         mappings
             .into_iter()
             .map(|(name, ptr)| {
-                self.decompile_addr(ptr.into(), var_binding)
+                self.decompile(ptr.into(), var_binding)
                     .map(|term| VarDescription::new(name, ptr.into(), self.get_heap(ptr), term))
             })
             .collect()
@@ -282,8 +333,10 @@ impl Machine {
         let mut str = String::new();
         writeln!(str, "h: {}", self.get_h()).unwrap();
         writeln!(str, "s: {}", self.get_s()).unwrap();
+        writeln!(str, "p: {}", self.get_p()).unwrap();
         writeln!(str, "mode: {}", self.get_mode()).unwrap();
         writeln!(str, "fail: {}", self.get_fail()).unwrap();
+        writeln!(str, "halt: {}", self.get_halt()).unwrap();
         writeln!(
             str,
             "code:\n{}",
@@ -313,6 +366,7 @@ pub enum MachineFailure {
     InvalidRegData,
     FailState,
     OutOfBoundsP,
+    CircularRef, // TODO: this should really be a decompilation failure, not machine failure
 }
 
 impl MachineFailure {
@@ -326,6 +380,7 @@ impl MachineFailure {
             Self::InvalidRegData => "Register contains something other than reference to heap",
             Self::FailState => "Attempted to execute an instruction in failed state",
             Self::OutOfBoundsP => "Instruction pointer P is out of code bounds",
+            Self::CircularRef => "Circular reference detected when decompiling a term",
         }
     }
 }
@@ -491,7 +546,8 @@ fn call(_machine: &mut Machine, ptr: CodePtr) -> IResult {
     Ok(Some(ptr))
 }
 
-fn proceed(_machine: &mut Machine) -> IResult {
+fn proceed(machine: &mut Machine) -> IResult {
+    machine.set_halt(true);
     Ok(None)
 }
 
@@ -539,22 +595,86 @@ fn execute_instruction(machine: &mut Machine, instruction: Instruction) -> MResu
     Ok(())
 }
 
-pub fn run_code(machine: &mut Machine) -> MResult {
-    for instruction in machine.get_code() {
-        execute_instruction(machine, instruction)?;
-        if machine.get_fail() {
-            break;
+// pub fn run_code(machine: &mut Machine) -> MResult {
+//     machine.set_fail(false);
+//     machine.set_halt(false);
+
+//     for instruction in machine.get_code() {
+//         execute_instruction(machine, instruction)?;
+//         if machine.get_fail() || machine.get_halt() {
+//             break;
+//         }
+//     }
+//     Ok(())
+// }
+
+type MachineHook<'a> = dyn FnMut(&Machine) -> MResult + 'a;
+
+pub struct ExecutionEnvironment<'a> {
+    machine: &'a mut Machine,
+    call_hook: Option<Box<MachineHook<'a>>>,
+}
+
+impl<'a> ExecutionEnvironment<'a> {
+    pub fn new(machine: &'a mut Machine) -> Self {
+        Self {
+            machine,
+            call_hook: None,
         }
     }
-    Ok(())
+
+    pub fn run(mut self) -> MResult {
+        self.machine.set_fail(false);
+        self.machine.set_halt(false);
+
+        while self.machine.current_instruction().is_some() {
+            self.run_hook()?;
+            self.machine.step()?;
+
+            if self.machine.get_fail() || self.machine.get_halt() {
+                break;
+            }
+        }
+        Ok(())
+    }
+
+    fn run_hook(&mut self) -> MResult {
+        if let Instruction::Call(_) = self
+            .machine
+            .current_instruction()
+            .ok_or(MachineFailure::OutOfBoundsP)?
+        {
+            if let Some(hook) = &mut self.call_hook {
+                hook(self.machine)
+            } else {
+                Ok(())
+            }
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn with_call_hook<F>(mut self, call_hook: F) -> Self
+    where
+        F: FnMut(&Machine) -> MResult + 'a,
+    {
+        self.call_hook = Some(Box::new(call_hook));
+        self
+    }
+
+    pub fn without_call_hook(mut self) -> Self {
+        self.call_hook = None;
+        self
+    }
 }
 
 #[derive(Debug, Default)]
 pub struct PrologApp {
     pub machine: Machine,
     pub symbol_table: SymbolTable,
-    pub query: Option<CompileResult>,
-    pub program: Option<CompileResult>,
+    pub assembly: Assembly,
+    pub query: Option<CompileInfo>,
+    pub program: Option<VarMapping>,
     pub query_variables: VarBindings,
     pub program_variables: VarBindings,
     pub immediate_execution: bool,
@@ -562,6 +682,6 @@ pub struct PrologApp {
 
 impl PrologApp {
     pub fn ready_to_run(&self) -> bool {
-        self.query.is_some() && self.program.is_some()
+        self.query.is_some()
     }
 }

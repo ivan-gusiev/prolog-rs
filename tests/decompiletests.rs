@@ -10,11 +10,13 @@ mod decompiletests {
     use parameterized::parameterized;
     use prolog_rs::{
         compile::{compile_program, compile_query},
-        data::{Data, HeapPtr},
+        data::{CodePtr, Data, HeapPtr},
         lang::{parse_struct, Functor, Term, VarName},
-        run_code,
         symbol::{to_display, SymDisplay, SymbolTable},
-        util::{case, collapse, write_program_result, writeout, writeout_annotated_mappings},
+        util::{
+            case, collapse, lbl_for, run_just_query, write_program_result, writeout,
+            writeout_annotated_mappings,
+        },
         var::VarBindings,
         Machine,
     };
@@ -36,16 +38,17 @@ mod decompiletests {
         let program = parse_struct(program_str, &mut symbol_table).unwrap();
         let mut machine = Machine::new();
 
-        let query_result = compile_query(query);
-        machine.set_code(&query_result.instructions);
-        run_code(&mut machine).expect("machine failure");
+        let labels = lbl_for(query.functor());
+        let query_result = compile_query(query, &labels).unwrap();
+        run_just_query(&mut machine, &query_result.instructions).expect("machine failure");
         let query_bindings = machine
             .bind_variables(&query_result.var_mapping)
             .expect("decompile failure");
 
         let program_result = compile_program(program);
+        machine.set_p(CodePtr(0));
         machine.set_code(&program_result.instructions);
-        run_code(&mut machine).expect("machine failure");
+        machine.execute().run().expect("machine failure");
         let program_bindings = machine
             .bind_variables(&program_result.var_mapping)
             .expect("decompile failure");
@@ -81,16 +84,17 @@ mod decompiletests {
             let program = parse_struct(program_str, &mut symbol_table).unwrap();
             let mut machine = Machine::new();
 
-            let query_result = compile_query(query);
-            machine.set_code(&query_result.instructions);
-            run_code(&mut machine).expect("machine failure");
+            let labels = lbl_for(query.functor());
+            let query_result = compile_query(query, &labels).unwrap();
+            run_just_query(&mut machine, &query_result.instructions).expect("machine failure");
             let query_bindings = machine
                 .bind_variables(&query_result.var_mapping)
                 .expect("decompile failure");
 
             let program_result = compile_program(program);
+            machine.set_p(CodePtr(0));
             machine.set_code(&program_result.instructions);
-            run_code(&mut machine).expect("machine failure");
+            machine.execute().run().expect("machine failure");
             let program_bindings = machine
                 .bind_variables(&program_result.var_mapping)
                 .expect("decompile failure");
@@ -142,7 +146,7 @@ mod decompiletests {
         machine.set_heap(ptr, Data::Functor(Functor(symbol_table.intern("f"), 2)));
 
         let result = machine
-            .decompile_addr(ptr.into(), &var_bindings)
+            .decompile(ptr.into(), &var_bindings)
             .map(|term| term.sym_to_str(&symbol_table))
             .map_err(|e| format!("{e}"));
         assert_debug_snapshot!(collapse(result));

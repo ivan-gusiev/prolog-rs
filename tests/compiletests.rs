@@ -10,7 +10,7 @@ mod compiletests {
         compile::{compile_program, compile_query},
         lang::parse_struct,
         symbol::SymbolTable,
-        util::{case, writeout_compile_result},
+        util::{case, lbl_for, writeout_compile_result},
     };
 
     #[parameterized(input = {
@@ -24,7 +24,8 @@ mod compiletests {
     fn test_query_compile(input: &str) {
         let mut symbol_table = SymbolTable::new();
         let query = parse_struct(input, &mut symbol_table).unwrap();
-        let result = compile_query(query);
+        let labels = lbl_for(query.functor());
+        let result = compile_query(query, &labels).unwrap();
 
         assert_display_snapshot!(case(input, writeout_compile_result(&result, &symbol_table)));
     }

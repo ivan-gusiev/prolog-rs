@@ -9,7 +9,7 @@ pub type VarName = Symbol;
 pub type FunctorName = Symbol;
 pub type Arity = u32;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub struct Functor(pub FunctorName, pub Arity);
 
 impl Functor {

@@ -16,4 +16,5 @@ horizontal(line(pt(three, Y), pt(four, five)))
 009	put_structure line/2, X1
 010	set_value X2
 011	set_value X3
+012	call @0
 
