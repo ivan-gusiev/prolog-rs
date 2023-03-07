@@ -4,9 +4,8 @@
 - [ ] roll my own topological sort 
     * not needed? generations approach might work
 - [ ] byte-address `call p/n` instead of index-address into array
-- [ ] compile: term_map seems to be useless (`term_map[Ti] == Xi`)
 - [ ] decompile: move code to a separate module `decompile.rs`
-- [ ] decompile: is it possible for `Machine::decompile_variable` to be non-recursive?
+- [ ] decompile: is it possible for `Machine::decompile_impl` to be non-recursive?
 - [ ] machine: move class to a separate module `machine.rs`
 - [ ] update `[A-Z]+\.md` files
 - [ ] write more docs
@@ -23,7 +22,7 @@
 - [ ] decompile: make sure that for a horizontal line, `horizontal(A)` decompiles correctly
     * today it returns `UnknownVariable`
     * needs either autonaming temp variables, or to keep the list of all program mappings
-- [ ] decompile: decompiling a self-referential (buggy) heap causes stack overflow
+- [x] decompile: decompiling a self-referential (buggy) heap causes stack overflow
     * `executetests::test_program_execute::case_1` fails
     * add a cache of already-seen terms
 
@@ -41,3 +40,6 @@
 - [x] more compiler tests from brown book:
     * [x] horizontal line
 - [x] compile: don't forget to add `call` and `proceed` instructions
+- [x] compile: term_map seems to be useless (`term_map[Ti] == Xi`)
+    * not useless
+    * the equation is only correct if the term does not have repeating terms
