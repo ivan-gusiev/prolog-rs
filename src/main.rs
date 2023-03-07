@@ -122,7 +122,7 @@ fn run_and_output(context: &mut PrologApp) -> Result<(), String> {
         .run()?;
 
     context.query_variables = query_vars;
-    context.program_variables = context.machine.bind_variables(program_mapping)?;
+    context.program_variables = context.machine.bind_good_variables(program_mapping);
 
     output_result(context)?;
     Ok(())

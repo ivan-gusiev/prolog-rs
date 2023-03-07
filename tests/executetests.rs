@@ -8,11 +8,11 @@ mod executetests {
     use parameterized::parameterized;
     use prolog_rs::{
         compile::{compile_program, compile_query},
-        data::CodePtr,
         lang::parse_struct,
         symbol::SymbolTable,
         util::{case, lbl_for, run_just_query, writeout_sym},
-        Machine, var::{VarInfo, VarBindings},
+        var::VarBindings,
+        Machine,
     };
 
     #[parameterized(input = {
@@ -58,9 +58,14 @@ mod executetests {
         machine.set_code(&program_result.instructions);
         let p = machine.append_code(&query_result.instructions);
         machine.set_p(p);
-        machine.execute().with_call_hook(|m| {
-            m.bind_variables(&query_result.var_mapping).map(|vars| query_bindings = vars)
-        }) .run().expect("machine failure");
+        machine
+            .execute()
+            .with_call_hook(|m| {
+                m.bind_variables(&query_result.var_mapping)
+                    .map(|vars| query_bindings = vars)
+            })
+            .run()
+            .expect("machine failure");
 
         let input = format!("({query_text}, {program_text})");
         let output = if machine.get_fail() {
