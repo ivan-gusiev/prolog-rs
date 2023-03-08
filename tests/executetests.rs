@@ -79,11 +79,15 @@ mod executetests {
                 "{}\n{}\n{}",
                 machine.dbg(&symbol_table),
                 writeout_sym(
-                    &machine.describe_vars(&query_bindings).unwrap(),
+                    &machine
+                        .describe_vars(&query_bindings, &mut symbol_table)
+                        .unwrap(),
                     &symbol_table
                 ),
                 writeout_sym(
-                    &machine.describe_vars(&program_bindings).unwrap(),
+                    &machine
+                        .describe_vars(&program_bindings, &mut symbol_table)
+                        .unwrap(),
                     &symbol_table
                 )
             )

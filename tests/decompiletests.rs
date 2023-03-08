@@ -25,12 +25,14 @@ mod decompiletests {
         "p(Z, h(Z,W), f(W))",
         "f(X, g(X,a))",
         "f(b, Y)",
-        "a"
+        "a",
+        "horizontal(line(pt(X1, Y), pt(X2, Y)))"
     }, query_str = {
         "p(f(X), h(Y, f(a)), Y)", 
         "f(b, Y)",
         "f(X, g(X,a))",
-        "b"
+        "b",
+        "horizontal(A)"
     })]
     fn test_run_and_decompile(program_str: &str, query_str: &str) {
         let mut symbol_table = SymbolTable::new();
@@ -53,15 +55,18 @@ mod decompiletests {
             .bind_variables(&program_result.var_mapping)
             .expect("decompile failure");
 
-        let result =
-            write_program_result(&machine, &symbol_table, &query_bindings, &program_bindings)
-                + writeout_annotated_mappings(
-                    &machine,
-                    &query_bindings,
-                    &program_bindings,
-                    &symbol_table,
-                )
-                .as_str();
+        let result = write_program_result(
+            &machine,
+            &mut symbol_table,
+            &query_bindings,
+            &program_bindings,
+        ) + writeout_annotated_mappings(
+            &machine,
+            &query_bindings,
+            &program_bindings,
+            &symbol_table,
+        )
+        .as_str();
         assert_display_snapshot!(case(program_str.to_owned() + " | ?- " + query_str, result));
     }
 
@@ -103,11 +108,15 @@ mod decompiletests {
                 (symbol_table, HashSet::new())
             } else {
                 let mut result = HashSet::new();
-                let qdesc = machine.describe_vars(&query_bindings).unwrap();
+                let qdesc = machine
+                    .describe_vars(&query_bindings, &mut symbol_table)
+                    .unwrap();
                 for vd in qdesc {
                     result.insert(vd.to_assignment());
                 }
-                let pdesc = machine.describe_vars(&program_bindings).unwrap();
+                let pdesc = machine
+                    .describe_vars(&program_bindings, &mut symbol_table)
+                    .unwrap();
                 for vd in pdesc {
                     result.insert(vd.to_assignment());
                 }
@@ -146,7 +155,7 @@ mod decompiletests {
         machine.set_heap(ptr, Data::Functor(Functor(symbol_table.intern("f"), 2)));
 
         let result = machine
-            .decompile(ptr.into(), &var_bindings)
+            .decompile(ptr.into(), &var_bindings, &mut symbol_table)
             .map(|term| term.sym_to_str(&symbol_table))
             .map_err(|e| format!("{e}"));
         assert_debug_snapshot!(collapse(result));

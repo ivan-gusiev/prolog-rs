@@ -44,7 +44,7 @@ fn main() -> RustyResult<()> {
                             prolog.machine.set_p(query_p);
                         }
                     }
-                    "vars" => succeed(print_vars(&prolog)),
+                    "vars" => succeed(print_vars(&mut prolog)),
                     "run" => succeed(run_and_output(&mut prolog)),
                     query if query.starts_with("?-") => {
                         match parse_and_compile_query(query, &mut prolog) {
@@ -128,25 +128,28 @@ fn run_and_output(context: &mut PrologApp) -> Result<(), String> {
     Ok(())
 }
 
-fn output_result(context: &PrologApp) -> Result<(), String> {
+fn output_result(context: &mut PrologApp) -> Result<(), String> {
     if context.machine.get_fail() {
         Ok(println!("no"))
     } else if context.query_variables.is_empty() {
         Ok(println!("yes"))
     } else {
-        for desc in context.machine.describe_vars(&context.query_variables)? {
+        for desc in context
+            .machine
+            .describe_vars(&context.query_variables, &mut context.symbol_table)?
+        {
             println!("{}", desc.short(&context.symbol_table))
         }
         Ok(())
     }
 }
 
-fn print_vars(app: &PrologApp) -> Result<(), String> {
+fn print_vars(app: &mut PrologApp) -> Result<(), String> {
     println!(
         "{}",
         write_program_result(
             &app.machine,
-            &app.symbol_table,
+            &mut app.symbol_table,
             &app.query_variables,
             &app.program_variables
         )

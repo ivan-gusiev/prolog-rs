@@ -76,13 +76,13 @@ pub fn case_dbg<T: Debug, U: Debug>(input: T, output: U) -> String {
 
 pub fn write_program_result(
     machine: &Machine,
-    symbol_table: &SymbolTable,
+    symbol_table: &mut SymbolTable,
     query_bindings: &VarBindings,
     program_bindings: &VarBindings,
 ) -> String {
     fn write_program_result_impl(
         machine: &Machine,
-        symbol_table: &SymbolTable,
+        symbol_table: &mut SymbolTable,
         query_bindings: &VarBindings,
         program_bindings: &VarBindings,
     ) -> Result<String, Error> {
@@ -92,7 +92,7 @@ pub fn write_program_result(
             out,
             "{}",
             writeout_sym(
-                &machine.describe_vars(query_bindings).map_err(|_| Error)?,
+                &machine.describe_vars(query_bindings, symbol_table).unwrap(),
                 symbol_table
             )
         )?;
@@ -101,15 +101,17 @@ pub fn write_program_result(
             out,
             "{}",
             writeout_sym(
-                &machine.describe_vars(program_bindings).map_err(|_| Error)?,
+                &machine
+                    .describe_vars(program_bindings, symbol_table)
+                    .unwrap(),
                 symbol_table
             )
         )?;
         Ok(out)
     }
 
-    write_program_result_impl(machine, symbol_table, query_bindings, program_bindings)
-        .unwrap_or_else(|e| format!("{e}"))
+    write_program_result_impl(machine, symbol_table, query_bindings, program_bindings).unwrap()
+    //.unwrap_or_else(|e| format!("{e}"))
 }
 
 pub fn writeout_annotated_mappings(

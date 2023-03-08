@@ -4,13 +4,17 @@
 - [ ] roll my own topological sort 
     * not needed? generations approach might work
 - [ ] byte-address `call p/n` instead of index-address into array
-- [ ] decompile: move code to a separate module `decompile.rs`
-- [ ] decompile: is it possible for `Machine::decompile_impl` to be non-recursive?
+- [ ] decompile: is it possible for `DecompileEnvironment::run_impl` to be non-recursive?
 - [ ] machine: move class to a separate module `machine.rs`
 - [ ] update `[A-Z]+\.md` files
 - [ ] write more docs
     * explain horizontal line
     * explain `var.rs` and binding
+- [ ] really fix the code organization, extern crate stuff et al
+    * move `main` out of `lib`?
+- [ ] decompile: employ var names from queries when possible
+    * maybe wait until L2 machine implementation
+- [ ] Full sentence Prolog parser.
 
 ### Bugs
 - [x] Type `?- X` then `X`. It cannot figure out the unification. 
@@ -19,7 +23,7 @@
     * fix the variable descriptions by dereferencing mappings:
     * before code execution, turn all RegPtr's into HeapPtr's
     * DONE: the root cause was incorrectly implemented `bind` operation
-- [ ] decompile: make sure that for a horizontal line, `horizontal(A)` decompiles correctly
+- [x] decompile: make sure that for a horizontal line, `horizontal(A)` decompiles correctly
     * today it returns `UnknownVariable`
     * needs either autonaming temp variables, or to keep the list of all program mappings
 - [x] decompile: decompiling a self-referential (buggy) heap causes stack overflow
@@ -28,7 +32,8 @@
 
 ### Done ✓
 - [x] WAM assembly parser
-- [x] Prolog query parser 
+- [x] Prolog query parser
+- [x] Prolog program parser
 - [x] seems that integration tests are not working (fixed)
 - [x] justfile instead of makefile
 - [x] golden parameterized tests: show input as well as output
@@ -43,3 +48,5 @@
 - [x] compile: term_map seems to be useless (`term_map[Ti] == Xi`)
     * not useless
     * the equation is only correct if the term does not have repeating terms
+- [x] decompile: move code to a separate module `decompile.rs`
+- [x] multi-fact tests

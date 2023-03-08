@@ -2,4 +2,4 @@
 source: tests/decompiletests.rs
 expression: collapse(result)
 ---
-"EmptyRef"
+"Term points to an empty heap cell"

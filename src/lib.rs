@@ -1,6 +1,7 @@
 pub mod asm;
 pub mod compile;
 pub mod data;
+pub mod decompile;
 pub mod instr;
 pub mod lang;
 pub mod symbol;
@@ -9,19 +10,14 @@ pub mod var;
 
 use compile::CompileInfo;
 use data::{Addr, CodePtr, Data, HeapPtr, Mode, Ref, RegPtr, Str};
+use decompile::{DecompileEnvironment, DecompileResult};
 use instr::{Assembly, Instruction};
 use lang::{Functor, Term, VarName};
-use std::{
-    cell::RefCell,
-    collections::HashSet,
-    fmt::{Display, Write},
-};
+use std::fmt::{Display, Write};
 use symbol::SymbolTable;
-use var::{VarBindings, VarDescription, VarMapping, VarValues};
+use var::{VarBindings, VarDescription, VarMapping};
 
 use util::{writeout, writeout_sym};
-
-use crate::lang::Struct;
 
 #[derive(Debug)]
 pub struct Machine {
@@ -223,107 +219,30 @@ impl Machine {
         var_mapping.traverse_filter(|&reg| self.trace_reg(reg))
     }
 
-    pub fn load_variables(&self, var_bindings: &VarBindings) -> MachineResult<VarValues> {
-        var_bindings.traverse(|&ptr| self.decompile(ptr.into(), var_bindings))
-    }
-
-    pub fn decompile(&self, addr: Addr, var_bindings: &VarBindings) -> MachineResult<Term> {
-        let seen = RefCell::new(HashSet::<Addr>::new());
-        self.decompile_impl(addr, var_bindings, seen)
-    }
-
-    fn decompile_impl(
+    pub fn decompile(
         &self,
         addr: Addr,
-        var_labels: &VarBindings,
-        seen_ref: RefCell<HashSet<Addr>>,
-    ) -> MachineResult<Term> {
-        {
-            let mut seen = seen_ref.borrow_mut();
-            if seen.contains(&addr) {
-                // circular reference
-                return Err(MachineFailure::CircularRef);
-            } else {
-                seen.insert(addr);
-            }
-        };
-
-        let decompile_functor = |ptr: HeapPtr, f: Functor| {
-            let mut subterms = Vec::<Term>::new();
-            for i in 1..=f.arity() {
-                subterms.push(self.decompile_impl(
-                    (ptr + i as usize).into(),
-                    var_labels,
-                    seen_ref.clone(),
-                )?)
-            }
-            Struct::new(f, &subterms)
-                .map(Term::Struct)
-                .map_err(|_| MachineFailure::BadArity)
-        };
-
-        let decompile_str = |Str(ptr): Str| match self.get_heap(ptr) {
-            Data::Functor(f) => decompile_functor(ptr, f),
-            _ => Err(MachineFailure::NoStrFunctor),
-        };
-
-        let decompile_ref = |Ref(mut ptr): Ref| {
-            let mut last_name: Option<VarName> = None;
-            loop {
-                if let Some(new_name) = var_labels.get(&ptr) {
-                    last_name = Some(new_name)
-                }
-
-                match self.get_heap(ptr) {
-                    Data::Ref(Ref(next_ptr)) => {
-                        if ptr != next_ptr {
-                            ptr = next_ptr
-                        } else if let Some(name) = last_name {
-                            break Ok(Term::Variable(name));
-                        } else {
-                            break Err(MachineFailure::UnknownVariable);
-                        }
-                    }
-                    Data::Str(str) => break decompile_str(str),
-                    Data::Functor(f) => break decompile_functor(ptr, f),
-                    Data::Empty => break Err(MachineFailure::EmptyRef),
-                }
-            }
-        };
-
-        let decompile_heap = |ptr: HeapPtr| match self.get_heap(ptr) {
-            Data::Ref(r) => decompile_ref(r),
-            Data::Str(str) => decompile_str(str),
-            Data::Functor(f) => decompile_functor(ptr, f),
-            Data::Empty => Err(MachineFailure::EmptyRef),
-        };
-
-        let decompile_reg = |ptr: RegPtr| match self.get_reg(ptr) {
-            Data::Ref(r) => decompile_ref(r),
-            Data::Str(str) => decompile_str(str),
-            _ => Err(MachineFailure::InvalidRegData),
-        };
-
-        match addr {
-            Addr::Reg(reg_ptr) => decompile_reg(reg_ptr),
-            Addr::Heap(heap_ptr) => decompile_heap(heap_ptr),
-        }
+        var_bindings: &VarBindings,
+        symbol_table: &mut SymbolTable,
+    ) -> DecompileResult<Term> {
+        DecompileEnvironment::new(self, var_bindings, symbol_table).run(addr)
     }
 
     pub fn describe_vars(
-        self: &Machine,
-        var_binding: &VarBindings,
-    ) -> MachineResult<Vec<VarDescription>> {
-        let mut mappings = var_binding
+        &self,
+        var_bindings: &VarBindings,
+        symbol_table: &mut SymbolTable,
+    ) -> DecompileResult<Vec<VarDescription>> {
+        let mut env = DecompileEnvironment::new(self, var_bindings, symbol_table);
+        let mut mappings = var_bindings
             .iter()
             .map(|(&r, &n)| (n, r))
             .collect::<Vec<(VarName, HeapPtr)>>();
         mappings.sort_by_key(|(v, _)| *v);
-
         mappings
             .into_iter()
             .map(|(name, ptr)| {
-                self.decompile(ptr.into(), var_binding)
+                env.run(ptr.into())
                     .map(|term| VarDescription::new(name, ptr.into(), self.get_heap(ptr), term))
             })
             .collect()
@@ -362,11 +281,9 @@ pub enum MachineFailure {
     BadArity,
     NonVarBind,
     EmptyRef,
-    UnknownVariable, // TODO: this should really be a decompilation failure, not machine failure
     InvalidRegData,
     FailState,
     OutOfBoundsP,
-    CircularRef, // TODO: this should really be a decompilation failure, not machine failure
 }
 
 impl MachineFailure {
@@ -376,18 +293,16 @@ impl MachineFailure {
             Self::BadArity => "Some functor subterms not found on heap",
             Self::NonVarBind => "Attemted to bind variable to a non-var register",
             Self::EmptyRef => "Term points to an empty heap cell",
-            Self::UnknownVariable => "Decompilation of a variable with unknown name",
             Self::InvalidRegData => "Register contains something other than reference to heap",
             Self::FailState => "Attempted to execute an instruction in failed state",
             Self::OutOfBoundsP => "Instruction pointer P is out of code bounds",
-            Self::CircularRef => "Circular reference detected when decompiling a term",
         }
     }
 }
 
 impl Display for MachineFailure {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{self:?}")
+        write!(f, "{}", self.message())
     }
 }
 

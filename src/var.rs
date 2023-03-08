@@ -6,7 +6,7 @@ use crate::{
     symbol::{to_display, SymDisplay, SymbolTable},
 };
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VarInfo<T: Eq + Hash>(HashMap<T, VarName>);
 
 impl<T: Eq + Hash> Default for VarInfo<T> {
@@ -70,13 +70,16 @@ impl<T: Eq + Hash> VarInfo<T> {
         self.0.is_empty()
     }
 
-    // TODO: rename
     pub fn iter(&self) -> impl Iterator<Item = (&T, &VarName)> {
         self.0.iter()
     }
 
     pub fn append(&mut self, other: Self) {
         self.0.extend(other.0)
+    }
+
+    pub fn insert(&mut self, key: T, var: VarName) -> Option<VarName> {
+        self.0.insert(key, var)
     }
 
     pub fn traverse<NewT, F, E>(&self, mut mapper: F) -> Result<VarInfo<NewT>, E>
