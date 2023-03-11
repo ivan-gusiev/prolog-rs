@@ -16,7 +16,10 @@ mod app;
 
 fn main() -> RustyResult<()> {
     let mut rl = Editor::<()>::new()?;
-    let mut prolog = PrologApp::default();
+    let mut prolog = PrologApp {
+        immediate_execution: true,
+        ..PrologApp::default()
+    };
     prolog.immediate_execution = true;
     loop {
         match rl.readline("> ") {
