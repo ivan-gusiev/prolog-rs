@@ -17,6 +17,7 @@ mod app;
 fn main() -> RustyResult<()> {
     let mut rl = Editor::<()>::new()?;
     let mut prolog = PrologApp::default();
+    prolog.immediate_execution = true;
     loop {
         match rl.readline("> ") {
             Ok(str) => {
@@ -61,9 +62,6 @@ fn main() -> RustyResult<()> {
                         Ok(compile_result) => {
                             prolog.program =
                                 Some(compile_result.append_to_assembly(&mut prolog.assembly));
-                            if prolog.ready_to_run() && prolog.immediate_execution {
-                                succeed(run_and_output(&mut prolog));
-                            }
                         }
                         Err(err) => println!("{err}"),
                     },
