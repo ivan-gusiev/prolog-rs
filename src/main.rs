@@ -100,8 +100,8 @@ fn parse_and_compile_program(input: &str, context: &mut PrologApp) -> Result<Com
 }
 
 fn run_and_output(context: &mut PrologApp) -> Result<(), String> {
-    let query_result = context.query.as_ref().unwrap();
-    let program_mapping = context.program.as_ref().unwrap();
+    let query_result = context.query.as_ref().ok_or("No query to run")?;
+    let program_mapping = context.program.as_ref().ok_or("No program to run")?;
     let assembly = &context.assembly;
 
     context.machine.set_code(&assembly.instructions);

@@ -1,7 +1,11 @@
 extern crate crossterm;
 extern crate tui;
 
-use prolog_rs::{data::RegPtr, symbol::SymDisplay};
+use prolog_rs::{
+    data::{CodePtr, HeapPtr, RegPtr},
+    symbol::SymDisplay,
+    util::collapse,
+};
 
 use self::crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
@@ -19,11 +23,65 @@ use std::{error::Error, io};
 
 use crate::PrologApp;
 
+enum InputState {
+    Default,
+    CodeNavigator,
+    FlagEditor,
+    DataNavigator,
+    Decompiler,
+}
+
+impl InputState {
+    fn help_text(&self) -> &'static str {
+        const DEFAULT_TEXT: &str = r#"
+    q      quit
+    c      navigate code
+    d      navigate data
+    f      toggle flags
+    SPACE  execute instruction"#;
+
+        const CODE_NAVIGATION_TEXT: &str = r#"
+    Navigating Code >>>
+        q      back to debug
+        UP     move up
+        DOWN   move down
+        SPACE  set code pointer"#;
+
+        const FLAG_EDITOR_TEXT: &str = r#"
+    Editing Flags >>>
+        q      back to debug
+        f      toggle fail
+        h      toggle halt"#;
+
+        const DATA_NAVIGATOR_TEXT: &str = r#"
+    Navigating Data >>>
+        q      back to debug
+        UP     move up
+        DOWN   move down
+        d      decompile"#;
+
+        const DECOMPILER_TEXT: &str = r#"
+    Decompiler Output >>>
+        {}
+
+        q      back to debug"#;
+
+        match self {
+            InputState::Default => DEFAULT_TEXT,
+            InputState::CodeNavigator => CODE_NAVIGATION_TEXT,
+            InputState::FlagEditor => FLAG_EDITOR_TEXT,
+            InputState::DataNavigator => DATA_NAVIGATOR_TEXT,
+            InputState::Decompiler => DECOMPILER_TEXT,
+        }
+    }
+}
+
 struct App<'a> {
     flags_state: TableState,
     regs_state: TableState,
     code_state: TableState,
     data_state: TableState,
+    input_state: InputState,
     prolog: &'a mut PrologApp,
 }
 
@@ -34,6 +92,7 @@ impl<'a> App<'a> {
             regs_state: TableState::default(),
             code_state: TableState::default(),
             data_state: TableState::default(),
+            input_state: InputState::Default,
             prolog: machine,
         }
     }
@@ -79,15 +138,111 @@ impl<'a> App<'a> {
     }
 }
 
+fn inc_mod(x: usize, len: usize) -> usize {
+    if x >= len - 1 {
+        0
+    } else {
+        x + 1
+    }
+}
+
+fn dec_mod(x: usize, len: usize) -> usize {
+    if x == 0 {
+        len - 1
+    } else {
+        x - 1
+    }
+}
+
 fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<()> {
     loop {
         terminal.draw(|f| ui(f, &mut app))?;
 
         if let Event::Key(key) = event::read()? {
-            match key.code {
-                KeyCode::Char('q') => return Ok(()),
-                KeyCode::Char(' ') => app.next_instruction(),
-                _ => {}
+            match app.input_state {
+                InputState::Default => match key.code {
+                    KeyCode::Char('q') => return Ok(()),
+                    KeyCode::Char(' ') => app.next_instruction(),
+                    KeyCode::Char('c') => {
+                        app.code_state
+                            .select(Some(app.prolog.machine.get_p().into()));
+                        app.input_state = InputState::CodeNavigator;
+                    }
+                    KeyCode::Char('d') => {
+                        app.data_state.select(Some(0));
+                        app.input_state = InputState::DataNavigator;
+                    }
+                    KeyCode::Char('f') => {
+                        app.input_state = InputState::FlagEditor;
+                    }
+                    _ => {}
+                },
+                InputState::CodeNavigator => match key.code {
+                    KeyCode::Char('q') => {
+                        app.code_state.select(None);
+                        app.input_state = InputState::Default;
+                    }
+                    KeyCode::Up => {
+                        if let Some(x) = app.code_state.selected() {
+                            app.code_state
+                                .select(Some(dec_mod(x, app.prolog.machine.code_len())))
+                        }
+                    }
+                    KeyCode::Down => {
+                        if let Some(x) = app.code_state.selected() {
+                            app.code_state
+                                .select(Some(inc_mod(x, app.prolog.machine.code_len())))
+                        }
+                    }
+                    KeyCode::Char(' ') => {
+                        if let Some(x) = app.code_state.selected() {
+                            app.prolog.machine.set_p(CodePtr(x))
+                        }
+                    }
+                    _ => {}
+                },
+                InputState::FlagEditor => match key.code {
+                    KeyCode::Char('q') => {
+                        app.input_state = InputState::Default;
+                    }
+                    KeyCode::Char('f') => {
+                        app.prolog.machine.set_fail(!app.prolog.machine.get_fail())
+                    }
+                    KeyCode::Char('h') => {
+                        app.prolog.machine.set_halt(!app.prolog.machine.get_halt())
+                    }
+                    _ => {}
+                },
+                InputState::DataNavigator => match key.code {
+                    KeyCode::Char('q') => {
+                        app.data_state.select(None);
+                        app.input_state = InputState::Default;
+                    }
+                    KeyCode::Up => {
+                        if let Some(x) = app.data_state.selected() {
+                            app.data_state
+                                .select(Some(dec_mod(x, app.prolog.machine.heap_len())))
+                        }
+                    }
+                    KeyCode::Down => {
+                        if let Some(x) = app.data_state.selected() {
+                            app.data_state
+                                .select(Some(inc_mod(x, app.prolog.machine.heap_len())))
+                        }
+                    }
+                    KeyCode::Char('d') => {
+                        if let Some(_) = app.data_state.selected() {
+                            app.input_state = InputState::Decompiler;
+                        }
+                    }
+                    _ => {}
+                },
+                InputState::Decompiler => match key.code {
+                    KeyCode::Char('q') => {
+                        app.input_state = InputState::DataNavigator;
+                    }
+                    _ => {}
+                },
             }
         }
     }
@@ -191,24 +346,32 @@ where
         .into_iter()
         .enumerate()
         .map(|(i, instr)| {
-            let height = 1;
             let cells = vec![
+                Cell::from(if app.prolog.machine.get_p().0 == i {
+                    ">"
+                } else {
+                    ""
+                }),
                 Cell::from(format!("{i:03}")).style(name_style),
                 Cell::from(instr.sym_to_str(st)),
             ];
-            Row::new(cells).height(height as u16)
+            Row::new(cells).height(1)
         });
     Table::new(rows)
         .highlight_style(selected_style)
-        .highlight_symbol("*")
         .block(Block::default().borders(Borders::ALL).title("Code"))
-        .widths(&[Constraint::Length(3), Constraint::Percentage(100)])
+        .widths(&[
+            Constraint::Length(1),
+            Constraint::Length(3),
+            Constraint::Percentage(100),
+        ])
 }
 
 fn render_data<'a, 'b>(app: &App<'b>) -> Table<'a>
 where
     'b: 'a,
 {
+    let selected_style = Style::default().add_modifier(Modifier::REVERSED);
     let name_style = Style::default().fg(Color::White);
     let rows = app.prolog.machine.iter_heap().enumerate().map(|(i, data)| {
         let height = 1;
@@ -219,22 +382,41 @@ where
         Row::new(cells).height(height as u16)
     });
     Table::new(rows)
+        .highlight_style(selected_style)
         .block(Block::default().borders(Borders::ALL).title("Data"))
         .widths(&[Constraint::Length(3), Constraint::Percentage(100)])
 }
 
-fn render_help<'a>() -> Paragraph<'a> {
-    const TEXT: &str = r#"
- q      quit
- SPACE  execute instruction"#;
-    Paragraph::new(TEXT).block(Block::default().borders(Borders::ALL).title("Help"))
+fn render_help<'a, 'b>(app: &mut App<'b>) -> Paragraph<'a> {
+    let text = match app.input_state {
+        InputState::Decompiler => {
+            let heap_len = app.prolog.machine.heap_len();
+            let heap_ptr = HeapPtr(dec_mod(
+                inc_mod(app.data_state.selected().unwrap_or(0), heap_len),
+                heap_len,
+            ));
+            let decompile_result = app.prolog.machine.decompile(
+                heap_ptr.into(),
+                &app.prolog.query_variables,
+                &mut app.prolog.symbol_table,
+            );
+
+            let decompile = decompile_result
+                .map(|t| t.sym_to_str(&app.prolog.symbol_table))
+                .map_err(|err| err.to_string());
+
+            InputState::Decompiler
+                .help_text()
+                .replace("{}", collapse(decompile).as_str())
+        }
+        _ => app.input_state.help_text().to_string(),
+    };
+
+    Paragraph::new(text).block(Block::default().borders(Borders::ALL).title("Help"))
 }
 
 fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let layout = calculate_layout(f);
-
-    app.code_state
-        .select(Some(app.prolog.machine.get_p().into()));
 
     f.render_stateful_widget(render_flags(app), layout.flags, &mut app.flags_state);
     f.render_stateful_widget(
@@ -244,7 +426,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     );
     f.render_stateful_widget(render_code(app), layout.code, &mut app.code_state);
     f.render_stateful_widget(render_data(app), layout.data, &mut app.data_state);
-    f.render_widget(render_help(), layout.footer);
+    f.render_widget(render_help(app), layout.footer);
 }
 
 pub fn start_debugmode(prolog: &mut PrologApp) -> Result<(), Box<dyn Error>> {

@@ -53,6 +53,10 @@ impl Machine {
         self.heap[index] = value
     }
 
+    pub fn heap_len(&self) -> usize {
+        self.heap.len()
+    }
+
     pub fn iter_heap(&self) -> std::slice::Iter<'_, Data> {
         self.heap.iter()
     }
@@ -87,6 +91,10 @@ impl Machine {
         self.code = code.to_vec();
         self.fail = false;
         self.halt = false;
+    }
+
+    pub fn code_len(&self) -> usize {
+        self.code.len()
     }
 
     /// Returns the insertion point, so that P can be set to it

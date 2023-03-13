@@ -3,7 +3,6 @@
 - [ ] static type system?
 - [ ] byte-address `call p/n` instead of index-address into array
 - [ ] decompile: is it possible for `DecompileEnvironment::run_impl` to be non-recursive?
-- [ ] machine: move class to a separate module `machine.rs`
 - [ ] update `[A-Z]+\.md` files
 - [ ] write more docs
     * explain horizontal line
@@ -50,3 +49,4 @@
 - [x] multi-fact tests
 - [x] roll my own topological sort 
     * used generations approach instead of that
+- [x] machine: move class to a separate module `machine.rs`
