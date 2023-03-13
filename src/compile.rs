@@ -1,6 +1,3 @@
-// TODO: for some reason rustc requires `extern crate` definitions, fix this
-extern crate topological_sort;
-
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
@@ -13,8 +10,6 @@ use symbol::SymDisplay;
 use var::VarMapping;
 
 use crate::symbol::to_display;
-
-use self::topological_sort::TopologicalSort;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 struct TermId(usize);
@@ -80,25 +75,25 @@ impl<Ptr> FlatStruct<Ptr> {
 #[derive(Debug, Hash, PartialEq, Eq)]
 enum FlattenedTerm<Ptr> {
     Variable(VarName),
-    Struct(FlatStruct<Ptr>),
+    Struct(FlatStruct<Ptr>, usize),
 }
 
 impl<Ptr: Display> Display for FlattenedTerm<Ptr> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             FlattenedTerm::Variable(n) => n.fmt(f),
-            FlattenedTerm::Struct(s) => s.fmt(f),
+            FlattenedTerm::Struct(s, gen) => write!(f, "{}:{}", s, gen),
         }
     }
 }
 
 impl<Ptr: Copy> FlattenedTerm<Ptr> {
-    fn new_str(f: Functor, refs: Vec<Ptr>) -> FlattenedTerm<Ptr> {
-        FlattenedTerm::Struct(FlatStruct(f, refs))
+    fn new_str(f: Functor, gen: usize, refs: Vec<Ptr>) -> FlattenedTerm<Ptr> {
+        FlattenedTerm::Struct(FlatStruct(f, refs), gen)
     }
 
     fn get_str(&self) -> &FlatStruct<Ptr> {
-        if let FlattenedTerm::Struct(str) = self {
+        if let FlattenedTerm::Struct(str, _) = self {
             str
         } else {
             panic!("not a struct")
@@ -111,7 +106,7 @@ impl<Ptr: Copy> FlattenedTerm<Ptr> {
     {
         match self {
             FlattenedTerm::Variable(nm) => FlattenedTerm::Variable(*nm),
-            FlattenedTerm::Struct(str) => FlattenedTerm::Struct(str.transform(mapper)),
+            FlattenedTerm::Struct(str, gen) => FlattenedTerm::Struct(str.transform(mapper), *gen),
         }
     }
 }
@@ -129,7 +124,7 @@ fn flatten_struct(root_struct: Struct) -> (Vec<FlattenedReg>, HashMap<VarName, R
     let root_term = Term::Struct(root_struct);
     let mut term_map = HashMap::<TermId, RegPtr>::new();
     let mut var_map = HashMap::<VarName, RegPtr>::new();
-    let mut queue = VecDeque::from([(&root_term, TermId(0))]);
+    let mut queue = VecDeque::from([(&root_term, TermId(0), 0)]);
     let mut flatrefs = Vec::<FlattenedTerm<FlatRef>>::new();
     let mut term_counter = TermId(0);
 
@@ -141,21 +136,21 @@ fn flatten_struct(root_struct: Struct) -> (Vec<FlattenedReg>, HashMap<VarName, R
     loop {
         match queue.pop_front() {
             None => break,
-            Some((t @ Term::Variable(nm), id)) => {
+            Some((t @ Term::Variable(nm), id, gen)) => {
                 if var_map.contains_key(nm) {
                     term_map.insert(id, var_map[nm]);
                 } else if id.0 <= root_functor.arity() as usize {
                     //let var_id = next_term_id();
                     flatrefs.push(FlattenedTerm::Variable(*nm));
                     term_map.insert(id, RegPtr(id.0));
-                    queue.push_back((t, next_term_id()))
+                    queue.push_back((t, next_term_id(), gen))
                 } else {
                     flatrefs.push(FlattenedTerm::Variable(*nm));
                     var_map.insert(*nm, RegPtr(flatrefs.len() - 1));
                     term_map.insert(id, RegPtr(flatrefs.len() - 1));
                 }
             }
-            Some((Term::Struct(str), id)) => {
+            Some((Term::Struct(str), id, gen)) => {
                 let mut subterms: Vec<FlatRef> = vec![];
 
                 for subterm in str.terms() {
@@ -166,17 +161,17 @@ fn flatten_struct(root_struct: Struct) -> (Vec<FlattenedReg>, HashMap<VarName, R
                             } else {
                                 let id = next_term_id();
                                 subterms.push(FlatRef::Term(id));
-                                queue.push_back((v, id));
+                                queue.push_back((v, id, gen + 1));
                             }
                         }
                         t @ Term::Struct(_) => {
                             let id = next_term_id();
                             subterms.push(FlatRef::Term(id));
-                            queue.push_back((t, id));
+                            queue.push_back((t, id, gen + 1));
                         }
                     }
                 }
-                flatrefs.push(FlattenedTerm::new_str(str.functor(), subterms));
+                flatrefs.push(FlattenedTerm::new_str(str.functor(), gen, subterms));
                 term_map.insert(id, RegPtr(flatrefs.len() - 1));
             }
         }
@@ -202,7 +197,7 @@ fn flatten_struct(root_struct: Struct) -> (Vec<FlattenedReg>, HashMap<VarName, R
 fn extract_structs(terms: &[FlattenedReg]) -> Vec<RegPtr> {
     let mut structs = vec![];
     for term in terms.iter() {
-        if let FlattenedReg(reg, FlattenedTerm::Struct(_)) = term {
+        if let FlattenedReg(reg, FlattenedTerm::Struct(_, _)) = term {
             structs.push(*reg)
         }
     }
@@ -213,46 +208,11 @@ fn order_query_structs(
     terms: &HashMap<RegPtr, &FlattenedTerm<RegPtr>>,
     structs_to_sort: &[RegPtr],
 ) -> Vec<RegPtr> {
-    fn regs(term: &FlattenedTerm<RegPtr>) -> HashSet<RegPtr> {
-        if let FlattenedTerm::Struct(FlatStruct(_, refs)) = term {
-            HashSet::from_iter(refs.to_owned())
-        } else {
-            HashSet::default()
-        }
-    }
-
-    let mut ts = TopologicalSort::<RegPtr>::new();
-    for l in 0..structs_to_sort.len() {
-        for r in (l + 1)..structs_to_sort.len() {
-            let lp = structs_to_sort[l];
-            let rp = structs_to_sort[r];
-            let regs_lhs = regs(terms[&lp]);
-            let regs_rhs = regs(terms[&rp]);
-
-            if regs_lhs.contains(&rp) {
-                ts.add_dependency(rp, lp);
-            } else if regs_rhs.contains(&lp) {
-                ts.add_dependency(lp, rp);
-            }
-        }
-    }
-
-    let mut result = vec![];
-    loop {
-        let mut batch = ts.pop_all(); // use pop_all to preserve the original ordering
-        if batch.is_empty() {
-            break;
-        }
-
-        batch.sort();
-        result.append(&mut batch)
-    }
-
-    // special case when there are no dependencies between terms, e.g. only one term to sort
-    if result.is_empty() && structs_to_sort.len() == 1 {
-        result.push(structs_to_sort[0]);
-    }
-
+    let mut result = structs_to_sort.iter().copied().collect::<Vec<_>>();
+    result.sort_by_key(|r| match terms.get(r) {
+        Some(FlattenedTerm::Struct(_, gen)) => Some(usize::MAX - gen),
+        _ => None,
+    });
     result
 }
 
@@ -305,7 +265,7 @@ pub fn compile_query(
                     instructions.push(Instruction::PutVariable(xreg, areg));
                 }
             }
-            FlattenedTerm::Struct(FlatStruct(f, refs)) => {
+            FlattenedTerm::Struct(FlatStruct(f, refs), _) => {
                 instructions.push(Instruction::PutStructure(*f, areg));
                 for ref_ptr in refs {
                     if seen.contains(ref_ptr) {
@@ -353,7 +313,7 @@ pub fn compile_program(program: Struct) -> CompileInfo {
                     instructions.push(Instruction::GetVariable(xreg, areg));
                 }
             }
-            FlattenedTerm::Struct(FlatStruct(f, refs)) => {
+            FlattenedTerm::Struct(FlatStruct(f, refs), _) => {
                 instructions.push(Instruction::GetStructure(*f, areg));
                 for ref_ptr in refs {
                     if seen.contains(ref_ptr) {

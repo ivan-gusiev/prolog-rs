@@ -1,3 +1,4 @@
+// TODO: for some reason rustc requires `extern crate` definitions, fix this
 extern crate string_interner;
 
 use std::convert::{TryFrom, TryInto};
