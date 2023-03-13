@@ -7,9 +7,9 @@ mod tests {
         data::{Data, HeapPtr, Ref, RegPtr, Str},
         instr::{Assembly, Instruction},
         lang::{parse_struct, Functor},
+        machine::Machine,
         symbol::SymbolTable,
         util::lbl_for,
-        Machine,
     };
 
     const PROGRAM: &str = r#"

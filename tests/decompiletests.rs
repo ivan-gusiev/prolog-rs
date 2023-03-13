@@ -12,13 +12,13 @@ mod decompiletests {
         compile::{compile_program, compile_query},
         data::{CodePtr, Data, HeapPtr},
         lang::{parse_struct, Functor, Term, VarName},
+        machine::Machine,
         symbol::{to_display, SymDisplay, SymbolTable},
         util::{
             case, collapse, lbl_for, run_just_query, write_program_result, writeout,
             writeout_annotated_mappings,
         },
         var::VarBindings,
-        Machine,
     };
 
     #[parameterized(program_str = {

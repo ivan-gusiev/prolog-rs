@@ -3,9 +3,9 @@ use std::{collections::HashSet, fmt::Display};
 use crate::{
     data::{Addr, Data, HeapPtr, Ref, Str},
     lang::{Functor, Struct, Term, VarName},
+    machine::{Machine, MachineFailure},
     symbol::SymbolTable,
     var::VarBindings,
-    Machine, MachineFailure,
 };
 
 #[derive(Debug)]

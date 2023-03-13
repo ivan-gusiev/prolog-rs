@@ -8,9 +8,9 @@ use crate::{
     data::{CodePtr, RegPtr},
     instr::{Assembly, Instruction},
     lang::Functor,
+    machine::{Machine, MachineFailure},
     symbol::{to_display, SymDisplay, SymbolTable},
     var::VarBindings,
-    Machine, MachineFailure,
 };
 
 pub fn collapse<T>(result: Result<T, T>) -> T {

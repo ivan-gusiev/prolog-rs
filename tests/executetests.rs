@@ -9,10 +9,10 @@ mod executetests {
     use prolog_rs::{
         compile::{compile_program, compile_query},
         lang::parse_struct,
+        machine::Machine,
         symbol::SymbolTable,
         util::{case, lbl_for, run_just_query, writeout_sym},
         var::VarBindings,
-        Machine,
     };
 
     #[parameterized(input = {

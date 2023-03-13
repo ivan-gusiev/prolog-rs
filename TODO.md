@@ -1,8 +1,6 @@
 ### To Do
 - [ ] more compiler tests (e.g. from the brown book)
 - [ ] static type system?
-- [ ] roll my own topological sort 
-    * not needed? generations approach might work
 - [ ] byte-address `call p/n` instead of index-address into array
 - [ ] decompile: is it possible for `DecompileEnvironment::run_impl` to be non-recursive?
 - [ ] machine: move class to a separate module `machine.rs`
@@ -50,3 +48,5 @@
     * the equation is only correct if the term does not have repeating terms
 - [x] decompile: move code to a separate module `decompile.rs`
 - [x] multi-fact tests
+- [x] roll my own topological sort 
+    * used generations approach instead of that
