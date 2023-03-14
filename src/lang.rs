@@ -3,7 +3,8 @@ use std::iter::once;
 
 use symbol::{SymDisplay, Symbol};
 
-use crate::symbol::SymbolTable;
+use crate::symbol::{to_display, SymbolTable};
+use crate::util::WriteVec;
 
 pub type VarName = Symbol;
 pub type FunctorName = Symbol;
@@ -150,6 +151,65 @@ impl Term {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct Sentence {
+    pub head: Option<Struct>,
+    pub goals: Vec<Struct>,
+}
+
+impl Sentence {
+    pub fn fact(head: Struct) -> Self {
+        Self {
+            head: Some(head),
+            goals: vec![],
+        }
+    }
+
+    pub fn rule(head: Struct, goals: Vec<Struct>) -> Self {
+        Self {
+            head: Some(head),
+            goals,
+        }
+    }
+
+    pub fn query(goals: Vec<Struct>) -> Self {
+        Self { head: None, goals }
+    }
+
+    pub fn is_fact(&self) -> bool {
+        self.head.is_some() && self.goals.is_empty()
+    }
+
+    pub fn is_rule(&self) -> bool {
+        self.head.is_some() && !self.goals.is_empty()
+    }
+
+    pub fn is_query(&self) -> bool {
+        self.head.is_none()
+    }
+}
+
+pub type Program = Vec<Sentence>;
+
+impl SymDisplay for Sentence {
+    fn sym_fmt(
+        &self,
+        f: &mut Formatter<'_>,
+        symbol_table: &SymbolTable,
+    ) -> Result<(), std::fmt::Error> {
+        match (&self.head, self.goals.as_slice()) {
+            (Some(head), []) => write!(f, "{}.", to_display(head, symbol_table)),
+            (Some(head), goals) => write!(
+                f,
+                "{} :- {}.",
+                to_display(head, symbol_table),
+                to_display(&WriteVec::new(goals), symbol_table)
+            ),
+            (None, goals) => write!(f, "?- {}.", to_display(&WriteVec::new(goals), symbol_table)),
+        }
+    }
+}
+
 peg::parser!(
     grammar prolog_parser() for str {
         rule whitespace()
@@ -176,19 +236,37 @@ peg::parser!(
             / expected!("structure name")
 
         rule _()
-            = whitespace()* comment()?
+            = (whitespace() / comment())*
 
         rule variable(symbols: &mut SymbolTable) -> Term
             = n:varname() { Term::Variable(symbols.intern_chars( n )) }
 
-        rule structure(symbols: &mut SymbolTable) -> Term
-            = n:structname() "(" ts:(term(symbols) ** ",") ")" { Term::Struct(Struct::from_name(symbols.intern_chars(n), ts.as_slice())) }
+        rule structure(symbols: &mut SymbolTable) -> Struct
+            = n:structname() "(" ts:(term(symbols) ** ",") ")" { Struct::from_name(symbols.intern_chars(n), ts.as_slice()) }
 
-        rule constant(symbols: &mut SymbolTable) -> Term
-            = n:structname() { Term::Struct(Struct::constant(symbols.intern_chars(n))) }
+        rule constant(symbols: &mut SymbolTable) -> Struct
+            = n:structname() { Struct::constant(symbols.intern_chars(n)) }
 
         pub rule term(symbols: &mut SymbolTable) -> Term
-            = _ t:(variable(symbols) / structure(symbols) / constant(symbols)) _ { t }
+            = _ t:(
+                v:variable(symbols) {v}
+                / s:structure(symbols) {Term::Struct(s)}
+                / c:constant(symbols) {Term::Struct(c)}) _ { t }
+
+        rule fact(symbols: &mut SymbolTable) -> Sentence
+            = _ s:structure(symbols) _ { Sentence::fact(s) }
+
+        rule prule(symbols: &mut SymbolTable) -> Sentence
+            = _ h:structure(symbols) _ ":-" _ gs:structure(symbols) ++ (_ "," _) _ { Sentence::rule(h, gs) }
+
+        rule query(symbols: &mut SymbolTable) -> Sentence
+            = _ "?-" _ gs:structure(symbols) ++ (_ "," _) _ { Sentence::query(gs) }
+
+        pub rule sentence(symbols: &mut SymbolTable) -> Sentence
+            = s:(prule(symbols) / fact(symbols) / query(symbols))  "." {s}
+
+        pub rule program(symbols: &mut SymbolTable) -> Vec<Sentence> =
+            s:sentence(symbols)* _ { s }
     }
 );
 
@@ -200,6 +278,10 @@ pub fn parse_struct(term: &str, symbol_table: &mut SymbolTable) -> Result<Struct
     parse_term(term, symbol_table)?
         .into_struct()
         .ok_or("term must be a struct.".to_string())
+}
+
+pub fn parse_program(program: &str, symbol_table: &mut SymbolTable) -> Result<Program, String> {
+    prolog_parser::program(program, symbol_table).map_err(|e| format!("{e}"))
 }
 
 #[cfg(test)]

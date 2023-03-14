@@ -1,0 +1,15 @@
+---
+source: tests/langtests.rs
+expression: "case(PROGRAM_L2, collapse(result))"
+---
+
+        q(a, b).
+        r(b, c).
+        p(X, Y) :- q(X, Z), r(Z, Y).
+        ?- p(U, V), p(V, U).
+    
+-----
+q(a, b).
+r(b, c).
+p(X, Y) :- q(X, Z), r(Z, Y).
+?- p(U, V), p(V, U).
