@@ -76,6 +76,12 @@ impl SymDisplay for Instruction {
     }
 }
 
+impl Instruction {
+    pub fn size(&self) -> usize {
+        1
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Assembly {
     pub instructions: Vec<Instruction>,

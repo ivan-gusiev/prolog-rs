@@ -49,6 +49,7 @@ mod decompiletests {
 
         let program_result = compile_program(program);
         machine.set_p(CodePtr(0));
+        machine.set_cp(CodePtr(program_result.instructions.len()));
         machine.set_code(&program_result.instructions);
         machine.execute().run().expect("machine failure");
         let program_bindings = machine
@@ -98,6 +99,7 @@ mod decompiletests {
 
             let program_result = compile_program(program);
             machine.set_p(CodePtr(0));
+            machine.set_cp(CodePtr(program_result.instructions.len()));
             machine.set_code(&program_result.instructions);
             machine.execute().run().expect("machine failure");
             let program_bindings = machine
@@ -141,8 +143,6 @@ mod decompiletests {
 
         let lr = output(get_unification_set(lhs, rhs));
         let rl = output(get_unification_set(rhs, lhs));
-        println!("{lr}");
-        println!("{rl}");
         assert_eq!(lr, rl)
     }
 

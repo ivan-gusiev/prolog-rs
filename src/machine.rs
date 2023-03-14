@@ -13,9 +13,10 @@ pub struct Machine {
     heap: Vec<Data>,
     reg: Vec<Data>,
     code: Vec<Instruction>,
-    h: HeapPtr, // heap top
-    s: HeapPtr, // subterm to be matched
-    p: CodePtr, // instruction to be executed
+    h: HeapPtr,  // heap top
+    s: HeapPtr,  // subterm to be matched
+    p: CodePtr,  // instruction to be executed
+    cp: CodePtr, // continuation instruction to proceed to
     mode: Mode,
     fail: bool,
     halt: bool,
@@ -31,6 +32,7 @@ impl Machine {
             h: HeapPtr(0),
             s: HeapPtr(0),
             p: CodePtr(0),
+            cp: CodePtr(0),
             mode: Mode::Read,
             fail: false,
             halt: false,
@@ -128,6 +130,14 @@ impl Machine {
 
     pub fn set_p(&mut self, value: CodePtr) {
         self.p = value
+    }
+
+    pub fn get_cp(&self) -> CodePtr {
+        self.cp
+    }
+
+    pub fn set_cp(&mut self, value: CodePtr) {
+        self.cp = value
     }
 
     pub fn get_mode(&self) -> Mode {
@@ -514,13 +524,13 @@ fn unify_value(machine: &mut Machine, register: RegPtr) -> IResult {
     Ok(None)
 }
 
-fn call(_machine: &mut Machine, ptr: CodePtr) -> IResult {
+fn call(machine: &mut Machine, ptr: CodePtr) -> IResult {
+    machine.set_cp(machine.get_p() + Instruction::Call(ptr).size());
     Ok(Some(ptr))
 }
 
 fn proceed(machine: &mut Machine) -> IResult {
-    machine.set_halt(true);
-    Ok(None)
+    Ok(Some(machine.get_cp()))
 }
 
 fn put_variable(machine: &mut Machine, xreg: RegPtr, areg: RegPtr) -> IResult {
@@ -563,6 +573,6 @@ fn execute_instruction(machine: &mut Machine, instruction: Instruction) -> MResu
         Instruction::GetVariable(xreg, areg) => get_variable(machine, xreg, areg),
         Instruction::GetValue(xreg, areg) => get_value(machine, xreg, areg),
     }?;
-    machine.set_p(nextp.unwrap_or(machine.get_p() + 1));
+    machine.set_p(nextp.unwrap_or(machine.get_p() + instruction.size()));
     Ok(())
 }

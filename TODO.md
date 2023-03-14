@@ -12,6 +12,9 @@
 - [ ] decompile: employ var names from queries when possible
     * maybe wait until L2 machine implementation
 - [ ] Full sentence Prolog parser.
+- [ ] Convert getters and setters to read-only and mutable references
+    * `get_x(&self) -> &X` to `x(&self) -> &X` 
+    * `set_x(&mut self, value)` to `x_mut(&mut self) -> &mut X`
 
 ### Bugs
 - [x] Type `?- X` then `X`. It cannot figure out the unification. 

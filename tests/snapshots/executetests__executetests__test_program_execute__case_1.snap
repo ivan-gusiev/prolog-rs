@@ -6,10 +6,10 @@ expression: "case(input, output)"
 -----
 h: HEAP[9]
 s: HEAP[2]
-p: CODE[6]
+p: CODE[9]
 mode: write
 fail: false
-halt: true
+halt: false
 code:
 000	get_variable X3, X1
 001	get_structure g/2, X2
