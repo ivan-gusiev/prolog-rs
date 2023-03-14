@@ -82,7 +82,7 @@ impl<Ptr: Display> Display for FlattenedTerm<Ptr> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             FlattenedTerm::Variable(n) => n.fmt(f),
-            FlattenedTerm::Struct(s, gen) => write!(f, "{}:{}", s, gen),
+            FlattenedTerm::Struct(s, gen) => write!(f, "{s}:{gen}"),
         }
     }
 }
@@ -208,7 +208,7 @@ fn order_query_structs(
     terms: &HashMap<RegPtr, &FlattenedTerm<RegPtr>>,
     structs_to_sort: &[RegPtr],
 ) -> Vec<RegPtr> {
-    let mut result = structs_to_sort.iter().copied().collect::<Vec<_>>();
+    let mut result = structs_to_sort.to_vec();
     result.sort_by_key(|r| match terms.get(r) {
         Some(FlattenedTerm::Struct(_, gen)) => Some(usize::MAX - gen),
         _ => None,

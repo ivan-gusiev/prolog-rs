@@ -64,7 +64,9 @@ impl InputState {
     Decompiler Output >>>
         {}
 
-        q      back to debug"#;
+        q      back to data
+        UP     move up
+        DOWN   move down"#;
 
         match self {
             InputState::Default => DEFAULT_TEXT,
@@ -231,7 +233,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                         }
                     }
                     KeyCode::Char('d') => {
-                        if let Some(_) = app.data_state.selected() {
+                        if app.data_state.selected().is_some() {
                             app.input_state = InputState::Decompiler;
                         }
                     }
@@ -240,6 +242,18 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                 InputState::Decompiler => match key.code {
                     KeyCode::Char('q') => {
                         app.input_state = InputState::DataNavigator;
+                    }
+                    KeyCode::Up => {
+                        if let Some(x) = app.data_state.selected() {
+                            app.data_state
+                                .select(Some(dec_mod(x, app.prolog.machine.heap_len())))
+                        }
+                    }
+                    KeyCode::Down => {
+                        if let Some(x) = app.data_state.selected() {
+                            app.data_state
+                                .select(Some(inc_mod(x, app.prolog.machine.heap_len())))
+                        }
                     }
                     _ => {}
                 },
@@ -387,7 +401,7 @@ where
         .widths(&[Constraint::Length(3), Constraint::Percentage(100)])
 }
 
-fn render_help<'a, 'b>(app: &mut App<'b>) -> Paragraph<'a> {
+fn render_help<'a>(app: &mut App) -> Paragraph<'a> {
     let text = match app.input_state {
         InputState::Decompiler => {
             let heap_len = app.prolog.machine.heap_len();
