@@ -3,13 +3,14 @@ use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 use std::iter::FromIterator;
 
+use asm::Assembly;
 use data::{CodePtr, RegPtr};
-use instr::{Assembly, Instruction};
-use lang::{Functor, Struct, Term, VarName};
-use symbol::SymDisplay;
+use instr::Instruction;
+use lang::{Functor, Sentence, Struct, Term, VarName};
+use symbol::{to_display, SymDisplay};
 use var::VarMapping;
 
-use crate::symbol::to_display;
+use crate::asm::EntryPoint;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 struct TermId(usize);
@@ -364,19 +365,19 @@ pub struct CompileInfo {
 }
 
 impl CompileInfo {
-    pub fn append_to_assembly(self, assembly: &mut Assembly) -> VarMapping {
-        let base_address = assembly.instructions.len();
-        assembly
-            .label_map
-            .insert(self.root_functor, CodePtr(base_address));
+    pub fn append_to_assembly(self, assembly: &mut Assembly) -> EntryPoint {
+        let base_address = CodePtr(assembly.instructions.len());
+        assembly.label_map.insert(self.root_functor, base_address);
         assembly.instructions.extend(self.instructions);
-        self.var_mapping
+        EntryPoint { location: base_address, variables: self.var_mapping }
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum CompileError {
     UnknownFunctor(Functor),
+    UnsupportedRule(Sentence),
+    UnsupportedComplexQuery(Sentence),
 }
 
 impl SymDisplay for CompileError {
@@ -391,13 +392,68 @@ impl SymDisplay for CompileError {
                 "Query refers to an unknown functor {}.",
                 to_display(func, symbol_table)
             ),
+            Self::UnsupportedRule(rule) => write!(
+                f,
+                "Cannot compile `{}`. Rule compilation not supported yet.",
+                to_display(rule, symbol_table)
+            ),
+            Self::UnsupportedComplexQuery(query) => write!(
+                f,
+                "Cannot compile `{}`. Query with multiple (or zero) goals not supported yet.",
+                to_display(query, symbol_table)
+            ),
         }
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum CompileWarning {
+    IgnoredEntryPoint(CodePtr),
+}
+
+impl SymDisplay for CompileWarning {
+    fn sym_fmt(
+        &self,
+        f: &mut Formatter<'_>,
+        _symbol_table: &crate::symbol::SymbolTable,
+    ) -> Result<(), std::fmt::Error> {
+        match self {
+            Self::IgnoredEntryPoint(ptr) => write!(
+                f,
+                "Program contains multiple entry points. Ignoring the one at @{ptr}."
+            ),
+        }
+    }
+}
+
+pub fn compile_sentences(
+    sentences: Vec<Sentence>,
+    assembly: &mut Assembly,
+) -> Result<Vec<CompileWarning>, CompileError> {
+    let mut warnings = Vec::<CompileWarning>::new();
+    for mut sentence in sentences {
+        if sentence.is_rule() {
+            return Err(CompileError::UnsupportedRule(sentence));
+        }
+        if sentence.goals.len() != 1 {
+            return Err(CompileError::UnsupportedComplexQuery(sentence));
+        }
+
+        if sentence.is_query() {
+            let query_result = compile_query(sentence.goals.remove(0), &assembly.label_map)?;
+            let entry_point = query_result.append_to_assembly(assembly);
+            if let Some(old_entry_point) = assembly.entry_point.take() {
+                warnings.push(CompileWarning::IgnoredEntryPoint(old_entry_point.location))
+            }
+            assembly.entry_point = Some(entry_point);
+        }
+    }
+    Ok(warnings)
+}
+
 #[test]
 fn test_compile_query() {
-    use instr::Assembly;
+    use asm::Assembly;
     use lang::parse_struct;
     use symbol::SymbolTable;
     use util::lbl_for;
@@ -433,7 +489,7 @@ fn test_compile_query() {
 
 #[test]
 fn test_compile_query2() {
-    use instr::Assembly;
+    use asm::Assembly;
     use lang::parse_struct;
     use symbol::SymbolTable;
     use util::lbl_for;
@@ -462,7 +518,7 @@ fn test_compile_query2() {
 
 #[test]
 fn test_compile_program() {
-    use instr::Assembly;
+    use asm::Assembly;
     use lang::parse_struct;
     use symbol::SymbolTable;
     let mut symbol_table = SymbolTable::new();
@@ -499,7 +555,7 @@ fn test_compile_program() {
 
 #[test]
 fn test_compile_query_line() {
-    use instr::Assembly;
+    use asm::Assembly;
     use lang::parse_struct;
     use symbol::SymbolTable;
     use util::lbl_for;
@@ -541,7 +597,7 @@ fn test_compile_query_line() {
 
 #[test]
 fn test_compile_program_line() {
-    use instr::Assembly;
+    use asm::Assembly;
     use lang::parse_struct;
     use symbol::SymbolTable;
     let mut symbol_table = SymbolTable::new();

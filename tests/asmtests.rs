@@ -7,7 +7,7 @@ mod asmtests {
     use insta::assert_display_snapshot;
     use parameterized::parameterized;
     use prolog_rs::{
-        instr::Assembly,
+        asm::Assembly,
         util::{case, writeout_assembly},
     };
 

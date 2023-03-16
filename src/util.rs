@@ -4,9 +4,10 @@ use std::{
 };
 
 use crate::{
+    asm::Assembly,
     compile::CompileInfo,
     data::{CodePtr, RegPtr},
-    instr::{Assembly, Instruction},
+    instr::Instruction,
     lang::Functor,
     machine::{Machine, MachineError},
     symbol::{to_display, SymDisplay, SymbolTable},

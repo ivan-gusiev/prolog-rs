@@ -11,7 +11,6 @@
     * move `main` out of `lib`?
 - [ ] decompile: employ var names from queries when possible
     * maybe wait until L2 machine implementation
-- [ ] Full sentence Prolog parser.
 - [ ] Convert getters and setters to read-only and mutable references
     * `get_x(&self) -> &X` to `x(&self) -> &X` 
     * `set_x(&mut self, value)` to `x_mut(&mut self) -> &mut X`
@@ -53,3 +52,4 @@
 - [x] roll my own topological sort 
     * used generations approach instead of that
 - [x] machine: move class to a separate module `machine.rs`
+- [x] Full sentence Prolog parser.

@@ -3,9 +3,10 @@ extern crate prolog_rs;
 #[cfg(test)]
 mod tests {
     use prolog_rs::{
+        asm::Assembly,
         compile::{compile_query, CompileInfo},
         data::{Data, HeapPtr, Ref, RegPtr, Str},
-        instr::{Assembly, Instruction},
+        instr::Instruction,
         lang::{parse_struct, Functor},
         machine::Machine,
         symbol::SymbolTable,

@@ -64,7 +64,7 @@ fn main() -> RustyResult<()> {
                     program => match parse_and_compile_program(program, &mut prolog) {
                         Ok(compile_result) => {
                             prolog.program =
-                                Some(compile_result.append_to_assembly(&mut prolog.assembly));
+                                Some(compile_result.append_to_assembly(&mut prolog.assembly).variables);
                         }
                         Err(err) => println!("{err}"),
                     },

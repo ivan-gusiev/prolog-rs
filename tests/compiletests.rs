@@ -7,8 +7,8 @@ mod compiletests {
     use insta::assert_display_snapshot;
     use parameterized::parameterized;
     use prolog_rs::{
+        asm::Assembly,
         compile::{compile_program, compile_query},
-        instr::Assembly,
         lang::parse_struct,
         symbol::{to_display, SymbolTable},
         util::{case, collapse, lbl_for, writeout_compile_result},

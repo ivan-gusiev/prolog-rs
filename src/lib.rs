@@ -1,4 +1,5 @@
 pub mod asm;
+pub mod asm_lang;
 pub mod compile;
 pub mod data;
 pub mod decompile;
@@ -9,8 +10,8 @@ pub mod symbol;
 pub mod util;
 pub mod var;
 
+use asm::Assembly;
 use compile::CompileInfo;
-use instr::Assembly;
 use machine::Machine;
 use symbol::SymbolTable;
 use var::{VarBindings, VarMapping};
