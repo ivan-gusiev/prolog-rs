@@ -3,7 +3,7 @@ use std::{collections::HashSet, fmt::Display};
 use crate::{
     data::{Addr, Data, HeapPtr, Ref, Str},
     lang::{Functor, Struct, Term, VarName},
-    machine::{Machine, MachineFailure},
+    machine::{Machine, MachineError},
     symbol::SymbolTable,
     var::VarBindings,
 };
@@ -11,7 +11,7 @@ use crate::{
 #[derive(Debug)]
 pub enum DecompileError {
     CircularRef,
-    Machine(MachineFailure),
+    Machine(MachineError),
 }
 
 impl DecompileError {
@@ -35,8 +35,8 @@ impl From<DecompileError> for String {
     }
 }
 
-impl From<MachineFailure> for DecompileError {
-    fn from(value: MachineFailure) -> Self {
+impl From<MachineError> for DecompileError {
+    fn from(value: MachineError) -> Self {
         Self::Machine(value)
     }
 }
@@ -79,7 +79,7 @@ impl<'a> DecompileEnvironment<'a> {
     fn decompile_str(&mut self, Str(ptr): Str) -> DecompileResult<Term> {
         match self.machine.get_heap(ptr) {
             Data::Functor(f) => self.decompile_functor(ptr, f),
-            _ => Err(MachineFailure::NoStrFunctor.into()),
+            _ => Err(MachineError::NoStrFunctor.into()),
         }
     }
 
@@ -90,7 +90,7 @@ impl<'a> DecompileEnvironment<'a> {
         }
         Struct::new(f, &subterms)
             .map(Term::Struct)
-            .map_err(|_| DecompileError::from(MachineFailure::BadArity))
+            .map_err(|_| DecompileError::from(MachineError::BadArity))
     }
 
     fn decompile_ref(&mut self, Ref(mut ptr): Ref) -> DecompileResult<Term> {
@@ -112,7 +112,7 @@ impl<'a> DecompileEnvironment<'a> {
                 }
                 Data::Str(str) => break self.decompile_str(str),
                 Data::Functor(f) => break self.decompile_functor(ptr, f),
-                Data::Empty => break Err(DecompileError::from(MachineFailure::EmptyRef)),
+                Data::Empty => break Err(DecompileError::from(MachineError::EmptyRef)),
             }
         }
     }
@@ -138,7 +138,7 @@ impl<'a> DecompileEnvironment<'a> {
             Data::Ref(r) => self.decompile_ref(r),
             Data::Str(str) => self.decompile_str(str),
             Data::Functor(f) => self.decompile_functor(addr, f),
-            Data::Empty => Err(MachineFailure::EmptyRef.into()),
+            Data::Empty => Err(MachineError::EmptyRef.into()),
         }
     }
 }

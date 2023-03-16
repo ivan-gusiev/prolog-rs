@@ -197,13 +197,13 @@ impl Machine {
 
     pub fn step(&mut self) -> MResult {
         if self.get_fail() {
-            return Err(MachineFailure::FailState);
+            return Err(MachineError::FailState);
         }
 
         execute_instruction(
             self,
             self.current_instruction()
-                .ok_or(MachineFailure::OutOfBoundsP)?,
+                .ok_or(MachineError::OutOfBoundsP)?,
         )
     }
 
@@ -214,7 +214,7 @@ impl Machine {
     pub fn trace_reg(&self, reg: RegPtr) -> MachineResult<HeapPtr> {
         match self.get_reg(reg) {
             Data::Ref(Ref(ptr)) | Data::Str(Str(ptr)) => Ok(ptr),
-            _ => Err(MachineFailure::NonVarBind),
+            _ => Err(MachineError::NonVarBind),
         }
     }
 
@@ -283,7 +283,7 @@ impl Default for Machine {
 }
 
 #[derive(Debug)]
-pub enum MachineFailure {
+pub enum MachineError {
     NoStrFunctor,
     BadArity,
     NonVarBind,
@@ -293,7 +293,7 @@ pub enum MachineFailure {
     OutOfBoundsP,
 }
 
-impl MachineFailure {
+impl MachineError {
     pub fn message(&self) -> &'static str {
         match self {
             Self::NoStrFunctor => "Struct does not point to a functor",
@@ -307,21 +307,21 @@ impl MachineFailure {
     }
 }
 
-impl Display for MachineFailure {
+impl Display for MachineError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.message())
     }
 }
 
-impl From<MachineFailure> for String {
-    fn from(value: MachineFailure) -> Self {
+impl From<MachineError> for String {
+    fn from(value: MachineError) -> Self {
         format!("{value}")
     }
 }
 
-type IResult = Result<Option<CodePtr>, MachineFailure>;
-type MResult = Result<(), MachineFailure>;
-type MachineResult<T> = Result<T, MachineFailure>;
+type IResult = Result<Option<CodePtr>, MachineError>;
+type MResult = Result<(), MachineError>;
+type MachineResult<T> = Result<T, MachineError>;
 
 type MachineHook<'a> = dyn FnMut(&Machine) -> MResult + 'a;
 
@@ -357,7 +357,7 @@ impl<'a> ExecutionEnvironment<'a> {
         if let Instruction::Call(_) = self
             .machine
             .current_instruction()
-            .ok_or(MachineFailure::OutOfBoundsP)?
+            .ok_or(MachineError::OutOfBoundsP)?
         {
             if let Some(hook) = &mut self.call_hook {
                 hook(self.machine)
@@ -427,11 +427,11 @@ fn unify(machine: &mut Machine, a1: Addr, a2: Addr) -> MResult {
                 let f1 = machine
                     .get_heap(v1)
                     .get_functor()
-                    .ok_or(MachineFailure::NoStrFunctor)?;
+                    .ok_or(MachineError::NoStrFunctor)?;
                 let f2 = machine
                     .get_heap(v2)
                     .get_functor()
-                    .ok_or(MachineFailure::NoStrFunctor)?;
+                    .ok_or(MachineError::NoStrFunctor)?;
                 if f1 == f2 {
                     for i in 1..=f1.arity() {
                         machine.push_pdl((v1 + i as usize).into());

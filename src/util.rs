@@ -8,7 +8,7 @@ use crate::{
     data::{CodePtr, RegPtr},
     instr::{Assembly, Instruction},
     lang::Functor,
-    machine::{Machine, MachineFailure},
+    machine::{Machine, MachineError},
     symbol::{to_display, SymDisplay, SymbolTable},
     var::VarBindings,
 };
@@ -298,7 +298,7 @@ impl<'a, T: SymDisplay> SymDisplay for WriteVec<'a, T> {
 pub fn run_just_query(
     machine: &mut Machine,
     instructions: &[Instruction],
-) -> Result<(), MachineFailure> {
+) -> Result<(), MachineError> {
     machine.set_code(&[Instruction::Proceed]);
     let p = machine.append_code(instructions);
     machine.set_p(p);
