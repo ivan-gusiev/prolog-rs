@@ -435,17 +435,23 @@ pub fn compile_sentences(
         if sentence.is_rule() {
             return Err(CompileError::UnsupportedRule(sentence));
         }
-        if sentence.goals.len() != 1 {
-            return Err(CompileError::UnsupportedComplexQuery(sentence));
-        }
 
         if sentence.is_query() {
+            if sentence.goals.len() != 1 {
+                return Err(CompileError::UnsupportedComplexQuery(sentence));
+            }
+
             let query_result = compile_query(sentence.goals.remove(0), &assembly.label_map)?;
             let entry_point = query_result.append_to_assembly(assembly);
             if let Some(old_entry_point) = assembly.entry_point.take() {
                 warnings.push(CompileWarning::IgnoredEntryPoint(old_entry_point.location))
             }
             assembly.entry_point = Some(entry_point);
+        }
+
+        if let Some(head) = sentence.head {
+            let program_result = compile_program(head);
+            program_result.append_to_assembly(assembly);
         }
     }
     Ok(warnings)

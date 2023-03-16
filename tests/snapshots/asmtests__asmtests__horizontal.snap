@@ -1,0 +1,32 @@
+---
+source: tests/asmtests.rs
+expression: "case(listing, result)"
+---
+horizontal(line(pt(X1, Y), pt(X2, Y))).
+?- horizontal(line(pt(two, Z), pt(three, four))).
+-----
+000	get_structure line/2, X1
+001	unify_variable X2
+002	unify_variable X3
+003	get_structure pt/2, X2
+004	unify_variable X4
+005	unify_variable X5
+006	get_structure pt/2, X3
+007	unify_variable X6
+008	unify_value X5
+009	proceed
+010	ENTRYPOINT: horizontal/1: put_structure two/0, X4
+011	put_structure three/0, X6
+012	put_structure four/0, X7
+013	put_structure pt/2, X2
+014	set_value X4
+015	set_variable X5
+016	put_structure pt/2, X3
+017	set_value X6
+018	set_value X7
+019	put_structure line/2, X1
+020	set_value X2
+021	set_value X3
+022	call @0
+
+

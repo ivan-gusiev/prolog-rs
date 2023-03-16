@@ -14,6 +14,7 @@
 - [ ] Convert getters and setters to read-only and mutable references
     * `get_x(&self) -> &X` to `x(&self) -> &X` 
     * `set_x(&mut self, value)` to `x_mut(&mut self) -> &mut X`
+- [ ] asm: move `asm::Assembly::from_asm` to `assembler::compile_asm`
 
 ### Bugs
 - [x] Type `?- X` then `X`. It cannot figure out the unification. 
@@ -28,6 +29,8 @@
 - [x] decompile: decompiling a self-referential (buggy) heap causes stack overflow
     * `executetests::test_program_execute::case_1` fails
     * add a cache of already-seen terms
+- [ ] `CompileResult::append_to_assembly` steals functors for queries
+    * see `asmtests::test_horizontal`
 
 ### Done ✓
 - [x] WAM assembly parser

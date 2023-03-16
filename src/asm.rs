@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    asm_lang::{parse_program, Arg, Command, Label},
+    assembler::{parse_asm, Arg, Command, Label},
     data::{CodePtr, RegPtr},
     instr::Instruction,
     lang::Functor,
@@ -23,8 +23,12 @@ pub struct Assembly {
 }
 
 impl Assembly {
+    pub fn new() -> Assembly {
+        Default::default()
+    }
+
     pub fn from_asm(program: &str, symbol_table: &mut SymbolTable) -> Result<Assembly, String> {
-        let lines = parse_program(program, symbol_table)?;
+        let lines = parse_asm(program, symbol_table)?;
         let mut instructions: Vec<Instruction> = vec![];
         let mut label_map: HashMap<Functor, CodePtr> = HashMap::new();
 

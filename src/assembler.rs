@@ -119,7 +119,7 @@ peg::parser!(
     }
 );
 
-pub fn parse_program(
+pub fn parse_asm(
     program: &str,
     symbol_table: &mut SymbolTable,
 ) -> Result<Vec<Command>, String> {
@@ -148,7 +148,7 @@ fn test_program_does_parse() {
     let x = Symbol::try_from("x").unwrap();
 
     assert_eq!(
-        parse_program(PROGRAM, &mut (SymbolTable::new())),
+        parse_asm(PROGRAM, &mut (SymbolTable::new())),
         Ok(vec![
             Command(
                 vec![Label(p, 3), Label(x, 0)],
@@ -163,7 +163,7 @@ fn test_program_does_parse() {
 #[test]
 fn test_incorrect_program_does_not_parse() {
     assert!(matches!(
-        parse_program("42", &mut (SymbolTable::new())),
+        parse_asm("42", &mut (SymbolTable::new())),
         Err(_)
     ))
 }
@@ -172,6 +172,6 @@ fn test_incorrect_program_does_not_parse() {
 fn test_command_display() {
     let text = "test/0: test/1: put_structure f/1, X1";
     let mut symbol_table = SymbolTable::new();
-    let first_command = parse_program(text, &mut symbol_table).unwrap().remove(0);
+    let first_command = parse_asm(text, &mut symbol_table).unwrap().remove(0);
     assert_eq!(first_command.sym_to_str(&symbol_table), text.to_string())
 }

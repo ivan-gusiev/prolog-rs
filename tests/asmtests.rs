@@ -1,6 +1,7 @@
 extern crate insta;
 extern crate parameterized;
 extern crate prolog_rs;
+mod testutil;
 
 #[cfg(test)]
 mod asmtests {
@@ -8,8 +9,11 @@ mod asmtests {
     use parameterized::parameterized;
     use prolog_rs::{
         asm::Assembly,
-        util::{case, writeout_assembly},
+        symbol::{SymDisplay, to_display},
+        util::{case, writeout_assembly}, lang::parse_program, symbol::SymbolTable, compile::{compile_sentences},
     };
+    use std::fmt::Write;
+    use testutil::load_sample;
 
     const QUERY_L0: &str = r#"
     put_structure h/2, X3 % ?- X3=h
@@ -97,5 +101,23 @@ y/1: proceed"#;
         };
 
         assert_display_snapshot!(case(input, output));
+    }
+
+    #[test]
+    fn test_horizontal() -> Result<(), String> {
+        let mut symbol_table = SymbolTable::new();
+        let mut assembly = Assembly::new();
+
+        let listing = load_sample("horizontal.pro");
+        let sentences = parse_program(&listing, &mut symbol_table)?;
+        let warnings = compile_sentences(sentences, &mut assembly).map_err(|e| e.sym_to_str(&symbol_table))?;
+
+        let mut result = String::new();
+        writeln!(result, "{}", writeout_assembly(&assembly, &symbol_table)).unwrap();
+        for warning in warnings {
+            writeln!(result, "{}", to_display(&warning, &symbol_table)).unwrap();
+        }
+
+        Ok(assert_display_snapshot!(case(listing, result)))
     }
 }

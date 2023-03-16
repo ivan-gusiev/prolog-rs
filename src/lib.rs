@@ -1,5 +1,5 @@
 pub mod asm;
-pub mod asm_lang;
+pub mod assembler;
 pub mod compile;
 pub mod data;
 pub mod decompile;
