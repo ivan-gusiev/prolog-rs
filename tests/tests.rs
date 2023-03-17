@@ -3,7 +3,7 @@ extern crate prolog_rs;
 #[cfg(test)]
 mod tests {
     use prolog_rs::{
-        asm::Assembly,
+        assembler::compile_asm,
         compile::{compile_query, CompileInfo},
         data::{Data, HeapPtr, Ref, RegPtr, Str},
         instr::Instruction,
@@ -48,7 +48,7 @@ mod tests {
             var_mapping: _,
             root_functor: _,
         } = compile_query(query, &labels).unwrap();
-        let expected = Assembly::from_asm(PROGRAM1, &mut symbol_table)
+        let expected = compile_asm(PROGRAM1, &mut symbol_table)
             .unwrap()
             .instructions;
         assert_eq!(expected.as_slice(), instructions.as_slice());
@@ -140,7 +140,7 @@ mod tests {
             Instruction::SetValue(x4),
         ];
 
-        let parse_result = Assembly::from_asm(PROGRAM, &mut symbol_table);
+        let parse_result = compile_asm(PROGRAM, &mut symbol_table);
 
         assert_eq!(
             parse_result.unwrap().instructions.as_slice(),
@@ -151,7 +151,7 @@ mod tests {
     #[test]
     fn parsing_incorrect_program_produces_error() {
         assert_eq!(
-            Assembly::from_asm("put_structure X1", &mut (SymbolTable::new())),
+            compile_asm("put_structure X1", &mut (SymbolTable::new())),
             Err("Incorrect arguments for put_structure: X1".to_string())
         )
     }

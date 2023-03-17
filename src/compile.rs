@@ -3,14 +3,12 @@ use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 use std::iter::FromIterator;
 
-use asm::Assembly;
+use asm::{Assembly, EntryPoint};
 use data::{CodePtr, RegPtr};
 use instr::Instruction;
 use lang::{Functor, Sentence, Struct, Term, VarName};
 use symbol::{to_display, SymDisplay};
 use var::VarMapping;
-
-use crate::asm::EntryPoint;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 struct TermId(usize);
@@ -369,7 +367,10 @@ impl CompileInfo {
         let base_address = CodePtr(assembly.instructions.len());
         assembly.label_map.insert(self.root_functor, base_address);
         assembly.instructions.extend(self.instructions);
-        EntryPoint { location: base_address, variables: self.var_mapping }
+        EntryPoint {
+            location: base_address,
+            variables: self.var_mapping,
+        }
     }
 }
 
@@ -459,14 +460,14 @@ pub fn compile_sentences(
 
 #[test]
 fn test_compile_query() {
-    use asm::Assembly;
+    use assembler::compile_asm;
     use lang::parse_struct;
     use symbol::SymbolTable;
     use util::lbl_for;
     let mut symbol_table = SymbolTable::new();
     let query = parse_struct("p(Z,h(Z,W),f(W))", &mut symbol_table).unwrap();
     let labels = lbl_for(query.functor());
-    let instructions = Assembly::from_asm(
+    let instructions = compile_asm(
         r#"
         put_variable X4, A1
         put_structure h/2, A2
@@ -495,14 +496,14 @@ fn test_compile_query() {
 
 #[test]
 fn test_compile_query2() {
-    use asm::Assembly;
+    use assembler::compile_asm;
     use lang::parse_struct;
     use symbol::SymbolTable;
     use util::lbl_for;
     let mut symbol_table = SymbolTable::new();
     let query = parse_struct("f(b, Y)", &mut symbol_table).unwrap();
     let labels = lbl_for(query.functor());
-    let instructions = Assembly::from_asm(
+    let instructions = compile_asm(
         r#"
         put_structure b/0, A1
         put_variable X3, A2
@@ -524,12 +525,12 @@ fn test_compile_query2() {
 
 #[test]
 fn test_compile_program() {
-    use asm::Assembly;
+    use assembler::compile_asm;
     use lang::parse_struct;
     use symbol::SymbolTable;
     let mut symbol_table = SymbolTable::new();
     let program = parse_struct("p(f(X), h(Y,f(a)), Y)", &mut symbol_table).unwrap();
-    let instructions = Assembly::from_asm(
+    let instructions = compile_asm(
         r#"
         get_structure f/1, A1
         unify_variable X4
@@ -561,7 +562,7 @@ fn test_compile_program() {
 
 #[test]
 fn test_compile_query_line() {
-    use asm::Assembly;
+    use assembler::compile_asm;
     use lang::parse_struct;
     use symbol::SymbolTable;
     use util::lbl_for;
@@ -570,7 +571,7 @@ fn test_compile_query_line() {
     // horizontal(line(point(X1, Y), point(X2, Y)))
     let query = parse_struct("h(l(p(A, Y), p(B, Y)))", &mut symbol_table).unwrap();
     let labels = lbl_for(query.functor());
-    let instructions = Assembly::from_asm(
+    let instructions = compile_asm(
         r#"
         put_structure p/2, X2
         set_variable X4
@@ -603,14 +604,14 @@ fn test_compile_query_line() {
 
 #[test]
 fn test_compile_program_line() {
-    use asm::Assembly;
+    use assembler::compile_asm;
     use lang::parse_struct;
     use symbol::SymbolTable;
     let mut symbol_table = SymbolTable::new();
     // same query with longer names
     // horizontal(line(point(X1, Y), point(X2, Y)))
     let query = parse_struct("h(l(p(A, Y), p(B, Y)))", &mut symbol_table).unwrap();
-    let instructions = Assembly::from_asm(
+    let instructions = compile_asm(
         r#"
         get_structure l/2, A1
         unify_variable X2

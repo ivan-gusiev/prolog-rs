@@ -213,7 +213,11 @@ pub fn writeout_assembly(assembly: &Assembly, symbol_table: &SymbolTable) -> Str
         }
     }
 
-    let entrypoint_ptr = assembly.entry_point.as_ref().map(|e| e.location.0).unwrap_or(usize::MAX);
+    let entrypoint_ptr = assembly
+        .entry_point
+        .as_ref()
+        .map(|e| e.location.0)
+        .unwrap_or(usize::MAX);
     let lines = assembly.instructions.iter().enumerate().map(|(i, instr)| {
         let labels = ptr_to_label.get(&i).map(Vec::as_slice).unwrap_or(&[]);
 
@@ -222,7 +226,11 @@ pub fn writeout_assembly(assembly: &Assembly, symbol_table: &SymbolTable) -> Str
             .with_trailing_separator(true);
         format!(
             "{}{}{}",
-            if entrypoint_ptr == i { "ENTRYPOINT: " } else { "" },
+            if entrypoint_ptr == i {
+                "ENTRYPOINT: "
+            } else {
+                ""
+            },
             to_display(&write_labels, symbol_table),
             to_display(instr, symbol_table)
         )

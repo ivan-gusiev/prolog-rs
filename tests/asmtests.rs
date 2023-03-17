@@ -9,8 +9,12 @@ mod asmtests {
     use parameterized::parameterized;
     use prolog_rs::{
         asm::Assembly,
-        symbol::{SymDisplay, to_display},
-        util::{case, writeout_assembly}, lang::parse_program, symbol::SymbolTable, compile::{compile_sentences},
+        assembler::compile_asm,
+        compile::compile_sentences,
+        lang::parse_program,
+        symbol::SymbolTable,
+        symbol::{to_display, SymDisplay},
+        util::{case, writeout_assembly},
     };
     use std::fmt::Write;
     use testutil::load_sample;
@@ -92,7 +96,7 @@ y/1: proceed"#;
     })]
     fn test_assembler(input: &str) {
         let mut symbol_table = prolog_rs::symbol::SymbolTable::new();
-        let result = Assembly::from_asm(input, &mut symbol_table)
+        let result = compile_asm(input, &mut symbol_table)
             .map(|assembly| writeout_assembly(&assembly, &symbol_table));
 
         let output = match result {
@@ -110,7 +114,8 @@ y/1: proceed"#;
 
         let listing = load_sample("horizontal.pro");
         let sentences = parse_program(&listing, &mut symbol_table)?;
-        let warnings = compile_sentences(sentences, &mut assembly).map_err(|e| e.sym_to_str(&symbol_table))?;
+        let warnings =
+            compile_sentences(sentences, &mut assembly).map_err(|e| e.sym_to_str(&symbol_table))?;
 
         let mut result = String::new();
         writeln!(result, "{}", writeout_assembly(&assembly, &symbol_table)).unwrap();
