@@ -283,7 +283,7 @@ pub fn compile_query(
     Ok(CompileInfo {
         instructions,
         var_mapping: VarMapping::from_inverse(vars),
-        root_functor,
+        label_functor: None,
     })
 }
 
@@ -351,7 +351,7 @@ pub fn compile_program(program: Struct) -> CompileInfo {
     CompileInfo {
         instructions,
         var_mapping: VarMapping::from_inverse(vars),
-        root_functor,
+        label_functor: Some(root_functor),
     }
 }
 
@@ -359,13 +359,15 @@ pub fn compile_program(program: Struct) -> CompileInfo {
 pub struct CompileInfo {
     pub instructions: Vec<Instruction>,
     pub var_mapping: VarMapping,
-    pub root_functor: Functor,
+    pub label_functor: Option<Functor>,
 }
 
 impl CompileInfo {
     pub fn append_to_assembly(self, assembly: &mut Assembly) -> EntryPoint {
         let base_address = CodePtr(assembly.instructions.len());
-        assembly.label_map.insert(self.root_functor, base_address);
+        if let Some(label_functor) = self.label_functor {
+            assembly.label_map.insert(label_functor, base_address);
+        }
         assembly.instructions.extend(self.instructions);
         EntryPoint {
             location: base_address,
@@ -489,7 +491,7 @@ fn test_compile_query() {
                 (RegPtr(4), symbol_table.intern("Z")),
                 (RegPtr(5), symbol_table.intern("W"))
             ]),
-            root_functor: Functor(symbol_table.intern("p"), 3)
+            label_functor: None
         }
     )
 }
@@ -518,7 +520,7 @@ fn test_compile_query2() {
         CompileInfo {
             instructions,
             var_mapping: VarMapping::from_iter([(RegPtr(3), symbol_table.intern("Y"))]),
-            root_functor: Functor(symbol_table.intern("f"), 2),
+            label_functor: None,
         }
     )
 }
@@ -555,7 +557,7 @@ fn test_compile_program() {
                 (RegPtr(4), symbol_table.intern("X")),
                 (RegPtr(5), symbol_table.intern("Y"))
             ]),
-            root_functor: Functor(symbol_table.intern("p"), 3),
+            label_functor: Some(Functor(symbol_table.intern("p"), 3)),
         }
     )
 }
@@ -597,7 +599,7 @@ fn test_compile_query_line() {
                 (RegPtr(5), symbol_table.intern("Y")),
                 (RegPtr(6), symbol_table.intern("B")),
             ]),
-            root_functor: Functor(symbol_table.intern("h"), 1),
+            label_functor: None,
         }
     )
 }
@@ -637,7 +639,7 @@ fn test_compile_program_line() {
                 (RegPtr(5), symbol_table.intern("Y")),
                 (RegPtr(6), symbol_table.intern("B")),
             ]),
-            root_functor: Functor(symbol_table.intern("h"), 1),
+            label_functor: Some(Functor(symbol_table.intern("h"), 1)),
         }
     )
 }
