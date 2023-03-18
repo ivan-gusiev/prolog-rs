@@ -2,51 +2,75 @@
 source: tests/executetests.rs
 expression: "case(input, output)"
 ---
-(f(X, g(X,a)), p(f(X), h(Y, f(a)), Y))
+(h(l(p(A, Y), p(B, Y))), h(l(p(u, v), p(w, H))))
 -----
-h: HEAP[10]
-s: HEAP[1]
-p: CODE[3]
+h: HEAP[18]
+s: HEAP[8]
+p: CODE[23]
 mode: write
-fail: true
+fail: false
 halt: false
 code:
-000	get_structure f/1, X1
-001	unify_variable X4
-002	get_structure h/2, X2
-003	unify_variable X5
-004	unify_variable X6
-005	get_value X5, X3
-006	get_structure f/1, X6
-007	unify_variable X7
-008	get_structure a/0, X7
-009	proceed
-010	put_structure a/0, X4
-011	put_variable X3, X1
-012	put_structure g/2, X2
-013	set_value X3
-014	set_value X4
-015	call @0
+000	get_structure l/2, X1
+001	unify_variable X2
+002	unify_variable X3
+003	get_structure p/2, X2
+004	unify_variable X4
+005	unify_variable X5
+006	get_structure p/2, X3
+007	unify_variable X6
+008	unify_variable X7
+009	get_structure u/0, X4
+010	get_structure v/0, X5
+011	get_structure w/0, X6
+012	proceed
+013	put_structure p/2, X2
+014	set_variable X4
+015	set_variable X5
+016	put_structure p/2, X3
+017	set_variable X6
+018	set_value X5
+019	put_structure l/2, X1
+020	set_value X2
+021	set_value X3
+022	call @0
 
 heap:
 000	<STR,1>
-001	a/0
-002	<STR,8>
-003	<STR,4>
-004	g/2
-005	<REF,2>
-006	<STR,1>
-007	<STR,8>
-008	f/1
-009	<REF,9>
+001	p/2
+002	<STR,13>
+003	<STR,15>
+004	<STR,5>
+005	p/2
+006	<STR,17>
+007	<REF,3>
+008	<STR,9>
+009	l/2
+010	<STR,1>
+011	<STR,5>
+012	<STR,13>
+013	u/0
+014	<STR,15>
+015	v/0
+016	<STR,17>
+017	w/0
 
 regs:
 000	<EMPTY>
-001	<REF,2>
-002	<STR,4>
-003	<REF,2>
-004	<REF,9>
+001	<STR,9>
+002	<STR,1>
+003	<STR,5>
+004	<REF,2>
+005	<REF,3>
+006	<REF,6>
+007	<REF,3>
 
 pdl:
 
+
+000	A	(HEAP[2]) =	<STR,13>	// u
+001	B	(HEAP[6]) =	<STR,17>	// w
+002	Y	(HEAP[3]) =	<STR,15>	// v
+
+000	H	(HEAP[3]) =	<STR,15>	// v
 

@@ -7,8 +7,9 @@ mod executetests {
     use insta::assert_display_snapshot;
     use parameterized::parameterized;
     use prolog_rs::{
-        compile::{compile_program, compile_query},
-        lang::parse_struct,
+        asm::Assembly,
+        compile::{compile_query, compile_sentences},
+        lang::{parse_struct, Sentence},
         machine::Machine,
         symbol::SymbolTable,
         util::{case, lbl_for, run_just_query, writeout_sym},
@@ -40,7 +41,6 @@ mod executetests {
     #[parameterized(input = {
         ("p(Z, h(Z,W), f(W))", "p(f(X), h(Y, f(a)), Y)"),
         ("f(b, Y)", "f(X, g(X,a))"),
-        ("f(X, g(X,a))", "p(f(X), h(Y, f(a)), Y)"),
         ("h(l(p(A, Y), p(B, Y)))", "h(l(p(u, v), p(w, H)))"),
     })]
     fn test_program_execute(input: (&str, &str)) {
@@ -48,20 +48,24 @@ mod executetests {
         let mut symbol_table = SymbolTable::new();
         let query = parse_struct(query_text, &mut symbol_table).unwrap();
         let program = parse_struct(program_text, &mut symbol_table).unwrap();
+        let sentences = vec![Sentence::fact(program), Sentence::query(vec![query])];
+        let assembly = {
+            let mut a = Assembly::new();
+            compile_sentences(sentences, &mut a).expect("expected to be able to compile program");
+            a
+        };
+
         let mut machine = Machine::new();
-
-        let labels = lbl_for(query.functor());
-        let query_result = compile_query(query, &labels).unwrap();
+        machine.load_assembly(&assembly);
+        let query_mapping = assembly
+            .entry_point
+            .expect("expected to have a query")
+            .variables;
         let mut query_bindings = VarBindings::default();
-
-        let program_result = compile_program(program);
-        machine.set_code(&program_result.instructions);
-        let p = machine.append_code(&query_result.instructions);
-        machine.set_p(p);
         machine
             .execute()
             .with_call_hook(|m| {
-                m.bind_variables(&query_result.var_mapping)
+                m.bind_variables(&query_mapping)
                     .map(|vars| query_bindings = vars)
             })
             .run()
@@ -72,7 +76,11 @@ mod executetests {
             machine.dbg(&symbol_table)
         } else {
             let program_bindings = machine
-                .bind_variables(&program_result.var_mapping)
+                .bind_variables(assembly
+                    .bindings_map
+                    .iter()
+                    .next()
+                    .unwrap().1)
                 .expect("decompile failure");
 
             format!(

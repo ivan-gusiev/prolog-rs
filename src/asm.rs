@@ -12,6 +12,7 @@ pub struct EntryPoint {
 pub struct Assembly {
     pub instructions: Vec<Instruction>,
     pub label_map: HashMap<Functor, CodePtr>,
+    pub bindings_map: HashMap<Functor, VarMapping>,
     pub entry_point: Option<EntryPoint>,
 }
 

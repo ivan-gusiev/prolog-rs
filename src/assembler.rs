@@ -157,6 +157,7 @@ pub fn compile_asm(program: &str, symbol_table: &mut SymbolTable) -> Result<Asse
     Ok(Assembly {
         instructions,
         label_map,
+        bindings_map: Default::default(),
         entry_point: None,
     })
 }

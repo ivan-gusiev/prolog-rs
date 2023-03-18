@@ -8,6 +8,8 @@ use var::{VarBindings, VarDescription, VarMapping};
 
 use util::{writeout, writeout_sym};
 
+use crate::asm::Assembly;
+
 #[derive(Debug)]
 pub struct Machine {
     heap: Vec<Data>,
@@ -205,6 +207,14 @@ impl Machine {
             self.current_instruction()
                 .ok_or(MachineError::OutOfBoundsP)?,
         )
+    }
+
+    pub fn load_assembly(&mut self, assembly: &Assembly) {
+        *self = Default::default();
+        self.set_code(&assembly.instructions);
+        if let Some(entry_point) = &assembly.entry_point {
+            self.set_p(entry_point.location)
+        }
     }
 
     pub fn execute(&mut self) -> ExecutionEnvironment {

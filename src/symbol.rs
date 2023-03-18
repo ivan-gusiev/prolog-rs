@@ -200,6 +200,10 @@ impl SymbolTable {
             self.0.resolve(defsym).map(|s| s.to_string())
         }
     }
+
+    pub fn render<T: SymDisplay>(&self, item: &T) -> String {
+        item.sym_to_str(self)
+    }
 }
 
 pub trait SymDisplay: Sized {

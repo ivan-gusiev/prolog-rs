@@ -367,6 +367,9 @@ impl CompileInfo {
         let base_address = CodePtr(assembly.instructions.len());
         if let Some(label_functor) = self.label_functor {
             assembly.label_map.insert(label_functor, base_address);
+            assembly
+                .bindings_map
+                .insert(label_functor, self.var_mapping.clone());
         }
         assembly.instructions.extend(self.instructions);
         EntryPoint {
