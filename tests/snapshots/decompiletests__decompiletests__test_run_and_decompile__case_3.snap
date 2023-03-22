@@ -2,12 +2,22 @@
 source: tests/decompiletests.rs
 expression: "case(program_str.to_owned() + \" | ?- \" + query_str, result)"
 ---
-a | ?- b
+horizontal(line(pt(X1, Y), pt(X2, Y))) | ?- horizontal(A)
 -----
 QUERY
 ----
+000	A	(HEAP[0]) =	<STR,2>	// line(pt(UNK1, UNK2), pt(UNK3, UNK2))
 
 PROGRAM
 ____
+000	Y	(HEAP[8]) =	<REF,8>	// Y
+001	X1	(HEAP[7]) =	<REF,7>	// X1
+002	X2	(HEAP[11]) =	<REF,11>	// X2
 
+X1	// query.A
+X2	
+X3	
+X4	// program.X1
+X5	// program.Y
+X6	// program.X2
 

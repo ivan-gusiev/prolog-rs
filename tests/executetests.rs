@@ -7,13 +7,12 @@ mod executetests {
     use insta::assert_display_snapshot;
     use parameterized::parameterized;
     use prolog_rs::{
-        asm::Assembly,
-        compile::{compile_query, compile_sentences},
-        lang::{parse_struct, Sentence},
+        compile::compile_query,
+        l1_solve,
+        lang::parse_struct,
         machine::Machine,
         symbol::SymbolTable,
         util::{case, lbl_for, run_just_query, writeout_sym},
-        var::VarBindings,
     };
 
     #[parameterized(input = {
@@ -48,52 +47,27 @@ mod executetests {
         let mut symbol_table = SymbolTable::new();
         let query = parse_struct(query_text, &mut symbol_table).unwrap();
         let program = parse_struct(program_text, &mut symbol_table).unwrap();
-        let sentences = vec![Sentence::fact(program), Sentence::query(vec![query])];
-        let assembly = {
-            let mut a = Assembly::new();
-            compile_sentences(sentences, &mut a).expect("expected to be able to compile program");
-            a
-        };
-
-        let mut machine = Machine::new();
-        machine.load_assembly(&assembly);
-        let query_mapping = assembly
-            .entry_point
-            .expect("expected to have a query")
-            .variables;
-        let mut query_bindings = VarBindings::default();
-        machine
-            .execute()
-            .with_call_hook(|m| {
-                m.bind_variables(&query_mapping)
-                    .map(|vars| query_bindings = vars)
-            })
-            .run()
-            .expect("machine failure");
+        let solution = l1_solve(program.clone(), query.clone()).unwrap();
+        let query_bindings = solution.query_bindings;
+        let program_bindings = solution.program_bindings;
 
         let input = format!("({query_text}, {program_text})");
-        let output = if machine.get_fail() {
-            machine.dbg(&symbol_table)
+        let output = if solution.machine.get_fail() {
+            solution.machine.dbg(&symbol_table)
         } else {
-            let program_bindings = machine
-                .bind_variables(assembly
-                    .bindings_map
-                    .iter()
-                    .next()
-                    .unwrap().1)
-                .expect("decompile failure");
-
             format!(
                 "{}\n{}\n{}",
-                machine.dbg(&symbol_table),
+                solution.machine.dbg(&symbol_table),
                 writeout_sym(
-                    &machine
+                    &solution
+                        .machine
                         .describe_vars(&query_bindings, &mut symbol_table)
                         .unwrap(),
                     &symbol_table
                 ),
                 writeout_sym(
-                    &machine
+                    &solution
+                        .machine
                         .describe_vars(&program_bindings, &mut symbol_table)
                         .unwrap(),
                     &symbol_table

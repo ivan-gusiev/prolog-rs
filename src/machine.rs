@@ -215,6 +215,7 @@ impl Machine {
         if let Some(entry_point) = &assembly.entry_point {
             self.set_p(entry_point.location)
         }
+        self.set_cp(CodePtr(assembly.instructions.len()))
     }
 
     pub fn execute(&mut self) -> ExecutionEnvironment {
@@ -292,7 +293,7 @@ impl Default for Machine {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum MachineError {
     NoStrFunctor,
     BadArity,
