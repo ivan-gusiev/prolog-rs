@@ -69,7 +69,7 @@ impl<'a> DecompileEnvironment<'a> {
     pub fn run(&mut self, addr: Addr) -> DecompileResult<Term> {
         let heap_root = match addr {
             Addr::Heap(ptr) => ptr,
-            Addr::Reg(reg) => self.machine.trace_reg(reg)?,
+            other => self.machine.trace_heap(other)?,
         };
         let result = self.run_impl(heap_root);
         self.seen.clear();

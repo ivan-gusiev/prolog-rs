@@ -47,7 +47,7 @@ mod executetests {
         let mut symbol_table = SymbolTable::new();
         let query = parse_struct(query_text, &mut symbol_table).unwrap();
         let program = parse_struct(program_text, &mut symbol_table).unwrap();
-        let solution = l1_solve(program.clone(), query.clone()).unwrap();
+        let solution = l1_solve(program, query).unwrap();
         let query_bindings = solution.query_bindings;
         let program_bindings = solution.program_bindings;
 

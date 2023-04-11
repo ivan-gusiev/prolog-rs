@@ -6,7 +6,7 @@ use std::{
 use crate::{
     asm::Assembly,
     compile::CompileInfo,
-    data::{CodePtr, RegPtr},
+    data::{Addr, CodePtr, RegPtr},
     instr::Instruction,
     lang::Functor,
     machine::{Machine, MachineError},
@@ -132,10 +132,10 @@ pub fn writeout_annotated_mappings(
         for reg_id in 1..machine.iter_reg().len() {
             let reg = RegPtr(reg_id);
             vars.clear();
-            if let Some(var) = query_bindings.get(&machine.trace_reg(reg).unwrap()) {
+            if let Some(var) = query_bindings.get(&machine.trace_heap(reg.into()).unwrap()) {
                 vars.push(format!("query.{}", var.sym_to_str(symbol_table)))
             }
-            if let Some(var) = program_bindings.get(&machine.trace_reg(reg).unwrap()) {
+            if let Some(var) = program_bindings.get(&machine.trace_heap(reg.into()).unwrap()) {
                 vars.push(format!("program.{}", var.sym_to_str(symbol_table)))
             }
             let annotations = if vars.is_empty() {
@@ -159,30 +159,32 @@ pub fn writeout_compile_result(compile_result: &CompileInfo, symbol_table: &Symb
     ) -> Vec<String> {
         let mut out = Vec::<String>::new();
         let mut annotations = Vec::<String>::with_capacity(2);
-        let process_reg = |reg: &RegPtr, ann: &mut Vec<String>| {
-            if let Some(var) = compile_result.var_mapping.get(reg) {
-                ann.push(format!("{}={}", reg, to_display(&var, symbol_table)))
+        let process_local = |local: &Addr, ann: &mut Vec<String>| {
+            if let Addr::Reg(reg) = local {
+                if let Some(var) = compile_result.var_mapping.get(reg) {
+                    ann.push(format!("{}={}", reg, to_display(&var, symbol_table)))
+                }
             }
         };
-        let process_regs = |rs: &[&RegPtr], ann: &mut Vec<String>| {
+        let process_locals = |rs: &[&Addr], ann: &mut Vec<String>| {
             for r in rs {
-                process_reg(r, ann)
+                process_local(r, ann)
             }
         };
 
         for instr in compile_result.instructions.iter() {
             annotations.clear();
             match instr {
-                Instruction::GetStructure(_, reg)
-                | Instruction::PutStructure(_, reg)
-                | Instruction::UnifyValue(reg)
-                | Instruction::UnifyVariable(reg)
-                | Instruction::SetValue(reg)
-                | Instruction::SetVariable(reg) => process_reg(reg, &mut annotations),
-                Instruction::GetValue(r1, r2)
-                | Instruction::GetVariable(r1, r2)
-                | Instruction::PutValue(r1, r2)
-                | Instruction::PutVariable(r1, r2) => process_regs(&[r1, r2], &mut annotations),
+                Instruction::GetStructure(_, l)
+                | Instruction::PutStructure(_, l)
+                | Instruction::UnifyValue(l)
+                | Instruction::UnifyVariable(l)
+                | Instruction::SetValue(l)
+                | Instruction::SetVariable(l) => process_local(l, &mut annotations),
+                Instruction::GetValue(l1, l2)
+                | Instruction::GetVariable(l1, l2)
+                | Instruction::PutValue(l1, l2)
+                | Instruction::PutVariable(l1, l2) => process_locals(&[l1, l2], &mut annotations),
                 _ => (),
             }
             let comment = if annotations.is_empty() {

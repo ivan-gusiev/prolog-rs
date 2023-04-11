@@ -61,11 +61,11 @@ mod tests {
         let f1 = Functor(symbol_table.intern("f"), 1);
         let p3 = Functor(symbol_table.intern("p"), 3);
 
-        let x1 = RegPtr(1);
-        let x2 = RegPtr(2);
-        let x3 = RegPtr(3);
-        let x4 = RegPtr(4);
-        let x5 = RegPtr(5);
+        let x1 = RegPtr(1).into();
+        let x2 = RegPtr(2).into();
+        let x3 = RegPtr(3).into();
+        let x4 = RegPtr(4).into();
+        let x5 = RegPtr(5).into();
 
         let code = vec![
             Instruction::PutStructure(h2, x3),
@@ -122,11 +122,11 @@ mod tests {
         let f1 = Functor(symbol_table.intern("f"), 1);
         let p3 = Functor(symbol_table.intern("p"), 3);
 
-        let x1 = RegPtr(1);
-        let x2 = RegPtr(2);
-        let x3 = RegPtr(3);
-        let x4 = RegPtr(4);
-        let x5 = RegPtr(5);
+        let x1 = RegPtr(1).into();
+        let x2 = RegPtr(2).into();
+        let x3 = RegPtr(3).into();
+        let x4 = RegPtr(4).into();
+        let x5 = RegPtr(5).into();
 
         let code = vec![
             Instruction::PutStructure(h2, x3),

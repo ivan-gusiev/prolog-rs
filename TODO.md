@@ -11,9 +11,11 @@
     * move `main` out of `lib`?
 - [ ] decompile: employ var names from queries when possible
     * maybe wait until L2 machine implementation
-- [ ] Convert getters and setters to read-only and mutable references
+- [ ] convert getters and setters to read-only and mutable references
     * `get_x(&self) -> &X` to `x(&self) -> &X` 
     * `set_x(&mut self, value)` to `x_mut(&mut self) -> &mut X`
+- [ ] transform stack frame into the real thing
+    * it should be a linked list of words
 
 ### Bugs
 - [x] Type `?- X` then `X`. It cannot figure out the unification. 

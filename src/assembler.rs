@@ -5,7 +5,7 @@ use instr::Instruction;
 use symbol::{to_display, SymDisplay, Symbol, SymbolTable};
 
 use crate::{
-    data::{CodePtr, RegPtr},
+    data::{Addr, CodePtr, RegPtr, StackDepth},
     lang::Functor,
     util::WriteVec,
 };
@@ -15,6 +15,8 @@ pub enum Arg {
     Reg(usize),
     Func(Symbol, u32),
     Code(usize),
+    Stack(usize),
+    Num(usize),
 }
 
 impl SymDisplay for Arg {
@@ -27,6 +29,8 @@ impl SymDisplay for Arg {
             Arg::Reg(i) => write!(f, "X{i}"),
             Arg::Func(s, a) => write!(f, "{}/{a}", to_display(s, symbol_table)),
             Arg::Code(i) => write!(f, "@{i}"),
+            Arg::Stack(i) => write!(f, "Y{i}"),
+            Arg::Num(i) => write!(f, "{i}"),
         }
     }
 }
@@ -109,8 +113,14 @@ peg::parser!(
         rule arg_coderef() -> Arg
             = "@" n:number() { Arg::Code(n as usize) }
 
+        rule arg_stack() -> Arg
+            = "Y" n:number() { Arg::Stack(n as usize) }
+
+        rule arg_num() -> Arg
+            = n:number() { Arg::Num(n as usize) }
+
         rule arg(symbols : &mut SymbolTable) -> Arg
-            = arg_reg() / arg_func(symbols) / arg_coderef()
+            = arg_reg() / arg_func(symbols) / arg_coderef() / arg_stack() / arg_num()
 
         rule cmd(labels: &mut Labels, symbols : &mut SymbolTable) -> Command
             = id:identifier() _ args:(arg(symbols) ** ("," _)) {
@@ -146,7 +156,7 @@ pub fn compile_asm(program: &str, symbol_table: &mut SymbolTable) -> Result<Asse
     // first assign labels to instructions
     for (i, Command(labels, _, _)) in lines.iter().enumerate() {
         for label in labels {
-            label_map.insert(label_to_functor(&label), CodePtr(i));
+            label_map.insert(label_to_functor(label), CodePtr(i));
         }
     }
 
@@ -180,7 +190,7 @@ fn command_to_instr(
     };
 
     let arg_to_reg = |arg| match arg {
-        Arg::Reg(i) => Ok(RegPtr(i)),
+        Arg::Reg(i) => Ok(Addr::Reg(RegPtr(i))),
         x => Err(format!(
             "Argument {} is not a register reference",
             to_display(&x, symbol_table)
@@ -195,6 +205,14 @@ fn command_to_instr(
         )),
         x => Err(format!(
             "Argument {} is not a label or instruction reference",
+            to_display(&x, symbol_table)
+        )),
+    };
+
+    let arg_to_stack_depth = |arg| match arg {
+        Arg::Num(i) => Ok(StackDepth(i)),
+        x => Err(format!(
+            "Argument {} is not a number for stack depth",
             to_display(&x, symbol_table)
         )),
     };
@@ -237,6 +255,8 @@ fn command_to_instr(
         (nm @ "get_value", args) => bad_args(nm, args),
         ("call", [c]) => Ok(Instruction::Call(arg_to_code(*c)?)),
         (nm @ "call", args) => bad_args(nm, args),
+        ("allocate", [d]) => Ok(Instruction::Allocate(arg_to_stack_depth(*d)?)),
+        (nm @ "allocate", args) => bad_args(nm, args),
         ("proceed", []) => Ok(Instruction::Proceed),
         (nm @ "proceed", args) => bad_args(nm, args),
         (x, _) => Err(format!("Unknown command {x}")),

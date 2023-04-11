@@ -1,0 +1,19 @@
+---
+source: tests/asmtests.rs
+assertion_line: 121
+expression: "case(input, output)"
+---
+
+p/2: allocate 2
+     get_variable X3, A1
+     get_variable Y1, A2
+     put_value X3, A1
+     put_variable Y2, A2
+     call q/2
+     put_value Y2, A1
+     put_value Y1, A2
+     call r/2
+     deallocate
+    
+-----
+Argument Y1 is not a register reference

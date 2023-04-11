@@ -1,22 +1,26 @@
-use data::{CodePtr, RegPtr};
+use data::{Addr, CodePtr};
 use lang::Functor;
 use std::fmt::{Display, Formatter};
 use symbol::{to_display, SymDisplay, SymbolTable};
 
+use crate::data::StackDepth;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Instruction {
-    PutStructure(Functor, RegPtr),
-    SetVariable(RegPtr),
-    SetValue(RegPtr),
-    GetStructure(Functor, RegPtr),
-    UnifyVariable(RegPtr),
-    UnifyValue(RegPtr),
+    PutStructure(Functor, Addr),
+    SetVariable(Addr),
+    SetValue(Addr),
+    GetStructure(Functor, Addr),
+    UnifyVariable(Addr),
+    UnifyValue(Addr),
     Call(CodePtr),
     Proceed,
-    PutVariable(RegPtr, RegPtr),
-    PutValue(RegPtr, RegPtr),
-    GetVariable(RegPtr, RegPtr),
-    GetValue(RegPtr, RegPtr),
+    PutVariable(Addr, Addr),
+    PutValue(Addr, Addr),
+    GetVariable(Addr, Addr),
+    GetValue(Addr, Addr),
+    Allocate(StackDepth),
+    Deallocate,
 }
 
 impl Display for Instruction {
@@ -38,6 +42,8 @@ impl Display for Instruction {
             Instruction::PutValue(x, a) => write!(f, "put_value {x}, {a}"),
             Instruction::GetVariable(x, a) => write!(f, "get_variable {x}, {a}"),
             Instruction::GetValue(x, a) => write!(f, "get_value {x}, {a}"),
+            Instruction::Allocate(d) => write!(f, "allocate {d}"),
+            Instruction::Deallocate => write!(f, "deallocate"),
         }
     }
 }

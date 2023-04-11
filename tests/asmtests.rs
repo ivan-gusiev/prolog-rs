@@ -83,6 +83,19 @@ labeltwo/0:put_structure @3, X2, func/0
 x/0:
 y/1: proceed"#;
 
+    const L2_RULE: &str = r#"
+p/2: allocate 2
+     get_variable X3, A1
+     get_variable Y1, A2
+     put_value X3, A1
+     put_variable Y2, A2
+     call q/2
+     put_value Y2, A1
+     put_value Y1, A2
+     call r/2
+     deallocate
+    "#;
+
     #[parameterized(input = {
         QUERY_L0,
         QUERY_L1,
@@ -93,6 +106,7 @@ y/1: proceed"#;
         SUPER_BROKEN,
         DIGITS_IN_NAMES,
         MULTI_LABEL,
+        L2_RULE,
     })]
     fn test_assembler(input: &str) {
         let mut symbol_table = prolog_rs::symbol::SymbolTable::new();

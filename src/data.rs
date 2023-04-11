@@ -37,6 +37,15 @@ impl Display for RegPtr {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
+pub struct StackPtr(pub usize);
+
+impl Display for StackPtr {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "Y{}", self.0)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub struct CodePtr(pub usize);
 
 impl Display for CodePtr {
@@ -56,6 +65,16 @@ impl ops::Add<usize> for CodePtr {
 impl From<CodePtr> for usize {
     fn from(value: CodePtr) -> Self {
         value.0
+    }
+}
+
+/// represents the number of variables in a stack frame
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
+pub struct StackDepth(pub usize);
+
+impl Display for StackDepth {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        self.0.fmt(f)
     }
 }
 
@@ -155,13 +174,15 @@ impl Display for Mode {
 pub enum Addr {
     Heap(HeapPtr),
     Reg(RegPtr),
+    Stack(StackPtr),
 }
 
 impl Display for Addr {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         match self {
-            Addr::Heap(h) => write!(f, "{h}"),
-            Addr::Reg(r) => write!(f, "{r}"),
+            Self::Heap(h) => write!(f, "{h}"),
+            Self::Reg(r) => write!(f, "{r}"),
+            Self::Stack(s) => write!(f, "{s}"),
         }
     }
 }
@@ -175,5 +196,11 @@ impl From<RegPtr> for Addr {
 impl From<HeapPtr> for Addr {
     fn from(ptr: HeapPtr) -> Self {
         Addr::Heap(ptr)
+    }
+}
+
+impl From<StackPtr> for Addr {
+    fn from(ptr: StackPtr) -> Self {
+        Addr::Stack(ptr)
     }
 }

@@ -240,14 +240,14 @@ pub fn compile_query(
         }
 
         let FlatStruct(f, refs) = reg_map[&reg].get_str();
-        instructions.push(Instruction::PutStructure(*f, reg));
+        instructions.push(Instruction::PutStructure(*f, reg.into()));
         seen.insert(reg);
         for ref_ptr in refs {
             if seen.contains(ref_ptr) {
-                instructions.push(Instruction::SetValue(*ref_ptr))
+                instructions.push(Instruction::SetValue((*ref_ptr).into()))
             } else {
                 seen.insert(*ref_ptr);
-                instructions.push(Instruction::SetVariable(*ref_ptr))
+                instructions.push(Instruction::SetVariable((*ref_ptr).into()))
             }
         }
     }
@@ -258,20 +258,20 @@ pub fn compile_query(
             FlattenedTerm::Variable(nm) => {
                 let xreg = vars[nm];
                 if seen.contains(&xreg) {
-                    instructions.push(Instruction::PutValue(xreg, areg));
+                    instructions.push(Instruction::PutValue(xreg.into(), areg.into()));
                 } else {
                     seen.insert(xreg);
-                    instructions.push(Instruction::PutVariable(xreg, areg));
+                    instructions.push(Instruction::PutVariable(xreg.into(), areg.into()));
                 }
             }
             FlattenedTerm::Struct(FlatStruct(f, refs), _) => {
-                instructions.push(Instruction::PutStructure(*f, areg));
+                instructions.push(Instruction::PutStructure(*f, areg.into()));
                 for ref_ptr in refs {
                     if seen.contains(ref_ptr) {
-                        instructions.push(Instruction::SetValue(*ref_ptr))
+                        instructions.push(Instruction::SetValue((*ref_ptr).into()))
                     } else {
                         seen.insert(*ref_ptr);
-                        instructions.push(Instruction::SetVariable(*ref_ptr))
+                        instructions.push(Instruction::SetVariable((*ref_ptr).into()))
                     }
                 }
             }
@@ -306,20 +306,20 @@ pub fn compile_program(program: Struct) -> CompileInfo {
             FlattenedTerm::Variable(nm) => {
                 let xreg = vars[nm];
                 if seen.contains(&xreg) {
-                    instructions.push(Instruction::GetValue(xreg, areg));
+                    instructions.push(Instruction::GetValue(xreg.into(), areg.into()));
                 } else {
                     seen.insert(xreg);
-                    instructions.push(Instruction::GetVariable(xreg, areg));
+                    instructions.push(Instruction::GetVariable(xreg.into(), areg.into()));
                 }
             }
             FlattenedTerm::Struct(FlatStruct(f, refs), _) => {
-                instructions.push(Instruction::GetStructure(*f, areg));
+                instructions.push(Instruction::GetStructure(*f, areg.into()));
                 for ref_ptr in refs {
                     if seen.contains(ref_ptr) {
-                        instructions.push(Instruction::UnifyValue(*ref_ptr))
+                        instructions.push(Instruction::UnifyValue((*ref_ptr).into()))
                     } else {
                         seen.insert(*ref_ptr);
-                        instructions.push(Instruction::UnifyVariable(*ref_ptr))
+                        instructions.push(Instruction::UnifyVariable((*ref_ptr).into()))
                     }
                 }
             }
@@ -333,14 +333,14 @@ pub fn compile_program(program: Struct) -> CompileInfo {
         }
 
         let FlatStruct(f, refs) = reg_map[&reg].get_str();
-        instructions.push(Instruction::GetStructure(*f, reg));
+        instructions.push(Instruction::GetStructure(*f, reg.into()));
         seen.insert(reg);
         for ref_ptr in refs {
             if seen.contains(ref_ptr) {
-                instructions.push(Instruction::UnifyValue(*ref_ptr))
+                instructions.push(Instruction::UnifyValue((*ref_ptr).into()))
             } else {
                 seen.insert(*ref_ptr);
-                instructions.push(Instruction::UnifyVariable(*ref_ptr))
+                instructions.push(Instruction::UnifyVariable((*ref_ptr).into()))
             }
         }
     }

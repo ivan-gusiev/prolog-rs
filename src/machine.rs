@@ -2,19 +2,26 @@ use data::{Addr, CodePtr, Data, HeapPtr, Mode, Ref, RegPtr, Str};
 use decompile::{DecompileEnvironment, DecompileResult};
 use instr::Instruction;
 use lang::{Functor, Term, VarName};
-use std::fmt::{Display, Write};
+use std::{
+    fmt::{Display, Write},
+    iter,
+};
 use symbol::SymbolTable;
 use var::{VarBindings, VarDescription, VarMapping};
 
 use util::{writeout, writeout_sym};
 
-use crate::asm::Assembly;
+use crate::{
+    asm::Assembly,
+    data::{StackDepth, StackPtr},
+};
 
 #[derive(Debug)]
 pub struct Machine {
     heap: Vec<Data>,
     reg: Vec<Data>,
     code: Vec<Instruction>,
+    stack: Vec<StackFrame>,
     h: HeapPtr,  // heap top
     s: HeapPtr,  // subterm to be matched
     p: CodePtr,  // instruction to be executed
@@ -31,6 +38,7 @@ impl Machine {
             heap: vec![],
             reg: vec![],
             code: vec![],
+            stack: vec![],
             h: HeapPtr(0),
             s: HeapPtr(0),
             p: CodePtr(0),
@@ -85,6 +93,21 @@ impl Machine {
             .iter()
             .enumerate()
             .map(|(idx, data)| (RegPtr(idx), data))
+    }
+
+    pub fn get_stack(&self, ptr: StackPtr) -> MachineResult<Data> {
+        let frame = self.peek_stack().ok_or(MachineError::StackUnderflow)?;
+        frame.get_var(ptr)
+    }
+
+    pub fn set_stack(&mut self, ptr: StackPtr, value: Data) -> MResult {
+        let frame = self.peek_stack_mut().ok_or(MachineError::StackUnderflow)?;
+        frame.set_var(ptr, value)
+    }
+
+    pub fn iter_stack(&self) -> MachineResult<impl ExactSizeIterator<Item = (StackPtr, &Data)>> {
+        let frame = self.peek_stack().ok_or(MachineError::StackUnderflow)?;
+        Ok(frame.iter_var())
     }
 
     pub fn get_code(&self) -> Vec<Instruction> {
@@ -166,17 +189,25 @@ impl Machine {
         self.halt = halt
     }
 
-    pub fn get_store(&self, addr: Addr) -> Data {
+    pub fn get_store(&self, addr: Addr) -> MachineResult<Data> {
         match addr {
-            Addr::Heap(heap_ptr) => self.get_heap(heap_ptr),
-            Addr::Reg(reg_ptr) => self.get_reg(reg_ptr),
+            Addr::Heap(heap_ptr) => Ok(self.get_heap(heap_ptr)),
+            Addr::Reg(reg_ptr) => Ok(self.get_reg(reg_ptr)),
+            Addr::Stack(stack_ptr) => self.get_stack(stack_ptr),
         }
     }
 
-    pub fn set_store(&mut self, addr: Addr, value: Data) {
+    pub fn set_store(&mut self, addr: Addr, value: Data) -> MResult {
         match addr {
-            Addr::Heap(heap_ptr) => self.set_heap(heap_ptr, value),
-            Addr::Reg(reg_ptr) => self.set_reg(reg_ptr, value),
+            Addr::Heap(heap_ptr) => {
+                self.set_heap(heap_ptr, value);
+                Ok(())
+            },
+            Addr::Reg(reg_ptr) => {
+                self.set_reg(reg_ptr, value);
+                Ok(())
+            },
+            Addr::Stack(stack_ptr) => self.set_stack(stack_ptr, value),
         }
     }
 
@@ -186,6 +217,22 @@ impl Machine {
 
     pub fn pop_pdl(&mut self) -> Option<Addr> {
         self.pdl.pop()
+    }
+
+    pub fn push_stack(&mut self, frame: StackFrame) {
+        self.stack.push(frame)
+    }
+
+    pub fn pop_stack(&mut self) -> Option<StackFrame> {
+        self.stack.pop()
+    }
+
+    pub fn peek_stack(&self) -> Option<&StackFrame> {
+        self.stack.last()
+    }
+
+    pub fn peek_stack_mut(&mut self) -> Option<&mut StackFrame> {
+        self.stack.last_mut()
     }
 
     pub fn is_pdl_empty(&self) -> bool {
@@ -221,19 +268,19 @@ impl Machine {
         ExecutionEnvironment::new(self)
     }
 
-    pub fn trace_reg(&self, reg: RegPtr) -> MachineResult<HeapPtr> {
-        match self.get_reg(reg) {
+    pub fn trace_heap(&self, reg: Addr) -> MachineResult<HeapPtr> {
+        match self.get_store(reg)? {
             Data::Ref(Ref(ptr)) | Data::Str(Str(ptr)) => Ok(ptr),
             _ => Err(MachineError::NonVarBind),
         }
     }
 
     pub fn bind_variables(&self, var_mapping: &VarMapping) -> MachineResult<VarBindings> {
-        var_mapping.traverse(|&reg| self.trace_reg(reg))
+        var_mapping.traverse(|&reg| self.trace_heap(reg.into()))
     }
 
     pub fn bind_good_variables(&self, var_mapping: &VarMapping) -> VarBindings {
-        var_mapping.traverse_filter(|&reg| self.trace_reg(reg))
+        var_mapping.traverse_filter(|&reg| self.trace_heap(reg.into()))
     }
 
     pub fn decompile(
@@ -292,6 +339,45 @@ impl Default for Machine {
     }
 }
 
+#[derive(Debug)]
+pub struct StackFrame {
+    pub cp: CodePtr,
+    pub vars: Vec<Data>,
+}
+
+impl StackFrame {
+    pub fn new(cp: CodePtr, depth: StackDepth) -> StackFrame {
+        StackFrame {
+            cp,
+            vars: iter::repeat(Data::Empty).take(depth.0).collect(),
+        }
+    }
+
+    pub fn get_var(&self, StackPtr(index): StackPtr) -> MachineResult<Data> {
+        self.vars
+            .get(index)
+            .copied()
+            .ok_or(MachineError::StackSmash)
+    }
+
+    pub fn set_var(&mut self, StackPtr(index): StackPtr, value: Data) -> MResult {
+        match self.vars.get_mut(index) {
+            Some(slot) => {
+                *slot = value;
+                Ok(())
+            },
+            None => Err(MachineError::StackSmash),
+        }
+    }
+
+    pub fn iter_var(&self) -> impl ExactSizeIterator<Item = (StackPtr, &Data)> {
+        self.vars
+            .iter()
+            .enumerate()
+            .map(|(idx, data)| (StackPtr(idx + 1), data))
+    }
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub enum MachineError {
     NoStrFunctor,
@@ -301,6 +387,8 @@ pub enum MachineError {
     InvalidRegData,
     FailState,
     OutOfBoundsP,
+    StackUnderflow,
+    StackSmash,
 }
 
 impl MachineError {
@@ -313,6 +401,8 @@ impl MachineError {
             Self::InvalidRegData => "Register contains something other than reference to heap",
             Self::FailState => "Attempted to execute an instruction in failed state",
             Self::OutOfBoundsP => "Instruction pointer P is out of code bounds",
+            Self::StackUnderflow => "Attempt to access a stack frame which was not allocated",
+            Self::StackSmash => "Attempt to access stack variable past the frame length",
         }
     }
 }
@@ -393,23 +483,23 @@ impl<'a> ExecutionEnvironment<'a> {
     }
 }
 
-fn deref(machine: &Machine, mut addr: Addr) -> Addr {
+fn deref(machine: &Machine, mut addr: Addr) -> MachineResult<Addr> {
     loop {
-        match machine.get_store(addr) {
+        match machine.get_store(addr)? {
             Data::Ref(Ref(new_addr)) if addr != new_addr.into() => addr = new_addr.into(),
             _ => break,
         }
     }
-    addr
+    Ok(addr)
 }
 
 fn bind(machine: &mut Machine, lhs: Addr, rhs: Addr) -> MResult {
-    let l = machine.get_store(lhs);
-    let r = machine.get_store(rhs);
+    let l = machine.get_store(lhs)?;
+    let r = machine.get_store(rhs)?;
     match (l, r) {
         (Data::Ref(al), Data::Ref(ar)) if al.0 > ar.0 => bind(machine, rhs, lhs),
         (Data::Ref(_), x) => {
-            machine.set_store(lhs, x);
+            machine.set_store(lhs, x)?;
             Ok(())
         }
         _ => bind(machine, rhs, lhs),
@@ -422,15 +512,15 @@ fn unify(machine: &mut Machine, a1: Addr, a2: Addr) -> MResult {
     machine.set_fail(false);
     while !(machine.is_pdl_empty() || machine.get_fail()) {
         let mut d1 = machine.pop_pdl().expect("cannot pop d1");
-        d1 = deref(machine, d1);
+        d1 = deref(machine, d1)?;
         let mut d2 = machine.pop_pdl().expect("cannot pop d2");
-        d2 = deref(machine, d2);
+        d2 = deref(machine, d2)?;
 
         if d1 == d2 {
             break;
         }
 
-        match (machine.get_store(d1), machine.get_store(d2)) {
+        match (machine.get_store(d1)?, machine.get_store(d2)?) {
             (Data::Ref(_), _) => bind(machine, d1, d2)?,
             (_, Data::Ref(_)) => bind(machine, d1, d2)?,
             (Data::Str(Str(v1)), Data::Str(Str(v2))) => {
@@ -457,33 +547,33 @@ fn unify(machine: &mut Machine, a1: Addr, a2: Addr) -> MResult {
     Ok(())
 }
 
-fn put_structure(machine: &mut Machine, functor: Functor, register: RegPtr) -> IResult {
+fn put_structure(machine: &mut Machine, functor: Functor, target: Addr) -> IResult {
     let h = machine.get_h();
     machine.set_heap(h, Str(h + 1).into());
     machine.set_heap(h + 1, functor.into());
-    machine.set_reg(register, machine.get_heap(h));
+    machine.set_store(target, machine.get_heap(h))?;
     machine.set_h(h + 2);
     Ok(None)
 }
 
-fn set_variable(machine: &mut Machine, register: RegPtr) -> IResult {
+fn set_variable(machine: &mut Machine, target: Addr) -> IResult {
     let h = machine.get_h();
     machine.set_heap(h, Data::Ref(Ref(h)));
-    machine.set_reg(register, machine.get_heap(h));
+    machine.set_store(target, machine.get_heap(h))?;
     machine.set_h(h + 1);
     Ok(None)
 }
 
-fn set_value(machine: &mut Machine, register: RegPtr) -> IResult {
+fn set_value(machine: &mut Machine, target: Addr) -> IResult {
     let h = machine.get_h();
-    machine.set_heap(h, machine.get_reg(register));
+    machine.set_heap(h, machine.get_store(target)?);
     machine.set_h(h + 1);
     Ok(None)
 }
 
-fn get_structure(machine: &mut Machine, functor: Functor, register: RegPtr) -> IResult {
-    let addr = deref(machine, register.into());
-    match machine.get_store(addr) {
+fn get_structure(machine: &mut Machine, functor: Functor, target: Addr) -> IResult {
+    let addr = deref(machine, target)?;
+    match machine.get_store(addr)? {
         Data::Ref(Ref(_)) => {
             let h = machine.get_h();
             machine.set_heap(h, Str(h + 1).into());
@@ -505,14 +595,14 @@ fn get_structure(machine: &mut Machine, functor: Functor, register: RegPtr) -> I
     Ok(None)
 }
 
-fn unify_variable(machine: &mut Machine, register: RegPtr) -> IResult {
+fn unify_variable(machine: &mut Machine, target: Addr) -> IResult {
     let s = machine.get_s();
     let h = machine.get_h();
     match machine.mode {
-        Mode::Read => machine.set_reg(register, machine.get_heap(s)),
+        Mode::Read => machine.set_store(target, machine.get_heap(s))?,
         Mode::Write => {
             machine.set_heap(h, Ref(h).into());
-            machine.set_reg(register, machine.get_heap(h));
+            machine.set_store(target, machine.get_heap(h))?;
             machine.set_h(h + 1);
         }
     }
@@ -520,13 +610,13 @@ fn unify_variable(machine: &mut Machine, register: RegPtr) -> IResult {
     Ok(None)
 }
 
-fn unify_value(machine: &mut Machine, register: RegPtr) -> IResult {
+fn unify_value(machine: &mut Machine, target: Addr) -> IResult {
     let s = machine.get_s();
     let h = machine.get_h();
     match machine.mode {
-        Mode::Read => unify(machine, register.into(), s.into())?,
+        Mode::Read => unify(machine, target, s.into())?,
         Mode::Write => {
-            machine.set_heap(h, machine.get_reg(register));
+            machine.set_heap(h, machine.get_store(target)?);
             machine.set_h(h + 1);
         }
     }
@@ -543,29 +633,39 @@ fn proceed(machine: &mut Machine) -> IResult {
     Ok(Some(machine.get_cp()))
 }
 
-fn put_variable(machine: &mut Machine, xreg: RegPtr, areg: RegPtr) -> IResult {
+fn put_variable(machine: &mut Machine, source: Addr, argument: Addr) -> IResult {
     let h = machine.get_h();
     let data = Ref(h).into();
     machine.set_heap(h, data);
-    machine.set_reg(xreg, data);
-    machine.set_reg(areg, data);
+    machine.set_store(source, data)?;
+    machine.set_store(argument, data)?;
     machine.set_h(h + 1);
     Ok(None)
 }
 
-fn put_value(machine: &mut Machine, xreg: RegPtr, areg: RegPtr) -> IResult {
-    machine.set_reg(areg, machine.get_reg(xreg));
+fn put_value(machine: &mut Machine, source: Addr, argument: Addr) -> IResult {
+    machine.set_store(argument, machine.get_store(source)?)?;
     Ok(None)
 }
 
-fn get_variable(machine: &mut Machine, xreg: RegPtr, areg: RegPtr) -> IResult {
-    machine.set_reg(xreg, machine.get_reg(areg));
+fn get_variable(machine: &mut Machine, target: Addr, argument: Addr) -> IResult {
+    machine.set_store(target, machine.get_store(argument)?)?;
     Ok(None)
 }
 
-fn get_value(machine: &mut Machine, xreg: RegPtr, areg: RegPtr) -> IResult {
-    unify(machine, xreg.into(), areg.into())?;
+fn get_value(machine: &mut Machine, target: Addr, argument: Addr) -> IResult {
+    unify(machine, target, argument)?;
     Ok(None)
+}
+
+fn allocate(machine: &mut Machine, depth: StackDepth) -> IResult {
+    machine.push_stack(StackFrame::new(machine.cp, depth));
+    Ok(None)
+}
+
+fn deallocate(machine: &mut Machine) -> IResult {
+    let frame = machine.pop_stack().ok_or(MachineError::StackUnderflow)?;
+    Ok(Some(frame.cp))
 }
 
 fn execute_instruction(machine: &mut Machine, instruction: Instruction) -> MResult {
@@ -582,6 +682,8 @@ fn execute_instruction(machine: &mut Machine, instruction: Instruction) -> MResu
         Instruction::PutValue(xreg, areg) => put_value(machine, xreg, areg),
         Instruction::GetVariable(xreg, areg) => get_variable(machine, xreg, areg),
         Instruction::GetValue(xreg, areg) => get_value(machine, xreg, areg),
+        Instruction::Allocate(depth) => allocate(machine, depth),
+        Instruction::Deallocate => deallocate(machine),
     }?;
     machine.set_p(nextp.unwrap_or(machine.get_p() + instruction.size()));
     Ok(())
