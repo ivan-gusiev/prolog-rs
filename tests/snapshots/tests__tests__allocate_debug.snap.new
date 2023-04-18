@@ -1,0 +1,38 @@
+---
+source: tests/tests.rs
+assertion_line: 177
+expression: machine.dbg(&symbol_table)
+---
+h: HEAP[4]
+s: HEAP[0]
+p: CODE[5]
+mode: read
+fail: false
+halt: false
+code:
+000	allocate 2
+001	put_variable Y1, X1
+002	put_variable Y2, X1
+003	allocate 1
+004	put_structure a/1, Y1
+
+heap:
+000	<REF,0>
+001	<REF,1>
+002	<STR,3>
+003	a/1
+
+regs:
+000	<EMPTY>
+001	<REF,1>
+
+pdl:
+
+stack depth 0, cp=CODE[0]:
+000	<STR,3>
+
+stack depth 1, cp=CODE[0]:
+000	<REF,0>
+001	<REF,1>
+
+

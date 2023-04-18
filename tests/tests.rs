@@ -1,11 +1,13 @@
+extern crate insta;
 extern crate prolog_rs;
 
 #[cfg(test)]
 mod tests {
+    use insta::assert_display_snapshot;
     use prolog_rs::{
         assembler::compile_asm,
         compile::{compile_query, CompileInfo},
-        data::{Data, HeapPtr, Ref, RegPtr, Str},
+        data::{CodePtr, Data, HeapPtr, Ref, RegPtr, Str},
         instr::Instruction,
         lang::{parse_struct, Functor},
         machine::Machine,
@@ -37,6 +39,14 @@ mod tests {
     "#;
 
     const QUERY: &str = "p(Z,h(Z,W), f(W))";
+
+    const ALLOCATE_PROGRAM: &str = r#"
+        allocate 2
+        put_variable Y1, A1
+        put_variable Y2, A1
+        allocate 1
+        put_structure a/1, Y1
+    "#;
 
     #[test]
     fn program_compiles_to_bytecode() {
@@ -154,5 +164,16 @@ mod tests {
             compile_asm("put_structure X1", &mut (SymbolTable::new())),
             Err("Incorrect arguments for put_structure: X1".to_string())
         )
+    }
+
+    #[test]
+    fn allocate_debug() {
+        let mut symbol_table = prolog_rs::symbol::SymbolTable::new();
+        let code = compile_asm(ALLOCATE_PROGRAM, &mut symbol_table).unwrap();
+        let mut machine = Machine::new();
+        machine.load_assembly(&code);
+        machine.set_p(CodePtr(0));
+        machine.execute().run().unwrap();
+        assert_display_snapshot!(machine.dbg(&symbol_table))
     }
 }

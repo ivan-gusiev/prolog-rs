@@ -1,10 +1,10 @@
 use std::{collections::HashMap, iter::once};
 
 use asm::Assembly;
-use instr::Instruction;
-use symbol::{to_display, SymDisplay, Symbol, SymbolTable};
 use data::{Addr, CodePtr, RegPtr, StackDepth, StackPtr};
+use instr::Instruction;
 use lang::Functor;
+use symbol::{to_display, SymDisplay, Symbol, SymbolTable};
 use util::WriteVec;
 
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]

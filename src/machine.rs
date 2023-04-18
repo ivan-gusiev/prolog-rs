@@ -110,6 +110,10 @@ impl Machine {
         Ok(frame.iter_var())
     }
 
+    pub fn walk_stack(&self) -> impl ExactSizeIterator<Item = &StackFrame> {
+        self.stack.iter().rev()
+    }
+
     pub fn get_code(&self) -> Vec<Instruction> {
         self.code.to_vec()
     }
@@ -202,11 +206,11 @@ impl Machine {
             Addr::Heap(heap_ptr) => {
                 self.set_heap(heap_ptr, value);
                 Ok(())
-            },
+            }
             Addr::Reg(reg_ptr) => {
                 self.set_reg(reg_ptr, value);
                 Ok(())
-            },
+            }
             Addr::Stack(stack_ptr) => self.set_stack(stack_ptr, value),
         }
     }
@@ -329,6 +333,10 @@ impl Machine {
         writeln!(str, "heap:\n{}", writeout_sym(&self.heap, symbol_table)).unwrap();
         writeln!(str, "regs:\n{}", writeout_sym(&self.reg, symbol_table)).unwrap();
         writeln!(str, "pdl:\n{}", writeout(self.pdl.iter())).unwrap();
+        for (i, frame) in self.walk_stack().enumerate() {
+            writeln!(str, "stack depth {i}, cp={}:", frame.cp).unwrap();
+            writeln!(str, "{}", writeout_sym(&frame.vars, symbol_table)).unwrap();
+        }
         str
     }
 }
@@ -355,17 +363,17 @@ impl StackFrame {
 
     pub fn get_var(&self, StackPtr(index): StackPtr) -> MachineResult<Data> {
         self.vars
-            .get(index)
+            .get(index - 1)
             .copied()
             .ok_or(MachineError::StackSmash)
     }
 
     pub fn set_var(&mut self, StackPtr(index): StackPtr, value: Data) -> MResult {
-        match self.vars.get_mut(index) {
+        match self.vars.get_mut(index - 1) {
             Some(slot) => {
                 *slot = value;
                 Ok(())
-            },
+            }
             None => Err(MachineError::StackSmash),
         }
     }
