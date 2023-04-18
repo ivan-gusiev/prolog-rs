@@ -3,12 +3,9 @@ use std::{collections::HashMap, iter::once};
 use asm::Assembly;
 use instr::Instruction;
 use symbol::{to_display, SymDisplay, Symbol, SymbolTable};
-
-use crate::{
-    data::{Addr, CodePtr, RegPtr, StackDepth},
-    lang::Functor,
-    util::WriteVec,
-};
+use data::{Addr, CodePtr, RegPtr, StackDepth, StackPtr};
+use lang::Functor;
+use util::WriteVec;
 
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
 pub enum Arg {
@@ -184,13 +181,14 @@ fn command_to_instr(
     let arg_to_functor = |arg| match arg {
         Arg::Func(f, a) => Ok(Functor(f, a)),
         x => Err(format!(
-            "Argument {} is not a register reference",
+            "Argument {} is not a functor",
             to_display(&x, symbol_table)
         )),
     };
 
     let arg_to_reg = |arg| match arg {
         Arg::Reg(i) => Ok(Addr::Reg(RegPtr(i))),
+        Arg::Stack(i) => Ok(Addr::Stack(StackPtr(i))),
         x => Err(format!(
             "Argument {} is not a register reference",
             to_display(&x, symbol_table)
@@ -259,6 +257,8 @@ fn command_to_instr(
         (nm @ "allocate", args) => bad_args(nm, args),
         ("proceed", []) => Ok(Instruction::Proceed),
         (nm @ "proceed", args) => bad_args(nm, args),
+        ("deallocate", []) => Ok(Instruction::Deallocate),
+        (nm @ "deallocate", args) => bad_args(nm, args),
         (x, _) => Err(format!("Unknown command {x}")),
     }
 }

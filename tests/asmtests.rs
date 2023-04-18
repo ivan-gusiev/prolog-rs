@@ -94,6 +94,8 @@ p/2: allocate 2
      put_value Y1, A2
      call r/2
      deallocate
+q/2: proceed
+r/2: proceed
     "#;
 
     #[parameterized(input = {
