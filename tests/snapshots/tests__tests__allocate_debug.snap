@@ -1,6 +1,5 @@
 ---
 source: tests/tests.rs
-assertion_line: 177
 expression: machine.dbg(&symbol_table)
 ---
 h: HEAP[4]
