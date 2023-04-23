@@ -1,9 +1,11 @@
 use crate::rustyline::{error::ReadlineError, Editor, Result as RustyResult};
 use app::debugmode::start_debugmode;
 use prolog_rs::{
-    compile::{compile_program, compile_query, CompileInfo},
-    lang::parse_struct,
-    symbol::SymDisplay,
+    asm::Assembly,
+    assembler::compile_asm,
+    compile::{compile_program, compile_query, compile_sentences, CompileInfo},
+    lang::{parse_program, parse_struct},
+    symbol::{to_display, SymDisplay},
     util::write_program_result,
     var::VarBindings,
     PrologApp,
@@ -48,6 +50,14 @@ fn main() -> RustyResult<()> {
                             prolog.machine.set_p(query_p);
                         }
                     }
+                    load_cmd if load_cmd.starts_with("load") => {
+                        let rest = &load_cmd[4..].trim();
+                        if rest.ends_with("asm") {
+                            succeed(load_asm(rest, &mut prolog))
+                        } else {
+                            succeed(load_pro(rest, &mut prolog))
+                        }
+                    }
                     "vars" => succeed(print_vars(&mut prolog)),
                     "run" => succeed(run_and_output(&mut prolog)),
                     query if query.starts_with("?-") => {
@@ -88,6 +98,26 @@ fn main() -> RustyResult<()> {
             }
         }
     }
+    Ok(())
+}
+
+fn load_asm(path: &str, prolog: &mut PrologApp) -> Result<(), String> {
+    let listing = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+    let assembly = compile_asm(&listing, &mut prolog.symbol_table)?;
+    prolog.machine.load_assembly(&assembly);
+    Ok(())
+}
+
+fn load_pro(path: &str, prolog: &mut PrologApp) -> Result<(), String> {
+    let listing = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+    let mut assembly = Assembly::default();
+    let sentences = parse_program(&listing, &mut prolog.symbol_table)?;
+    let warnings = compile_sentences(sentences, &mut assembly)
+        .map_err(|e| e.sym_to_str(&prolog.symbol_table))?;
+    for warning in warnings {
+        println!("{}", to_display(&warning, &prolog.symbol_table))
+    }
+    prolog.machine.load_assembly(&assembly);
     Ok(())
 }
 
