@@ -205,11 +205,11 @@ mod tests {
         let mut assembly = Assembly::new();
         let sentences = parse_program(L2_FACTS, &mut symbol_table).unwrap();
         let warnings = compile_sentences(sentences, &mut assembly).unwrap();
-        assert!(warnings.len() == 0);
+        assert!(warnings.is_empty());
         compile_asm_to_assembly(L2_RULE, &mut assembly, &mut symbol_table).unwrap();
         let sentences = parse_program(L2_QUERY, &mut symbol_table).unwrap();
         let warnings = compile_sentences(sentences, &mut assembly).unwrap();
-        assert!(warnings.len() == 0);
+        assert!(warnings.is_empty());
 
         let mut machine = Machine::new();
         let query_mapping = &assembly.entry_point.as_ref().unwrap().variables;

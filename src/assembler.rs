@@ -170,7 +170,7 @@ pub fn compile_asm_to_assembly(
     for line in lines {
         assembly
             .instructions
-            .push(command_to_instr(line, &label_map, symbol_table)?)
+            .push(command_to_instr(line, label_map, symbol_table)?)
     }
 
     Ok(())
