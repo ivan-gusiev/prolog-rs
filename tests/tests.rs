@@ -5,14 +5,16 @@ extern crate prolog_rs;
 mod tests {
     use insta::assert_display_snapshot;
     use prolog_rs::{
-        assembler::compile_asm,
-        compile::{compile_query, CompileInfo},
+        asm::Assembly,
+        assembler::{compile_asm, compile_asm_to_assembly},
+        compile::{compile_query, compile_sentences, CompileInfo},
         data::{CodePtr, Data, HeapPtr, Ref, RegPtr, Str},
         instr::Instruction,
-        lang::{parse_struct, Functor},
+        lang::{parse_program, parse_struct, Functor, Struct, Term},
         machine::Machine,
         symbol::SymbolTable,
         util::lbl_for,
+        var::VarBindings,
     };
 
     const PROGRAM: &str = r#"
@@ -175,5 +177,74 @@ mod tests {
         machine.set_p(CodePtr(0));
         machine.execute().run().unwrap();
         assert_display_snapshot!(machine.dbg(&symbol_table))
+    }
+
+    #[test]
+    fn allocate_test() {
+        const L2_RULE: &str = r#"
+        p/2: allocate 2
+             get_variable X3, A1
+             get_variable Y1, A2
+             put_value X3, A1
+             put_variable Y2, A2
+             call q/2
+             put_value Y2, A1
+             put_value Y1, A2
+             call r/2
+             deallocate
+            "#;
+
+        const L2_FACTS: &str = r#"
+            q(a, b).
+            r(b, c).
+        "#;
+
+        const L2_QUERY: &str = "?- p(U, V).";
+
+        let mut symbol_table = prolog_rs::symbol::SymbolTable::new();
+        let mut assembly = Assembly::new();
+        let sentences = parse_program(L2_FACTS, &mut symbol_table).unwrap();
+        let warnings = compile_sentences(sentences, &mut assembly).unwrap();
+        assert!(warnings.len() == 0);
+        compile_asm_to_assembly(L2_RULE, &mut assembly, &mut symbol_table).unwrap();
+        let sentences = parse_program(L2_QUERY, &mut symbol_table).unwrap();
+        let warnings = compile_sentences(sentences, &mut assembly).unwrap();
+        assert!(warnings.len() == 0);
+
+        let mut machine = Machine::new();
+        let query_mapping = &assembly.entry_point.as_ref().unwrap().variables;
+        let mut query_binding = VarBindings::default();
+        let mut bound = false;
+        machine.load_assembly(&assembly);
+        machine
+            .execute()
+            .with_call_hook(|machine| {
+                if bound {
+                    return Ok(());
+                }
+
+                query_binding = machine.bind_variables(query_mapping)?;
+                bound = true;
+                Ok(())
+            })
+            .run()
+            .unwrap();
+
+        let u = symbol_table.intern("U");
+        let v = symbol_table.intern("V");
+        let a = symbol_table.intern("a");
+        let c = symbol_table.intern("c");
+        for desc in machine
+            .describe_vars(&query_binding, &mut symbol_table)
+            .unwrap()
+        {
+            let (name, value) = desc.to_assignment();
+            if name == u {
+                assert_eq!(value, Term::Struct(Struct::constant(a)))
+            }
+            if name == v {
+                assert_eq!(value, Term::Struct(Struct::constant(c)))
+            }
+        }
     }
 }

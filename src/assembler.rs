@@ -146,27 +146,34 @@ pub fn parse_asm(program: &str, symbol_table: &mut SymbolTable) -> Result<Vec<Co
 }
 
 pub fn compile_asm(program: &str, symbol_table: &mut SymbolTable) -> Result<Assembly, String> {
+    let mut assembly = Assembly::new();
+    compile_asm_to_assembly(program, &mut assembly, symbol_table)?;
+    Ok(assembly)
+}
+
+pub fn compile_asm_to_assembly(
+    program: &str,
+    assembly: &mut Assembly,
+    symbol_table: &mut SymbolTable,
+) -> Result<(), String> {
     let lines = parse_asm(program, symbol_table)?;
-    let mut instructions: Vec<Instruction> = vec![];
-    let mut label_map: HashMap<Functor, CodePtr> = HashMap::new();
+    let label_map = &mut assembly.label_map;
+    let base_address = assembly.instructions.len();
 
     // first assign labels to instructions
     for (i, Command(labels, _, _)) in lines.iter().enumerate() {
         for label in labels {
-            label_map.insert(label_to_functor(label), CodePtr(i));
+            label_map.insert(label_to_functor(label), CodePtr(i + base_address));
         }
     }
 
     for line in lines {
-        instructions.push(command_to_instr(line, &label_map, symbol_table)?)
+        assembly
+            .instructions
+            .push(command_to_instr(line, &label_map, symbol_table)?)
     }
 
-    Ok(Assembly {
-        instructions,
-        label_map,
-        bindings_map: Default::default(),
-        entry_point: None,
-    })
+    Ok(())
 }
 
 fn label_to_functor(lbl: &Label) -> Functor {
