@@ -215,6 +215,45 @@ fn order_query_structs(
     result
 }
 
+fn get_permanent_variables(head: &Struct, goals: &[Struct]) -> HashSet<VarName> {
+    fn collect_variables(str: &Struct) -> HashSet<VarName> {
+        let mut result = HashSet::default();
+        let root = Term::Struct(str.clone());
+        let mut q = vec![&root];
+
+        loop {
+            match q.pop() {
+                Some(Term::Struct(s)) => q.extend(s.terms()),
+                Some(Term::Variable(v)) => {
+                    result.insert(*v);
+                }
+                None => break,
+            }
+        }
+
+        result
+    }
+
+    if goals.is_empty() {
+        return HashSet::default();
+    }
+
+    let head_vars = collect_variables(head);
+    let mut goal_vars = goals.iter().map(collect_variables).collect::<Vec<_>>();
+    goal_vars[0].extend(head_vars);
+
+    let mut seen = HashSet::<VarName>::new();
+    let mut result = HashSet::<VarName>::new();
+
+    for goal in goal_vars.iter() {
+        let occur_again = goal.intersection(&seen);
+        result.extend(occur_again);
+        seen.extend(goal);
+    }
+
+    result
+}
+
 pub fn compile_query(
     query: Struct,
     programs: &HashMap<Functor, CodePtr>,
@@ -353,6 +392,16 @@ pub fn compile_program(program: Struct) -> CompileInfo {
         var_mapping: VarMapping::from_inverse(vars),
         label_functor: Some(root_functor),
     }
+}
+
+pub fn compile_rule(head: Struct, goals: Vec<Struct>) -> Result<CompileInfo, CompileError> {
+    let _ = get_permanent_variables(&head, &goals);
+
+    Ok(CompileInfo {
+        instructions: vec![],
+        var_mapping: VarMapping::default(),
+        label_functor: None,
+    })
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -613,9 +662,9 @@ fn test_compile_program_line() {
     use lang::parse_struct;
     use symbol::SymbolTable;
     let mut symbol_table = SymbolTable::new();
-    // same query with longer names
+    // same program with longer names
     // horizontal(line(point(X1, Y), point(X2, Y)))
-    let query = parse_struct("h(l(p(A, Y), p(B, Y)))", &mut symbol_table).unwrap();
+    let fact = parse_struct("h(l(p(A, Y), p(B, Y)))", &mut symbol_table).unwrap();
     let instructions = compile_asm(
         r#"
         get_structure l/2, A1
@@ -634,7 +683,7 @@ fn test_compile_program_line() {
     .unwrap()
     .instructions;
     assert_eq!(
-        compile_program(query),
+        compile_program(fact),
         CompileInfo {
             instructions,
             var_mapping: VarMapping::from_iter([
@@ -644,5 +693,62 @@ fn test_compile_program_line() {
             ]),
             label_functor: Some(Functor(symbol_table.intern("h"), 1)),
         }
+    )
+}
+
+#[test]
+fn test_get_permanent_variables() {
+    use lang::parse_sentence;
+    use symbol::SymbolTable;
+
+    let mut symbol_table = SymbolTable::new();
+    let sentence = parse_sentence("p(X, Y) :- q(X, Z), r(Z, Y).", &mut symbol_table).unwrap();
+    let items = get_permanent_variables(&sentence.head.unwrap(), &sentence.goals);
+    assert_eq!(
+        items,
+        HashSet::from([symbol_table.intern("Y"), symbol_table.intern("Z")])
+    );
+
+    let sentence = parse_sentence("a :- b(X), c(X).", &mut symbol_table).unwrap();
+    let items = get_permanent_variables(&sentence.head.unwrap(), &sentence.goals);
+    assert_eq!(items, HashSet::from([symbol_table.intern("X")]))
+}
+
+#[test]
+fn test_compile_rule() {
+    use assembler::compile_asm;
+    use lang::parse_sentence;
+    use symbol::SymbolTable;
+    let mut symbol_table = SymbolTable::new();
+
+    let rule = parse_sentence("p(X, Y) :- q(X, Z), r(Z, Y).", &mut symbol_table).unwrap();
+    let instructions = compile_asm(
+        r#"
+        get_structure l/2, A1
+        unify_variable X2
+        unify_variable X3
+        get_structure p/2, X2
+        unify_variable X4
+        unify_variable X5
+        get_structure p/2, X3
+        unify_variable X6
+        unify_value X5
+        proceed
+        "#,
+        &mut symbol_table,
+    )
+    .unwrap()
+    .instructions;
+    assert_eq!(
+        compile_rule(rule.head.unwrap(), rule.goals),
+        Ok(CompileInfo {
+            instructions,
+            var_mapping: VarMapping::from_iter([
+                (RegPtr(4), symbol_table.intern("A")),
+                (RegPtr(5), symbol_table.intern("Y")),
+                (RegPtr(6), symbol_table.intern("B")),
+            ]),
+            label_functor: Some(Functor(symbol_table.intern("h"), 1)),
+        })
     )
 }

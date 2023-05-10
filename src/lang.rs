@@ -247,6 +247,9 @@ peg::parser!(
         rule constant(symbols: &mut SymbolTable) -> Struct
             = n:structname() { Struct::constant(symbols.intern_chars(n)) }
 
+        rule struct_like(symbols: &mut SymbolTable) -> Struct
+            = structure(symbols) / constant(symbols)
+
         pub rule term(symbols: &mut SymbolTable) -> Term
             = _ t:(
                 v:variable(symbols) {v}
@@ -254,13 +257,13 @@ peg::parser!(
                 / c:constant(symbols) {Term::Struct(c)}) _ { t }
 
         rule fact(symbols: &mut SymbolTable) -> Sentence
-            = _ s:structure(symbols) _ { Sentence::fact(s) }
+            = _ s:struct_like(symbols) _ { Sentence::fact(s) }
 
         rule prule(symbols: &mut SymbolTable) -> Sentence
-            = _ h:structure(symbols) _ ":-" _ gs:structure(symbols) ++ (_ "," _) _ { Sentence::rule(h, gs) }
+            = _ h:struct_like(symbols) _ ":-" _ gs:struct_like(symbols) ++ (_ "," _) _ { Sentence::rule(h, gs) }
 
         rule query(symbols: &mut SymbolTable) -> Sentence
-            = _ "?-" _ gs:structure(symbols) ++ (_ "," _) _ { Sentence::query(gs) }
+            = _ "?-" _ gs:struct_like(symbols) ++ (_ "," _) _ { Sentence::query(gs) }
 
         pub rule sentence(symbols: &mut SymbolTable) -> Sentence
             = s:(prule(symbols) / fact(symbols) / query(symbols))  "." {s}
@@ -278,6 +281,10 @@ pub fn parse_struct(term: &str, symbol_table: &mut SymbolTable) -> Result<Struct
     parse_term(term, symbol_table)?
         .into_struct()
         .ok_or("term must be a struct.".to_string())
+}
+
+pub fn parse_sentence(program: &str, symbol_table: &mut SymbolTable) -> Result<Sentence, String> {
+    prolog_parser::sentence(program, symbol_table).map_err(|e| format!("{e}"))
 }
 
 pub fn parse_program(program: &str, symbol_table: &mut SymbolTable) -> Result<Program, String> {

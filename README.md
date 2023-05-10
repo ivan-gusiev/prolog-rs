@@ -21,5 +21,5 @@ Therefore, the following commands are most useful for development and testing:
 cargo test # run all tests
 just review # review snapshots
 just watch # watch all tests
-just watch executetests # watch a subset of all tests
+just watch compiletests # watch a subset of all tests
 ```
