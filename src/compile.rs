@@ -10,6 +10,8 @@ use lang::{Functor, Sentence, Struct, Term, VarName};
 use symbol::{to_display, SymDisplay};
 use var::VarMapping;
 
+use crate::data::StackDepth;
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 struct TermId(usize);
 
@@ -110,6 +112,7 @@ impl<Ptr: Copy> FlattenedTerm<Ptr> {
     }
 }
 
+#[derive(PartialEq, Debug)]
 struct FlattenedReg(RegPtr, FlattenedTerm<RegPtr>);
 
 impl FlattenedReg {
@@ -394,13 +397,24 @@ pub fn compile_program(program: Struct) -> CompileInfo {
     }
 }
 
-pub fn compile_rule(head: Struct, goals: Vec<Struct>) -> Result<CompileInfo, CompileError> {
-    let _ = get_permanent_variables(&head, &goals);
+pub fn compile_rule(
+    head: Struct,
+    goals: Vec<Struct>,
+    _programs: &HashMap<Functor, CodePtr>,
+) -> Result<CompileInfo, CompileError> {
+    let permanent_vars = get_permanent_variables(&head, &goals);
+    let mut instructions = vec![];
+
+    // prologue
+    instructions.push(Instruction::Allocate(StackDepth(permanent_vars.len())));
+
+    // epilogue
+    instructions.push(Instruction::Deallocate);
 
     Ok(CompileInfo {
-        instructions: vec![],
+        instructions,
         var_mapping: VarMapping::default(),
-        label_functor: None,
+        label_functor: Some(head.functor()),
     })
 }
 
@@ -510,6 +524,32 @@ pub fn compile_sentences(
         }
     }
     Ok(warnings)
+}
+
+#[test]
+fn test_flatten_struct() {
+    use symbol::SymbolTable;
+    let mut symbol_table = SymbolTable::new();
+    let p2 = Functor(symbol_table.intern("p"), 2);
+    let r2 = Functor(symbol_table.intern("r"), 2);
+    let x = symbol_table.intern("X");
+    let y = symbol_table.intern("Y");
+    let z = symbol_table.intern("Z");
+    let rzy = Term::Struct(Struct::new(r2, &[Term::Variable(y), Term::Variable(z)]).unwrap());
+    let root = Struct::new(p2, &[Term::Variable(x), rzy]).unwrap();
+    let (regs, vars, f) = flatten_struct(root);
+    let regs_strings = regs.iter().map(|x| format!("{:?}", x)).collect::<Vec<_>>();
+    assert_eq!(
+        (regs_strings.iter().map(String::as_str).collect::<Vec<_>>(), vars, f),
+        (vec![
+            "FlattenedReg(RegPtr(0), Struct(FlatStruct(Functor(:p, 2), [RegPtr(1), RegPtr(2)]), 0))", 
+            "FlattenedReg(RegPtr(1), Variable(:X))", 
+            "FlattenedReg(RegPtr(2), Struct(FlatStruct(Functor(:r, 2), [RegPtr(4), RegPtr(5)]), 1))", 
+            "FlattenedReg(RegPtr(3), Variable(:X))", 
+            "FlattenedReg(RegPtr(4), Variable(:Y))", 
+            "FlattenedReg(RegPtr(5), Variable(:Z))"],
+         HashMap::from_iter([(x, RegPtr(3)), (y, RegPtr(4)), (z, RegPtr(5))]),
+         p2));
 }
 
 #[test]
@@ -722,33 +762,39 @@ fn test_compile_rule() {
     let mut symbol_table = SymbolTable::new();
 
     let rule = parse_sentence("p(X, Y) :- q(X, Z), r(Z, Y).", &mut symbol_table).unwrap();
-    let instructions = compile_asm(
+    let expected_assembly = compile_asm(
         r#"
-        get_structure l/2, A1
-        unify_variable X2
-        unify_variable X3
-        get_structure p/2, X2
-        unify_variable X4
-        unify_variable X5
-        get_structure p/2, X3
-        unify_variable X6
-        unify_value X5
-        proceed
+        allocate 2
+        get_variable X3, A1
+        get_variable Y1, A2
+        put_value X3, A1
+        put_variable Y2, A2
+        call @100 ; q/2
+        put_value Y2, A1
+        put_value Y1, A2
+        call @110 ; r/2
+        deallocate
         "#,
         &mut symbol_table,
     )
-    .unwrap()
-    .instructions;
+    .unwrap();
+    let p = symbol_table.intern("p");
+    let q = symbol_table.intern("q");
+    let r = symbol_table.intern("r");
+    let p2 = Functor(p, 2);
+    let q2 = Functor(q, 2);
+    let r2 = Functor(r, 2);
+    let label_map = HashMap::from_iter([(q2, CodePtr(100)), (r2, CodePtr(110))]);
     assert_eq!(
-        compile_rule(rule.head.unwrap(), rule.goals),
+        compile_rule(rule.head.unwrap(), rule.goals, &label_map),
         Ok(CompileInfo {
-            instructions,
+            instructions: expected_assembly.instructions,
             var_mapping: VarMapping::from_iter([
                 (RegPtr(4), symbol_table.intern("A")),
                 (RegPtr(5), symbol_table.intern("Y")),
                 (RegPtr(6), symbol_table.intern("B")),
             ]),
-            label_functor: Some(Functor(symbol_table.intern("h"), 1)),
+            label_functor: Some(p2),
         })
     )
 }

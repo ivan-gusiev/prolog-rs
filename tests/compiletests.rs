@@ -21,6 +21,7 @@ mod compiletests {
         "p(f(X), h(Y, f(a)), Y)",
         "a",
         "horizontal(line(pt(three, Y), pt(four, five)))",
+        "q(X, Z)",
     })]
     fn test_query_compile(input: &str) {
         let mut symbol_table = SymbolTable::new();
@@ -38,6 +39,7 @@ mod compiletests {
         "p(f(X), h(Y, f(a)), Y)",
         "a",
         "horizontal(line(pt(X1, Y), pt(X2, Y)))",
+        "p(X, Y)"
     })]
     fn test_program_compile(input: &str) {
         let mut symbol_table = SymbolTable::new();
