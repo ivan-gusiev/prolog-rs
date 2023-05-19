@@ -180,12 +180,27 @@ impl Sentence {
         self.head.is_some() && self.goals.is_empty()
     }
 
+    pub fn unwrap_fact(self) -> Struct {
+        assert!(self.is_fact());
+        self.head.unwrap()
+    }
+
     pub fn is_rule(&self) -> bool {
         self.head.is_some() && !self.goals.is_empty()
     }
 
+    pub fn unwrap_rule(self) -> (Struct, Vec<Struct>) {
+        assert!(self.is_rule());
+        (self.head.unwrap(), self.goals)
+    }
+
     pub fn is_query(&self) -> bool {
         self.head.is_none()
+    }
+
+    pub fn unwrap_query(self) -> Vec<Struct> {
+        assert!(self.is_query());
+        self.goals
     }
 }
 

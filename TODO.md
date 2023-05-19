@@ -17,6 +17,7 @@
 - [ ] transform stack frame into the real thing
     * it should be a linked list of words
 - [ ] fix the varmapping for rules (must be able to point to stack)
+- [ ] compile: warn when a variable from the head of a rule is not used in its goals
 
 ### Bugs
 - [x] Type `?- X` then `X`. It cannot figure out the unification. 

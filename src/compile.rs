@@ -612,27 +612,24 @@ pub fn compile_sentences(
     assembly: &mut Assembly,
 ) -> Result<Vec<CompileWarning>, CompileError> {
     let mut warnings = Vec::<CompileWarning>::new();
-    for mut sentence in sentences {
-        if sentence.is_rule() {
-            return Err(CompileError::UnsupportedRule(sentence));
-        }
-
-        if sentence.is_query() {
+    for sentence in sentences {
+        if sentence.is_fact() {
+            let fact = sentence.unwrap_fact();
+            compile_fact(fact).append_to_assembly(assembly);
+        } else if sentence.is_rule() {
+            let (head, goals) = sentence.unwrap_rule();
+            compile_rule(head, goals, &assembly.label_map)?.append_to_assembly(assembly);
+        } else if sentence.is_query() {
             if sentence.goals.len() != 1 {
                 return Err(CompileError::UnsupportedComplexQuery(sentence));
             }
-
-            let query_result = compile_query(sentence.goals.remove(0), &assembly.label_map)?;
+            let mut goals = sentence.unwrap_query();
+            let query_result = compile_query(goals.remove(0), &assembly.label_map)?;
             let entry_point = query_result.append_to_assembly(assembly);
             if let Some(old_entry_point) = assembly.entry_point.take() {
                 warnings.push(CompileWarning::IgnoredEntryPoint(old_entry_point.location))
             }
             assembly.entry_point = Some(entry_point);
-        }
-
-        if let Some(head) = sentence.head {
-            let program_result = compile_fact(head);
-            program_result.append_to_assembly(assembly);
         }
     }
     Ok(warnings)
