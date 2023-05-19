@@ -41,7 +41,7 @@ mod compiletests {
         "horizontal(line(pt(X1, Y), pt(X2, Y)))",
         "p(X, Y)"
     })]
-    fn test_program_compile(input: &str) {
+    fn test_fact_compile(input: &str) {
         let mut symbol_table = SymbolTable::new();
         let program = parse_struct(input, &mut symbol_table).unwrap();
         let result = compile_fact(program);

@@ -321,7 +321,7 @@ fn get_permanent_variables(head: &Struct, goals: &[Struct]) -> HashMap<VarName, 
 }
 
 // compiles queries or rule goals
-fn compile_querylike(
+fn compile_goal(
     query: Struct,
     programs: &HashMap<Functor, CodePtr>,
     stack_vars: &HashMap<VarName, StackPtr>,
@@ -408,7 +408,7 @@ pub fn compile_query(
     query: Struct,
     programs: &HashMap<Functor, CodePtr>,
 ) -> Result<CompileInfo, CompileError> {
-    compile_querylike(
+    compile_goal(
         query,
         programs,
         &HashMap::default(),
@@ -416,7 +416,7 @@ pub fn compile_query(
     )
 }
 
-fn compile_goal(
+fn compile_head(
     goal: Struct,
     stack_vars: &HashMap<VarName, StackPtr>,
     seen: &mut HashSet<Local>,
@@ -495,7 +495,7 @@ fn compile_goal(
 }
 
 pub fn compile_fact(program: Struct) -> CompileInfo {
-    let mut result = compile_goal(program, &HashMap::default(), &mut HashSet::default());
+    let mut result = compile_head(program, &HashMap::default(), &mut HashSet::default());
     result.instructions.push(Instruction::Proceed);
     result
 }
@@ -512,10 +512,10 @@ pub fn compile_rule(
     instructions.push(Instruction::Allocate(StackDepth(permanent_vars.len())));
 
     let mut seen = HashSet::<Local>::new();
-    let mut head_result = compile_goal(head, &permanent_vars, &mut seen);
+    let mut head_result = compile_head(head, &permanent_vars, &mut seen);
     instructions.append(&mut head_result.instructions);
     for goal in goals {
-        let mut goal_result = compile_querylike(goal, programs, &permanent_vars, &mut seen)?;
+        let mut goal_result = compile_goal(goal, programs, &permanent_vars, &mut seen)?;
         instructions.append(&mut goal_result.instructions);
         seen.retain(Local::is_stack); // "remember" only the permanent variables
     }
