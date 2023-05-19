@@ -331,7 +331,7 @@ fn compile_querylike(
     let var_mapping = VarMapping::from_inverse(vars.clone());
     let get_local = |regptr: &RegPtr| {
         var_mapping
-            .get(&regptr)
+            .get(regptr)
             .and_then(|var| stack_vars.get(&var))
             .map(Local::from_stack)
             .unwrap_or_else(|| Local::Reg(*regptr))
@@ -632,7 +632,7 @@ fn test_flatten_struct() {
     let rzy = Term::Struct(Struct::new(r2, &[Term::Variable(z), Term::Variable(y)]).unwrap());
     let root = Struct::new(p2, &[Term::Variable(x), rzy]).unwrap();
     let (regs, vars, f) = flatten_struct(root);
-    let regs_strings = regs.iter().map(|x| format!("{:?}", x)).collect::<Vec<_>>();
+    let regs_strings = regs.iter().map(|x| format!("{x:?}")).collect::<Vec<_>>();
     assert_eq!(
         (regs_strings.iter().map(String::as_str).collect::<Vec<_>>(), vars, f),
         (vec![
@@ -657,7 +657,7 @@ fn test_flatten_big_struct() {
     let a = symbol_table.intern("A");
     let b = symbol_table.intern("B");
     let (regs, vars, f) = flatten_struct(root);
-    let regs_strings = regs.iter().map(|x| format!("{:?}", x)).collect::<Vec<_>>();
+    let regs_strings = regs.iter().map(|x| format!("{x:?}")).collect::<Vec<_>>();
     assert_eq!(
         (regs_strings.iter().map(String::as_str).collect::<Vec<_>>(), vars, f),
         (vec![
