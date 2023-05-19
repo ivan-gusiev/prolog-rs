@@ -416,13 +416,24 @@ pub fn compile_query(
     )
 }
 
-pub fn compile_program(program: Struct) -> CompileInfo {
-    let (registers_with_root, vars, root_functor) = flatten_struct(program);
+fn compile_goal(
+    goal: Struct,
+    stack_vars: &HashMap<VarName, StackPtr>,
+    seen: &mut HashSet<Local>,
+) -> CompileInfo {
+    let (registers_with_root, vars, root_functor) = flatten_struct(goal);
+    let var_mapping = VarMapping::from_inverse(vars.clone());
+    let get_local = |regptr: &RegPtr| {
+        var_mapping
+            .get(regptr)
+            .and_then(|var| stack_vars.get(&var))
+            .map(Local::from_stack)
+            .unwrap_or_else(|| Local::Reg(*regptr))
+    };
     let registers = &registers_with_root[1..];
     let reg_map: HashMap<RegPtr, &FlattenedTerm<RegPtr>> =
         HashMap::from_iter(registers.iter().map(FlattenedReg::to_tuple));
     let structs = extract_structs(registers);
-    let mut seen = HashSet::<RegPtr>::new();
     let mut instructions = vec![];
 
     let FlattenedReg(_, root) = &registers_with_root[0];
@@ -433,7 +444,7 @@ pub fn compile_program(program: Struct) -> CompileInfo {
         let areg = RegPtr(i);
         match &reg_map[&areg] {
             FlattenedTerm::Variable(nm) => {
-                let xreg = vars[nm];
+                let xreg = get_local(&vars[nm]);
                 if seen.contains(&xreg) {
                     instructions.push(Instruction::GetValue(xreg.into(), areg.into()));
                 } else {
@@ -444,11 +455,12 @@ pub fn compile_program(program: Struct) -> CompileInfo {
             FlattenedTerm::Struct(FlatStruct(f, refs), _) => {
                 instructions.push(Instruction::GetStructure(*f, areg.into()));
                 for ref_ptr in refs {
-                    if seen.contains(ref_ptr) {
-                        instructions.push(Instruction::UnifyValue((*ref_ptr).into()))
+                    let local_ref = get_local(ref_ptr);
+                    if seen.contains(&local_ref) {
+                        instructions.push(Instruction::UnifyValue(local_ref.into()))
                     } else {
-                        seen.insert(*ref_ptr);
-                        instructions.push(Instruction::UnifyVariable((*ref_ptr).into()))
+                        seen.insert(local_ref);
+                        instructions.push(Instruction::UnifyVariable(local_ref.into()))
                     }
                 }
             }
@@ -463,25 +475,29 @@ pub fn compile_program(program: Struct) -> CompileInfo {
 
         let FlatStruct(f, refs) = reg_map[&reg].get_str();
         instructions.push(Instruction::GetStructure(*f, reg.into()));
-        seen.insert(reg);
+        seen.insert(reg.into());
         for ref_ptr in refs {
-            if seen.contains(ref_ptr) {
+            let local_ref = get_local(ref_ptr);
+            if seen.contains(&local_ref) {
                 instructions.push(Instruction::UnifyValue((*ref_ptr).into()))
             } else {
-                seen.insert(*ref_ptr);
+                seen.insert(local_ref);
                 instructions.push(Instruction::UnifyVariable((*ref_ptr).into()))
             }
         }
     }
 
-    // epilogue
-    instructions.push(Instruction::Proceed);
-
     CompileInfo {
         instructions,
-        var_mapping: VarMapping::from_inverse(vars),
+        var_mapping,
         label_functor: Some(root_functor),
     }
+}
+
+pub fn compile_program(program: Struct) -> CompileInfo {
+    let mut result = compile_goal(program, &HashMap::default(), &mut HashSet::default());
+    result.instructions.push(Instruction::Proceed);
+    result
 }
 
 pub fn compile_rule(
@@ -496,6 +512,8 @@ pub fn compile_rule(
     instructions.push(Instruction::Allocate(StackDepth(permanent_vars.len())));
 
     let mut seen = HashSet::<Local>::new();
+    let mut head_result = compile_goal(head, &permanent_vars, &mut seen);
+    instructions.append(&mut head_result.instructions);
     for goal in goals {
         let mut goal_result = compile_querylike(goal, programs, &permanent_vars, &mut seen)?;
         instructions.append(&mut goal_result.instructions);
@@ -507,8 +525,8 @@ pub fn compile_rule(
 
     Ok(CompileInfo {
         instructions,
-        var_mapping: VarMapping::default(),
-        label_functor: Some(head.functor()),
+        var_mapping: head_result.var_mapping,
+        label_functor: head_result.label_functor,
     })
 }
 
@@ -891,15 +909,13 @@ fn test_compile_rule() {
     let expected_assembly = compile_asm(
         r#"
         allocate 2
-        ;get_variable X3, A1 ; uncomment
-        ;get_variable Y1, A2 ; uncomment
-        ;put_value X3, A1 ; uncomment
-        put_variable X3, A1 ; delete
+        get_variable X3, A1
+        get_variable Y1, A2
+        put_value X3, A1
         put_variable Y2, A2
         call @100 ; q/2
         put_value Y2, A1
-        ;put_value Y1, A2 ; uncomment
-        put_variable Y1, A2 ; delete
+        put_value Y1, A2
         call @110 ; r/2
         deallocate
         "#,
@@ -912,12 +928,14 @@ fn test_compile_rule() {
     let p2 = Functor(p, 2);
     let q2 = Functor(q, 2);
     let r2 = Functor(r, 2);
+    let x = symbol_table.intern("X");
+    let y = symbol_table.intern("Y");
     let label_map = HashMap::from_iter([(q2, CodePtr(100)), (r2, CodePtr(110))]);
     assert_eq!(
         compile_rule(rule.head.unwrap(), rule.goals, &label_map),
         Ok(CompileInfo {
             instructions: expected_assembly.instructions,
-            var_mapping: VarMapping::default(),
+            var_mapping: VarMapping::from_iter([(RegPtr(3), x), (RegPtr(4), y)]), // TODO: variable Y refers to Y1, not X4
             label_functor: Some(p2),
         })
     )

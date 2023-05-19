@@ -16,6 +16,7 @@
     * `set_x(&mut self, value)` to `x_mut(&mut self) -> &mut X`
 - [ ] transform stack frame into the real thing
     * it should be a linked list of words
+- [ ] fix the varmapping for rules (must be able to point to stack)
 
 ### Bugs
 - [x] Type `?- X` then `X`. It cannot figure out the unification. 
