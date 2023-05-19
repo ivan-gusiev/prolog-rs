@@ -36,7 +36,7 @@ impl Display for RegPtr {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub struct StackPtr(pub usize);
 
 impl Display for StackPtr {

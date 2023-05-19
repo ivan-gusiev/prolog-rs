@@ -10,7 +10,7 @@ use lang::{Functor, Sentence, Struct, Term, VarName};
 use symbol::{to_display, SymDisplay};
 use var::VarMapping;
 
-use crate::data::StackDepth;
+use crate::data::{Addr, StackDepth, StackPtr};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 struct TermId(usize);
@@ -121,6 +121,43 @@ impl FlattenedReg {
     }
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
+enum Local {
+    Reg(RegPtr),
+    Stack(StackPtr),
+}
+
+impl Local {
+    fn from_stack(stack: &StackPtr) -> Local {
+        Local::Stack(*stack)
+    }
+
+    fn is_stack(&self) -> bool {
+        matches!(self, Local::Stack(_))
+    }
+}
+
+impl From<Local> for Addr {
+    fn from(value: Local) -> Self {
+        match value {
+            Local::Reg(regptr) => Addr::Reg(regptr),
+            Local::Stack(stackptr) => Addr::Stack(stackptr),
+        }
+    }
+}
+
+impl From<RegPtr> for Local {
+    fn from(value: RegPtr) -> Self {
+        Local::Reg(value)
+    }
+}
+
+impl From<&RegPtr> for Local {
+    fn from(value: &RegPtr) -> Self {
+        Local::Reg(*value)
+    }
+}
+
 fn flatten_struct(root_struct: Struct) -> (Vec<FlattenedReg>, HashMap<VarName, RegPtr>, Functor) {
     let root_functor = root_struct.functor();
     let root_term = Term::Struct(root_struct);
@@ -142,7 +179,6 @@ fn flatten_struct(root_struct: Struct) -> (Vec<FlattenedReg>, HashMap<VarName, R
                 if var_map.contains_key(nm) {
                     term_map.insert(id, var_map[nm]);
                 } else if id.0 <= root_functor.arity() as usize {
-                    //let var_id = next_term_id();
                     flatrefs.push(FlattenedTerm::Variable(*nm));
                     term_map.insert(id, RegPtr(id.0));
                     queue.push_back((t, next_term_id(), gen))
@@ -218,8 +254,17 @@ fn order_query_structs(
     result
 }
 
-fn get_permanent_variables(head: &Struct, goals: &[Struct]) -> HashSet<VarName> {
-    fn collect_variables(str: &Struct) -> HashSet<VarName> {
+// Calculates which variables are permanent in the specified rule.
+// Returns a map from variable name to its proposed index in the stack.
+// The indices are ordered by earliest appearance, left to right.
+fn get_permanent_variables(head: &Struct, goals: &[Struct]) -> HashMap<VarName, StackPtr> {
+    // assign a sequential number to each variable
+    let mut var_counter = HashMap::<VarName, usize>::new();
+
+    fn collect_variables(
+        str: &Struct,
+        var_counter: &mut HashMap<VarName, usize>,
+    ) -> HashSet<VarName> {
         let mut result = HashSet::default();
         let root = Term::Struct(str.clone());
         let mut q = vec![&root];
@@ -228,6 +273,8 @@ fn get_permanent_variables(head: &Struct, goals: &[Struct]) -> HashSet<VarName> 
             match q.pop() {
                 Some(Term::Struct(s)) => q.extend(s.terms()),
                 Some(Term::Variable(v)) => {
+                    let next_index = var_counter.len();
+                    var_counter.entry(*v).or_insert(next_index);
                     result.insert(*v);
                 }
                 None => break,
@@ -238,23 +285,122 @@ fn get_permanent_variables(head: &Struct, goals: &[Struct]) -> HashSet<VarName> 
     }
 
     if goals.is_empty() {
-        return HashSet::default();
+        return HashMap::default();
     }
 
-    let head_vars = collect_variables(head);
-    let mut goal_vars = goals.iter().map(collect_variables).collect::<Vec<_>>();
+    let head_vars = collect_variables(head, &mut var_counter);
+    let mut goal_vars = goals
+        .iter()
+        .map(|g| collect_variables(g, &mut var_counter))
+        .collect::<Vec<_>>();
+
+    // the first goal and the head share the variable set,
+    // because the head can never mutate its variables
     goal_vars[0].extend(head_vars);
 
     let mut seen = HashSet::<VarName>::new();
-    let mut result = HashSet::<VarName>::new();
+    let mut permanent = HashSet::<VarName>::new();
 
     for goal in goal_vars.iter() {
         let occur_again = goal.intersection(&seen);
-        result.extend(occur_again);
+        permanent.extend(occur_again);
         seen.extend(goal);
     }
 
-    result
+    // order permanent vars by incidence, and assign them sequential stack indices
+    let mut ordered = permanent
+        .into_iter()
+        .map(|var| (var, var_counter.remove(&var).unwrap_or_default()))
+        .collect::<Vec<_>>();
+    ordered.sort_by_key(|(_, index)| *index);
+    ordered
+        .into_iter()
+        .enumerate()
+        .map(|(idx, (var, _))| (var, StackPtr(idx + 1)))
+        .collect()
+}
+
+fn compile_querylike(
+    query: Struct,
+    programs: &HashMap<Functor, CodePtr>,
+    stack_vars: &HashMap<VarName, StackPtr>,
+    seen: &mut HashSet<Local>,
+) -> Result<CompileInfo, CompileError> {
+    let (registers_with_root, vars, root_functor) = flatten_struct(query);
+    let var_mapping = VarMapping::from_inverse(vars.clone());
+    let get_local = |regptr: &RegPtr| {
+        var_mapping
+            .get(&regptr)
+            .and_then(|var| stack_vars.get(&var))
+            .map(Local::from_stack)
+            .unwrap_or_else(|| Local::Reg(*regptr))
+    };
+    let program_code_ptr = programs
+        .get(&root_functor)
+        .ok_or(CompileError::UnknownFunctor(root_functor))?;
+
+    let registers = &registers_with_root[1..];
+    let reg_map = HashMap::from_iter(registers.iter().map(FlattenedReg::to_tuple));
+    let structs = order_query_structs(&reg_map, &extract_structs(registers));
+    let mut instructions = vec![];
+
+    let FlattenedReg(_, root) = &registers_with_root[0];
+    let max_argument = root.get_str().functor().arity() + 1;
+
+    // set up general purpose registers
+    for reg @ RegPtr(struct_index) in structs {
+        if struct_index < max_argument as usize {
+            continue;
+        }
+
+        let FlatStruct(f, refs) = reg_map[&reg].get_str();
+        instructions.push(Instruction::PutStructure(*f, reg.into()));
+        seen.insert(reg.into());
+        for ref_ptr in refs {
+            let local_ref = get_local(ref_ptr);
+            if seen.contains(&local_ref) {
+                instructions.push(Instruction::SetValue(local_ref.into()))
+            } else {
+                seen.insert(local_ref);
+                instructions.push(Instruction::SetVariable(local_ref.into()))
+            }
+        }
+    }
+    // set up argument registers
+    for i in 1..(max_argument as usize) {
+        let areg = RegPtr(i);
+        match &reg_map[&areg] {
+            FlattenedTerm::Variable(nm) => {
+                let xreg = get_local(&vars[nm]);
+                if seen.contains(&xreg) {
+                    instructions.push(Instruction::PutValue(xreg.into(), areg.into()));
+                } else {
+                    seen.insert(xreg);
+                    instructions.push(Instruction::PutVariable(xreg.into(), areg.into()));
+                }
+            }
+            FlattenedTerm::Struct(FlatStruct(f, refs), _) => {
+                instructions.push(Instruction::PutStructure(*f, areg.into()));
+                for ref_ptr in refs {
+                    let local_ref = get_local(ref_ptr);
+                    if seen.contains(&local_ref) {
+                        instructions.push(Instruction::SetValue(local_ref.into()))
+                    } else {
+                        seen.insert(local_ref);
+                        instructions.push(Instruction::SetVariable(local_ref.into()))
+                    }
+                }
+            }
+        }
+    }
+    // call the corresponding program
+    instructions.push(Instruction::Call(*program_code_ptr));
+
+    Ok(CompileInfo {
+        instructions,
+        var_mapping,
+        label_functor: None,
+    })
 }
 
 pub fn compile_query(
@@ -400,13 +546,20 @@ pub fn compile_program(program: Struct) -> CompileInfo {
 pub fn compile_rule(
     head: Struct,
     goals: Vec<Struct>,
-    _programs: &HashMap<Functor, CodePtr>,
+    programs: &HashMap<Functor, CodePtr>,
 ) -> Result<CompileInfo, CompileError> {
     let permanent_vars = get_permanent_variables(&head, &goals);
     let mut instructions = vec![];
 
     // prologue
     instructions.push(Instruction::Allocate(StackDepth(permanent_vars.len())));
+
+    let mut seen = HashSet::<Local>::new();
+    for goal in goals {
+        let mut goal_result = compile_querylike(goal, programs, &permanent_vars, &mut seen)?;
+        instructions.append(&mut goal_result.instructions);
+        seen.retain(Local::is_stack); // "remember" only the permanent variables
+    }
 
     // epilogue
     instructions.push(Instruction::Deallocate);
@@ -535,7 +688,7 @@ fn test_flatten_struct() {
     let x = symbol_table.intern("X");
     let y = symbol_table.intern("Y");
     let z = symbol_table.intern("Z");
-    let rzy = Term::Struct(Struct::new(r2, &[Term::Variable(y), Term::Variable(z)]).unwrap());
+    let rzy = Term::Struct(Struct::new(r2, &[Term::Variable(z), Term::Variable(y)]).unwrap());
     let root = Struct::new(p2, &[Term::Variable(x), rzy]).unwrap();
     let (regs, vars, f) = flatten_struct(root);
     let regs_strings = regs.iter().map(|x| format!("{:?}", x)).collect::<Vec<_>>();
@@ -546,10 +699,36 @@ fn test_flatten_struct() {
             "FlattenedReg(RegPtr(1), Variable(:X))", 
             "FlattenedReg(RegPtr(2), Struct(FlatStruct(Functor(:r, 2), [RegPtr(4), RegPtr(5)]), 1))", 
             "FlattenedReg(RegPtr(3), Variable(:X))", 
-            "FlattenedReg(RegPtr(4), Variable(:Y))", 
-            "FlattenedReg(RegPtr(5), Variable(:Z))"],
-         HashMap::from_iter([(x, RegPtr(3)), (y, RegPtr(4)), (z, RegPtr(5))]),
+            "FlattenedReg(RegPtr(4), Variable(:Z))", 
+            "FlattenedReg(RegPtr(5), Variable(:Y))"],
+         HashMap::from_iter([(x, RegPtr(3)), (y, RegPtr(5)), (z, RegPtr(4))]),
          p2));
+}
+
+#[test]
+fn test_flatten_big_struct() {
+    use crate::lang::parse_struct;
+    use symbol::SymbolTable;
+    let mut symbol_table = SymbolTable::new();
+    let root = parse_struct("h(l(p(A, X), p(B, X)))", &mut symbol_table).unwrap();
+    let h1 = Functor(symbol_table.intern("h"), 1);
+    let x = symbol_table.intern("X");
+    let a = symbol_table.intern("A");
+    let b = symbol_table.intern("B");
+    let (regs, vars, f) = flatten_struct(root);
+    let regs_strings = regs.iter().map(|x| format!("{:?}", x)).collect::<Vec<_>>();
+    assert_eq!(
+        (regs_strings.iter().map(String::as_str).collect::<Vec<_>>(), vars, f),
+        (vec![
+            "FlattenedReg(RegPtr(0), Struct(FlatStruct(Functor(:h, 1), [RegPtr(1)]), 0))", 
+            "FlattenedReg(RegPtr(1), Struct(FlatStruct(Functor(:l, 2), [RegPtr(2), RegPtr(3)]), 1))", 
+            "FlattenedReg(RegPtr(2), Struct(FlatStruct(Functor(:p, 2), [RegPtr(4), RegPtr(5)]), 2))", 
+            "FlattenedReg(RegPtr(3), Struct(FlatStruct(Functor(:p, 2), [RegPtr(6), RegPtr(5)]), 2))", 
+            "FlattenedReg(RegPtr(4), Variable(:A))", 
+            "FlattenedReg(RegPtr(5), Variable(:X))", 
+            "FlattenedReg(RegPtr(6), Variable(:B))"],
+         HashMap::from_iter([(a, RegPtr(4)), (x, RegPtr(5)), (b, RegPtr(6))]),
+         h1));
 }
 
 #[test]
@@ -746,12 +925,18 @@ fn test_get_permanent_variables() {
     let items = get_permanent_variables(&sentence.head.unwrap(), &sentence.goals);
     assert_eq!(
         items,
-        HashSet::from([symbol_table.intern("Y"), symbol_table.intern("Z")])
+        HashMap::from([
+            (symbol_table.intern("Y"), StackPtr(1)),
+            (symbol_table.intern("Z"), StackPtr(2))
+        ])
     );
 
     let sentence = parse_sentence("a :- b(X), c(X).", &mut symbol_table).unwrap();
     let items = get_permanent_variables(&sentence.head.unwrap(), &sentence.goals);
-    assert_eq!(items, HashSet::from([symbol_table.intern("X")]))
+    assert_eq!(
+        items,
+        HashMap::from([(symbol_table.intern("X"), StackPtr(1))])
+    )
 }
 
 #[test]
@@ -765,13 +950,15 @@ fn test_compile_rule() {
     let expected_assembly = compile_asm(
         r#"
         allocate 2
-        get_variable X3, A1
-        get_variable Y1, A2
-        put_value X3, A1
+        ;get_variable X3, A1 ; uncomment
+        ;get_variable Y1, A2 ; uncomment
+        ;put_value X3, A1 ; uncomment
+        put_variable X3, A1 ; delete
         put_variable Y2, A2
         call @100 ; q/2
         put_value Y2, A1
-        put_value Y1, A2
+        ;put_value Y1, A2 ; uncomment
+        put_variable Y1, A2 ; delete
         call @110 ; r/2
         deallocate
         "#,
@@ -789,11 +976,7 @@ fn test_compile_rule() {
         compile_rule(rule.head.unwrap(), rule.goals, &label_map),
         Ok(CompileInfo {
             instructions: expected_assembly.instructions,
-            var_mapping: VarMapping::from_iter([
-                (RegPtr(4), symbol_table.intern("A")),
-                (RegPtr(5), symbol_table.intern("Y")),
-                (RegPtr(6), symbol_table.intern("B")),
-            ]),
+            var_mapping: VarMapping::default(),
             label_functor: Some(p2),
         })
     )
