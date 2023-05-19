@@ -3,7 +3,7 @@ use app::debugmode::start_debugmode;
 use prolog_rs::{
     asm::Assembly,
     assembler::compile_asm,
-    compile::{compile_program, compile_query, compile_sentences, CompileInfo},
+    compile::{compile_fact, compile_query, compile_sentences, CompileInfo},
     lang::{parse_program, parse_struct},
     symbol::{to_display, SymDisplay},
     util::write_program_result,
@@ -71,7 +71,7 @@ fn main() -> RustyResult<()> {
                             Err(err) => println!("{err}"),
                         }
                     }
-                    program => match parse_and_compile_program(program, &mut prolog) {
+                    program => match parse_and_compile_nonquery(program, &mut prolog) {
                         Ok(compile_result) => {
                             prolog.program = Some(
                                 compile_result
@@ -127,9 +127,9 @@ fn parse_and_compile_query(input: &str, context: &mut PrologApp) -> Result<Compi
         .map_err(|err| err.sym_to_str(&context.symbol_table))
 }
 
-fn parse_and_compile_program(input: &str, context: &mut PrologApp) -> Result<CompileInfo, String> {
+fn parse_and_compile_nonquery(input: &str, context: &mut PrologApp) -> Result<CompileInfo, String> {
     let program = parse_struct(input, &mut context.symbol_table)?;
-    Ok(compile_program(program))
+    Ok(compile_fact(program))
 }
 
 fn run_and_output(context: &mut PrologApp) -> Result<(), String> {

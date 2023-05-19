@@ -8,7 +8,7 @@ mod compiletests {
     use parameterized::parameterized;
     use prolog_rs::{
         asm::Assembly,
-        compile::{compile_program, compile_query},
+        compile::{compile_fact, compile_query},
         lang::parse_struct,
         symbol::{to_display, SymbolTable},
         util::{case, collapse, lbl_for, writeout_compile_result},
@@ -44,7 +44,7 @@ mod compiletests {
     fn test_program_compile(input: &str) {
         let mut symbol_table = SymbolTable::new();
         let program = parse_struct(input, &mut symbol_table).unwrap();
-        let result = compile_program(program);
+        let result = compile_fact(program);
 
         assert_display_snapshot!(case(input, writeout_compile_result(&result, &symbol_table)));
     }
@@ -57,9 +57,9 @@ mod compiletests {
     fn test_compile_multifact_query(input: &str) {
         let mut assembly = Assembly::default();
         let mut symbol_table = SymbolTable::new();
-        compile_program(parse_struct("p(f(X), h(Y, f(a)), Y)", &mut symbol_table).unwrap())
+        compile_fact(parse_struct("p(f(X), h(Y, f(a)), Y)", &mut symbol_table).unwrap())
             .append_to_assembly(&mut assembly);
-        compile_program(parse_struct("f(b, Y)", &mut symbol_table).unwrap())
+        compile_fact(parse_struct("f(b, Y)", &mut symbol_table).unwrap())
             .append_to_assembly(&mut assembly);
 
         let result = compile_query(

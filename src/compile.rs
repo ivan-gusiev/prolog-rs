@@ -494,7 +494,7 @@ fn compile_goal(
     }
 }
 
-pub fn compile_program(program: Struct) -> CompileInfo {
+pub fn compile_fact(program: Struct) -> CompileInfo {
     let mut result = compile_goal(program, &HashMap::default(), &mut HashSet::default());
     result.instructions.push(Instruction::Proceed);
     result
@@ -631,7 +631,7 @@ pub fn compile_sentences(
         }
 
         if let Some(head) = sentence.head {
-            let program_result = compile_program(head);
+            let program_result = compile_fact(head);
             program_result.append_to_assembly(assembly);
         }
     }
@@ -756,7 +756,7 @@ fn test_compile_query2() {
 }
 
 #[test]
-fn test_compile_program() {
+fn test_compile_fact() {
     use assembler::compile_asm;
     use lang::parse_struct;
     use symbol::SymbolTable;
@@ -780,7 +780,7 @@ fn test_compile_program() {
     .unwrap()
     .instructions;
     assert_eq!(
-        compile_program(program),
+        compile_fact(program),
         CompileInfo {
             instructions,
             var_mapping: VarMapping::from_iter([
@@ -835,7 +835,7 @@ fn test_compile_query_line() {
 }
 
 #[test]
-fn test_compile_program_line() {
+fn test_compile_fact_line() {
     use assembler::compile_asm;
     use lang::parse_struct;
     use symbol::SymbolTable;
@@ -861,7 +861,7 @@ fn test_compile_program_line() {
     .unwrap()
     .instructions;
     assert_eq!(
-        compile_program(fact),
+        compile_fact(fact),
         CompileInfo {
             instructions,
             var_mapping: VarMapping::from_iter([
