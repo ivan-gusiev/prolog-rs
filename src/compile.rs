@@ -320,6 +320,7 @@ fn get_permanent_variables(head: &Struct, goals: &[Struct]) -> HashMap<VarName, 
         .collect()
 }
 
+// compiles queries or rule goals
 fn compile_querylike(
     query: Struct,
     programs: &HashMap<Functor, CodePtr>,
@@ -407,72 +408,12 @@ pub fn compile_query(
     query: Struct,
     programs: &HashMap<Functor, CodePtr>,
 ) -> Result<CompileInfo, CompileError> {
-    let (registers_with_root, vars, root_functor) = flatten_struct(query);
-    let program_code_ptr = programs
-        .get(&root_functor)
-        .ok_or(CompileError::UnknownFunctor(root_functor))?;
-
-    let registers = &registers_with_root[1..];
-    let reg_map = HashMap::from_iter(registers.iter().map(FlattenedReg::to_tuple));
-    let structs = order_query_structs(&reg_map, &extract_structs(registers));
-    let mut seen = HashSet::<RegPtr>::new();
-    let mut instructions = vec![];
-
-    let FlattenedReg(_, root) = &registers_with_root[0];
-    let max_argument = root.get_str().functor().arity() + 1;
-
-    // set up general purpose registers
-    for reg @ RegPtr(struct_index) in structs {
-        if struct_index < max_argument as usize {
-            continue;
-        }
-
-        let FlatStruct(f, refs) = reg_map[&reg].get_str();
-        instructions.push(Instruction::PutStructure(*f, reg.into()));
-        seen.insert(reg);
-        for ref_ptr in refs {
-            if seen.contains(ref_ptr) {
-                instructions.push(Instruction::SetValue((*ref_ptr).into()))
-            } else {
-                seen.insert(*ref_ptr);
-                instructions.push(Instruction::SetVariable((*ref_ptr).into()))
-            }
-        }
-    }
-    // set up argument registers
-    for i in 1..(max_argument as usize) {
-        let areg = RegPtr(i);
-        match &reg_map[&areg] {
-            FlattenedTerm::Variable(nm) => {
-                let xreg = vars[nm];
-                if seen.contains(&xreg) {
-                    instructions.push(Instruction::PutValue(xreg.into(), areg.into()));
-                } else {
-                    seen.insert(xreg);
-                    instructions.push(Instruction::PutVariable(xreg.into(), areg.into()));
-                }
-            }
-            FlattenedTerm::Struct(FlatStruct(f, refs), _) => {
-                instructions.push(Instruction::PutStructure(*f, areg.into()));
-                for ref_ptr in refs {
-                    if seen.contains(ref_ptr) {
-                        instructions.push(Instruction::SetValue((*ref_ptr).into()))
-                    } else {
-                        seen.insert(*ref_ptr);
-                        instructions.push(Instruction::SetVariable((*ref_ptr).into()))
-                    }
-                }
-            }
-        }
-    }
-    // call the corresponding program
-    instructions.push(Instruction::Call(*program_code_ptr));
-
-    Ok(CompileInfo {
-        instructions,
-        var_mapping: VarMapping::from_inverse(vars),
-        label_functor: None,
-    })
+    compile_querylike(
+        query,
+        programs,
+        &HashMap::default(),
+        &mut HashSet::default(),
+    )
 }
 
 pub fn compile_program(program: Struct) -> CompileInfo {
