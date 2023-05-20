@@ -4,12 +4,16 @@ extern crate prolog_rs;
 
 #[cfg(test)]
 mod compiletests {
+    use std::collections::HashMap;
+    use std::iter::FromIterator;
+
     use insta::assert_display_snapshot;
     use parameterized::parameterized;
     use prolog_rs::{
         asm::Assembly,
-        compile::{compile_fact, compile_query},
-        lang::parse_struct,
+        compile::{compile_fact, compile_query, compile_rule},
+        data::CodePtr,
+        lang::{parse_sentence, parse_struct, Functor},
         symbol::{to_display, SymbolTable},
         util::{case, collapse, lbl_for, writeout_compile_result},
     };
@@ -68,6 +72,28 @@ mod compiletests {
         )
         .map(|compile_result| writeout_compile_result(&compile_result, &symbol_table))
         .map_err(|err| format!("{}", to_display(&err, &symbol_table)));
+        assert_display_snapshot!(case(input, collapse(result)));
+    }
+
+    #[parameterized(input = {
+        "p(X, Y) :- q(X, Z), r(Z, Y).",
+        "f(X) :- p(X, r(Z, Y)), h(l(p(A, X), p(B, X))).",
+    })]
+    fn test_compile_rule(input: &str) {
+        let mut symbol_table = SymbolTable::new();
+
+        let rule = parse_sentence(input, &mut symbol_table).unwrap();
+        let mut mklabel = |s, i, c| (Functor(symbol_table.intern(s), i), CodePtr(c));
+        let label_map = HashMap::from_iter([
+            mklabel("q", 2, 100),
+            mklabel("r", 2, 110),
+            mklabel("p", 2, 120),
+            mklabel("h", 1, 130),
+        ]);
+
+        let result = compile_rule(rule.head.unwrap(), rule.goals, &label_map)
+            .map(|compile_result| writeout_compile_result(&compile_result, &symbol_table))
+            .map_err(|err| format!("{}", to_display(&err, &symbol_table)));
         assert_display_snapshot!(case(input, collapse(result)));
     }
 }
