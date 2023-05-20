@@ -1,5 +1,6 @@
 ---
 source: tests/compiletests.rs
+assertion_line: 53
 expression: "case(input, writeout_compile_result(&result, &symbol_table))"
 ---
 horizontal(line(pt(X1, Y), pt(X2, Y)))
