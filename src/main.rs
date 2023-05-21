@@ -7,7 +7,6 @@ use prolog_rs::{
     lang::{parse_program, parse_sentence, parse_struct},
     symbol::{to_display, SymDisplay},
     util::write_program_result,
-    var::VarBindings,
     PrologApp,
 };
 
@@ -135,15 +134,12 @@ fn parse_and_compile_nonquery(input: &str, context: &mut PrologApp) -> Result<Co
 
 fn run_and_output(context: &mut PrologApp) -> Result<(), String> {
     let query_result = context.query.as_ref().ok_or("No query to run")?;
-    let maybe_program_mapping = context.program.as_ref();
-    let assembly = &context.assembly;
+    context.machine.set_code(&context.assembly.instructions);
 
-    context.machine.set_code(&assembly.instructions);
     let query_p = context.machine.append_code(&query_result.instructions);
     context.machine.set_p(query_p);
 
-    let mut query_vars: VarBindings = VarBindings::default();
-
+    let query_vars = &mut context.query_variables;
     context
         .machine
         .execute()
@@ -151,13 +147,14 @@ fn run_and_output(context: &mut PrologApp) -> Result<(), String> {
             machine
                 .bind_variables(&query_result.var_mapping)
                 .map(|vars| {
-                    query_vars = vars;
+                    *query_vars = vars;
                 })
         })
         .run()?;
 
-    context.query_variables = query_vars;
-    context.program_variables = maybe_program_mapping
+    context.program_variables = context
+        .program
+        .as_ref()
         .map(|mapping| context.machine.bind_good_variables(mapping))
         .unwrap_or_default();
 

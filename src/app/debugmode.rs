@@ -19,7 +19,7 @@ use self::tui::{
     widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState},
     Frame, Terminal,
 };
-use std::{error::Error, io};
+use std::{error::Error, io, iter};
 
 use crate::PrologApp;
 
@@ -27,16 +27,16 @@ enum InputState {
     Default,
     CodeNavigator,
     FlagEditor,
-    DataNavigator,
+    HeapNavigator,
     Decompiler,
 }
 
 impl InputState {
     fn help_text(&self) -> &'static str {
         const DEFAULT_TEXT: &str = r#"
-    q      quit
+    q      quit                  b      bind variables
     c      navigate code
-    d      navigate data
+    h      navigate heap
     f      toggle flags
     SPACE  execute instruction"#;
 
@@ -54,7 +54,7 @@ impl InputState {
         h      toggle halt"#;
 
         const DATA_NAVIGATOR_TEXT: &str = r#"
-    Navigating Data >>>
+    Navigating Heap >>>
         q      back to debug
         UP     move up
         DOWN   move down
@@ -72,7 +72,7 @@ impl InputState {
             InputState::Default => DEFAULT_TEXT,
             InputState::CodeNavigator => CODE_NAVIGATION_TEXT,
             InputState::FlagEditor => FLAG_EDITOR_TEXT,
-            InputState::DataNavigator => DATA_NAVIGATOR_TEXT,
+            InputState::HeapNavigator => DATA_NAVIGATOR_TEXT,
             InputState::Decompiler => DECOMPILER_TEXT,
         }
     }
@@ -135,8 +135,31 @@ impl<'a> App<'a> {
             .collect()
     }
 
+    fn stack(&self) -> impl Iterator<Item = String> + '_ {
+        self.prolog
+            .machine
+            .walk_stack()
+            .enumerate()
+            .flat_map(|(depth, stack)| {
+                iter::once(format!("depth #{depth}: CP = {}", stack.cp)).chain(
+                    stack
+                        .iter_var()
+                        .map(|(ptr, data)| format!("Y{} = {}", ptr.0, data)),
+                )
+            })
+    }
+
     fn next_instruction(&mut self) {
         _ = self.prolog.machine.step();
+    }
+
+    fn bind_variables(&mut self) {
+        if let Some(query_info) = &self.prolog.query {
+            self.prolog.query_variables = self
+                .prolog
+                .machine
+                .bind_good_variables(&query_info.var_mapping);
+        }
     }
 }
 
@@ -165,14 +188,15 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                 InputState::Default => match key.code {
                     KeyCode::Char('q') => return Ok(()),
                     KeyCode::Char(' ') => app.next_instruction(),
+                    KeyCode::Char('b') => app.bind_variables(),
                     KeyCode::Char('c') => {
                         app.code_state
                             .select(Some(app.prolog.machine.get_p().into()));
                         app.input_state = InputState::CodeNavigator;
                     }
-                    KeyCode::Char('d') => {
+                    KeyCode::Char('h') => {
                         app.data_state.select(Some(0));
-                        app.input_state = InputState::DataNavigator;
+                        app.input_state = InputState::HeapNavigator;
                     }
                     KeyCode::Char('f') => {
                         app.input_state = InputState::FlagEditor;
@@ -215,7 +239,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                     }
                     _ => {}
                 },
-                InputState::DataNavigator => match key.code {
+                InputState::HeapNavigator => match key.code {
                     KeyCode::Char('q') => {
                         app.data_state.select(None);
                         app.input_state = InputState::Default;
@@ -241,7 +265,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                 },
                 InputState::Decompiler => match key.code {
                     KeyCode::Char('q') => {
-                        app.input_state = InputState::DataNavigator;
+                        app.input_state = InputState::HeapNavigator;
                     }
                     KeyCode::Up => {
                         if let Some(x) = app.data_state.selected() {
@@ -266,7 +290,9 @@ struct Windows {
     flags: Rect,
     regs: Rect,
     code: Rect,
-    data: Rect,
+    bindings: Rect,
+    heap: Rect,
+    stack: Rect,
     footer: Rect,
 }
 
@@ -297,13 +323,29 @@ fn calculate_layout<B: Backend>(f: &mut Frame<B>) -> Windows {
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
         .split(main);
 
-    let &[code, data] = main_rows.as_slice() else { panic!("could not find the layout") };
+    let &[codepane, data] = main_rows.as_slice() else { panic!("could not find the layout") };
+
+    let code_rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+        .split(codepane);
+
+    let &[code, bindings] = code_rows.as_slice() else { panic!("could not find the layout") };
+
+    let data_rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+        .split(data);
+
+    let &[heap, stack] = data_rows.as_slice() else { panic!("could not find the layout") };
 
     Windows {
         flags,
         regs,
         code,
-        data,
+        bindings,
+        heap,
+        stack,
         footer,
     }
 }
@@ -381,7 +423,40 @@ where
         ])
 }
 
-fn render_data<'a, 'b>(app: &App<'b>) -> Table<'a>
+fn render_bindings<'a, 'b>(app: &App<'b>) -> Table<'a>
+where
+    'b: 'a,
+{
+    let selected_style = Style::default().add_modifier(Modifier::REVERSED);
+    let name_style = Style::default().fg(Color::White);
+    let st = &app.prolog.symbol_table;
+    let rows = app
+        .prolog
+        .query_variables
+        .iter()
+        .map(|(heap_ptr, var_name)| {
+            let cells = vec![
+                Cell::from(var_name.sym_to_str(st)).style(name_style),
+                Cell::from(" = "),
+                Cell::from(heap_ptr.to_string()),
+            ];
+            Row::new(cells).height(1)
+        });
+    Table::new(rows)
+        .highlight_style(selected_style)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Query Bindings"),
+        )
+        .widths(&[
+            Constraint::Min(1),
+            Constraint::Length(3),
+            Constraint::Percentage(100),
+        ])
+}
+
+fn render_heap<'a, 'b>(app: &App<'b>) -> Table<'a>
 where
     'b: 'a,
 {
@@ -397,8 +472,18 @@ where
     });
     Table::new(rows)
         .highlight_style(selected_style)
-        .block(Block::default().borders(Borders::ALL).title("Data"))
+        .block(Block::default().borders(Borders::ALL).title("Heap"))
         .widths(&[Constraint::Length(3), Constraint::Percentage(100)])
+}
+
+fn render_stack<'a>(app: &App<'a>) -> Table<'a> {
+    let rows = app.stack().map(|str| {
+        let cells = vec![Cell::from(str)];
+        Row::new(cells).height(1)
+    });
+    Table::new(rows)
+        .block(Block::default().borders(Borders::ALL).title("Stack"))
+        .widths(&[Constraint::Percentage(100)])
 }
 
 fn render_help<'a>(app: &mut App) -> Paragraph<'a> {
@@ -439,7 +524,9 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         &mut app.regs_state,
     );
     f.render_stateful_widget(render_code(app), layout.code, &mut app.code_state);
-    f.render_stateful_widget(render_data(app), layout.data, &mut app.data_state);
+    f.render_stateful_widget(render_bindings(app), layout.bindings, &mut app.code_state);
+    f.render_stateful_widget(render_heap(app), layout.heap, &mut app.data_state);
+    f.render_stateful_widget(render_stack(app), layout.stack, &mut app.code_state);
     f.render_widget(render_help(app), layout.footer);
 }
 

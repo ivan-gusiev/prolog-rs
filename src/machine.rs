@@ -467,7 +467,7 @@ impl<'a> ExecutionEnvironment<'a> {
             .current_instruction()
             .ok_or(MachineError::OutOfBoundsP)?
         {
-            if let Some(hook) = &mut self.call_hook {
+            if let Some(hook) = &mut self.call_hook.take() {
                 hook(self.machine)
             } else {
                 Ok(())
