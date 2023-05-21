@@ -3,8 +3,8 @@ use app::debugmode::start_debugmode;
 use prolog_rs::{
     asm::Assembly,
     assembler::compile_asm,
-    compile::{compile_fact, compile_query, compile_sentences, CompileInfo},
-    lang::{parse_program, parse_struct},
+    compile::{compile_query, compile_sentence, compile_sentences, CompileInfo},
+    lang::{parse_program, parse_sentence, parse_struct},
     symbol::{to_display, SymDisplay},
     util::write_program_result,
     var::VarBindings,
@@ -128,13 +128,14 @@ fn parse_and_compile_query(input: &str, context: &mut PrologApp) -> Result<Compi
 }
 
 fn parse_and_compile_nonquery(input: &str, context: &mut PrologApp) -> Result<CompileInfo, String> {
-    let program = parse_struct(input, &mut context.symbol_table)?;
-    Ok(compile_fact(program))
+    let program = parse_sentence(input, &mut context.symbol_table)?;
+    compile_sentence(program, &context.assembly.label_map)
+        .map_err(|err| err.sym_to_str(&context.symbol_table))
 }
 
 fn run_and_output(context: &mut PrologApp) -> Result<(), String> {
     let query_result = context.query.as_ref().ok_or("No query to run")?;
-    let program_mapping = context.program.as_ref().ok_or("No program to run")?;
+    let maybe_program_mapping = context.program.as_ref();
     let assembly = &context.assembly;
 
     context.machine.set_code(&assembly.instructions);
@@ -156,7 +157,9 @@ fn run_and_output(context: &mut PrologApp) -> Result<(), String> {
         .run()?;
 
     context.query_variables = query_vars;
-    context.program_variables = context.machine.bind_good_variables(program_mapping);
+    context.program_variables = maybe_program_mapping
+        .map(|mapping| context.machine.bind_good_variables(mapping))
+        .unwrap_or_default();
 
     output_result(context)?;
     Ok(())

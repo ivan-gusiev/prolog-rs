@@ -274,7 +274,7 @@ peg::parser!(
         rule fact(symbols: &mut SymbolTable) -> Sentence
             = _ s:struct_like(symbols) _ { Sentence::fact(s) }
 
-        rule prule(symbols: &mut SymbolTable) -> Sentence
+        rule prule(symbols: &mut SymbolTable) -> Sentence // prule = "prolog rule", `rule` is unavailable
             = _ h:struct_like(symbols) _ ":-" _ gs:struct_like(symbols) ++ (_ "," _) _ { Sentence::rule(h, gs) }
 
         rule query(symbols: &mut SymbolTable) -> Sentence

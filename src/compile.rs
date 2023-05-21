@@ -559,6 +559,7 @@ pub enum CompileError {
     UnknownFunctor(Functor),
     UnsupportedRule(Sentence),
     UnsupportedComplexQuery(Sentence),
+    UnsupportedSentenceType(Sentence),
 }
 
 impl SymDisplay for CompileError {
@@ -583,6 +584,11 @@ impl SymDisplay for CompileError {
                 "Cannot compile `{}`. Query with multiple (or zero) goals not supported yet.",
                 to_display(query, symbol_table)
             ),
+            Self::UnsupportedSentenceType(query) => write!(
+                f,
+                "Cannot compile sentence `{}`. Unknown sentence format.",
+                to_display(query, symbol_table)
+            ),
         }
     }
 }
@@ -604,6 +610,27 @@ impl SymDisplay for CompileWarning {
                 "Program contains multiple entry points. Ignoring the one at @{ptr}."
             ),
         }
+    }
+}
+
+pub fn compile_sentence(
+    sentence: Sentence,
+    label_map: &HashMap<Functor, CodePtr>,
+) -> Result<CompileInfo, CompileError> {
+    if sentence.is_fact() {
+        let fact = sentence.unwrap_fact();
+        Ok(compile_fact(fact))
+    } else if sentence.is_rule() {
+        let (head, goals) = sentence.unwrap_rule();
+        compile_rule(head, goals, label_map)
+    } else if sentence.is_query() {
+        if sentence.goals.len() != 1 {
+            return Err(CompileError::UnsupportedComplexQuery(sentence));
+        }
+        let mut goals = sentence.unwrap_query();
+        compile_query(goals.remove(0), label_map)
+    } else {
+        Err(CompileError::UnsupportedSentenceType(sentence))
     }
 }
 

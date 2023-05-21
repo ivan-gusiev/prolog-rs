@@ -18,6 +18,9 @@
     * it should be a linked list of words
 - [ ] fix the varmapping for rules (must be able to point to stack)
 - [ ] compile: warn when a variable from the head of a rule is not used in its goals
+- [ ] asm: instead of labels pointing to the actual code, point them to a thunk
+    * will help with `assert`/`retract` in the future
+    * will enable referring to terms before defining their facts or rules  
 
 ### Bugs
 - [x] Type `?- X` then `X`. It cannot figure out the unification. 
@@ -34,6 +37,10 @@
     * add a cache of already-seen terms
 - [x] `CompileResult::append_to_assembly` steals functors for queries
     * see `asmtests::test_horizontal`
+- [ ] In the `p(X, Y) :- q(X, Z), r(Z, Y)` example:
+    * assert `q(a, b)` and `r(b, c)`
+    * now query `?- p(a, V)` returns `V = a`, but is expected to return `V = c`
+    * possibly the `call_hook` needs fixing?
 
 ### Done ✓
 - [x] WAM assembly parser
