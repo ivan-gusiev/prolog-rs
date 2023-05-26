@@ -2,7 +2,7 @@
 source: tests/executetests.rs
 expression: "case(input, output)"
 ---
-f(X, g(X,a))
+?- f(X, g(X,a)).
 -----
 000	<STR,1>
 001	a/0

@@ -114,3 +114,44 @@ pub fn l1_solve(program: Struct, query: Struct) -> Result<Solution, PrologError>
 
     Ok(solution)
 }
+
+pub fn l2_solve(mut program: Vec<Sentence>, query: Sentence) -> Result<Solution, PrologError> {
+    let mut solution = Solution::default();
+
+    program.push(query);
+    solution.assembly = {
+        let mut a = Assembly::new();
+        compile_sentences(program, &mut a)?;
+        a
+    };
+    let query_mapping = solution
+        .assembly
+        .entry_point
+        .as_ref()
+        .unwrap()
+        .variables
+        .clone();
+    let program_mapping = solution
+        .assembly
+        .bindings_map
+        .iter()
+        .next()
+        .unwrap()
+        .1
+        .clone();
+    let mut query_bindings = VarBindings::default();
+    solution.machine = Machine::new();
+    solution.machine.load_assembly(&solution.assembly);
+    solution
+        .machine
+        .execute()
+        .with_call_hook(|machine| {
+            query_bindings = machine.bind_variables(&query_mapping)?;
+            Ok(())
+        })
+        .run()?;
+    solution.query_bindings = query_bindings;
+    solution.program_bindings = solution.machine.bind_variables(&program_mapping)?;
+
+    Ok(solution)
+}

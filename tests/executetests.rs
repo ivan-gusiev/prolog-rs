@@ -9,7 +9,8 @@ mod executetests {
     use prolog_rs::{
         compile::compile_query,
         l1_solve,
-        lang::{parse_sentence, parse_struct},
+        l2_solve,
+        lang::{parse_sentence, parse_program, parse_struct},
         machine::Machine,
         symbol::SymbolTable,
         util::{case, lbl_for, run_just_query, writeout_sym},
@@ -42,12 +43,52 @@ mod executetests {
         ("f(b, Y)", "f(X, g(X,a))"),
         ("h(l(p(A, Y), p(B, Y)))", "h(l(p(u, v), p(w, H)))"),
     })]
-    fn test_program_execute(input: (&str, &str)) {
+    fn test_program_execute_l1(input: (&str, &str)) {
         let (query_text, program_text) = input;
         let mut symbol_table = SymbolTable::new();
         let query = parse_struct(query_text, &mut symbol_table).unwrap();
         let program = parse_struct(program_text, &mut symbol_table).unwrap();
         let solution = l1_solve(program, query).unwrap();
+        let query_bindings = solution.query_bindings;
+        let program_bindings = solution.program_bindings;
+
+        let input = format!("({query_text}, {program_text})");
+        let output = if solution.machine.get_fail() {
+            solution.machine.dbg(&symbol_table)
+        } else {
+            format!(
+                "{}\n{}\n{}",
+                solution.machine.dbg(&symbol_table),
+                writeout_sym(
+                    &solution
+                        .machine
+                        .describe_vars(&query_bindings, &mut symbol_table)
+                        .unwrap(),
+                    &symbol_table
+                ),
+                writeout_sym(
+                    &solution
+                        .machine
+                        .describe_vars(&program_bindings, &mut symbol_table)
+                        .unwrap(),
+                    &symbol_table
+                )
+            )
+        };
+        assert_display_snapshot!(case(input, output));
+    }
+
+
+    #[parameterized(input = {
+        ("?- f(b, Y).", "f(X, g(X,a))."),
+        ("?- p(X, Y), q(X, Z).", "p(a, b). q(a, d)."),
+    })]
+    fn test_program_execute_l2(input: (&str, &str)) {
+        let (query_text, program_text) = input;
+        let mut symbol_table = SymbolTable::new();
+        let query = parse_sentence(query_text, &mut symbol_table).unwrap();
+        let program = parse_program(program_text, &mut symbol_table).unwrap();
+        let solution = l2_solve(program, query).unwrap();
         let query_bindings = solution.query_bindings;
         let program_bindings = solution.program_bindings;
 

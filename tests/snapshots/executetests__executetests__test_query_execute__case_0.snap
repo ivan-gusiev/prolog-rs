@@ -2,7 +2,7 @@
 source: tests/executetests.rs
 expression: "case(input, output)"
 ---
-p(Z, h(Z,W), f(W))
+?- p(Z, h(Z,W), f(W)).
 -----
 000	<REF,0>
 001	<STR,2>

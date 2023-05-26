@@ -2,6 +2,6 @@
 source: tests/executetests.rs
 expression: "case(input, output)"
 ---
-a
+?- a.
 -----
 
