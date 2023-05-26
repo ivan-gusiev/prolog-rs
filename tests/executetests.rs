@@ -8,9 +8,8 @@ mod executetests {
     use parameterized::parameterized;
     use prolog_rs::{
         compile::compile_query,
-        l1_solve,
-        l2_solve,
-        lang::{parse_sentence, parse_program, parse_struct},
+        l1_solve, l2_solve,
+        lang::{parse_program, parse_sentence, parse_struct},
         machine::Machine,
         symbol::SymbolTable,
         util::{case, lbl_for, run_just_query, writeout_sym},
@@ -77,7 +76,6 @@ mod executetests {
         };
         assert_display_snapshot!(case(input, output));
     }
-
 
     #[parameterized(input = {
         ("?- f(b, Y).", "f(X, g(X,a))."),

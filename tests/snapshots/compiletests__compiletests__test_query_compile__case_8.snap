@@ -4,13 +4,15 @@ expression: "case(input, writeout_compile_result(&result, &symbol_table))"
 ---
 ?- f(X, g(Y, a)), g(X, b).
 -----
-000	put_structure a/0, X5
-001	put_variable Y1, X1
-002	put_structure g/2, X2
-003	set_variable X4	// X4=Y
-004	set_value X5
-005	call @0
-006	put_value Y1, X1
-007	put_structure b/0, X2
-008	call @0
+000	allocate 1
+001	put_structure a/0, X5
+002	put_variable Y1, X1
+003	put_structure g/2, X2
+004	set_variable X4	// X4=Y
+005	set_value X5
+006	call @0
+007	put_value Y1, X1
+008	put_structure b/0, X2
+009	call @0
+010	deallocate
 

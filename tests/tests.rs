@@ -3,11 +3,13 @@ extern crate prolog_rs;
 
 #[cfg(test)]
 mod tests {
+    use std::{collections::HashMap, iter::FromIterator};
+
     use insta::assert_display_snapshot;
     use prolog_rs::{
         asm::Assembly,
         assembler::{compile_asm, compile_asm_to_assembly},
-        compile::{compile_query, compile_sentences, CompileInfo},
+        compile::{compile_query, compile_rule, compile_sentences, CompileInfo},
         data::{CodePtr, Data, HeapPtr, Ref, RegPtr, Str},
         instr::Instruction,
         lang::{parse_program, parse_sentence, Functor, Struct, Term},
@@ -246,5 +248,27 @@ mod tests {
                 assert_eq!(value, Term::Struct(Struct::constant(c)))
             }
         }
+    }
+
+    #[test]
+    fn test_no_allocate_0() {
+        let mut symbol_table = SymbolTable::new();
+
+        let rule = parse_sentence("a(X) :- b(X).", &mut symbol_table).unwrap();
+        let label_map = HashMap::from_iter([(Functor(symbol_table.intern("b"), 1), CodePtr(100))]);
+
+        let result = compile_rule(rule.head.unwrap(), rule.goals, &label_map).unwrap();
+        let allocates = result
+            .instructions
+            .iter()
+            .filter(|x| matches!(x, Instruction::Allocate(_)))
+            .collect::<Vec<_>>();
+        let deallocates = result
+            .instructions
+            .iter()
+            .filter(|x| matches!(x, Instruction::Deallocate))
+            .collect::<Vec<_>>();
+        assert_eq!(allocates.len(), 0);
+        assert_eq!(deallocates.len(), 0);
     }
 }

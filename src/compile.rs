@@ -415,6 +415,11 @@ pub fn compile_query(
     let permanent_vars = get_permanent_variables(Option::None, &goals);
     let mut instructions = vec![];
 
+    // prologue
+    if !permanent_vars.is_empty() {
+        instructions.push(Instruction::Allocate(StackDepth(permanent_vars.len())));
+    }
+
     let mut seen = HashSet::<Local>::new();
     let mut var_mapping = VarMapping::default();
 
@@ -423,6 +428,11 @@ pub fn compile_query(
         instructions.append(&mut goal_result.instructions);
         seen.retain(Local::is_stack); // "remember" only the permanent variables
         var_mapping.append(goal_result.var_mapping);
+    }
+
+    // epilogue
+    if !permanent_vars.is_empty() {
+        instructions.push(Instruction::Deallocate);
     }
 
     Ok(CompileInfo {
@@ -525,7 +535,9 @@ pub fn compile_rule(
     let mut instructions = vec![];
 
     // prologue
-    instructions.push(Instruction::Allocate(StackDepth(permanent_vars.len())));
+    if !permanent_vars.is_empty() {
+        instructions.push(Instruction::Allocate(StackDepth(permanent_vars.len())));
+    }
 
     let mut seen = HashSet::<Local>::new();
     let mut head_result = compile_head(head, &permanent_vars, &mut seen);
@@ -537,7 +549,9 @@ pub fn compile_rule(
     }
 
     // epilogue
-    instructions.push(Instruction::Deallocate);
+    if !permanent_vars.is_empty() {
+        instructions.push(Instruction::Deallocate);
+    }
 
     Ok(CompileInfo {
         instructions,
@@ -979,12 +993,14 @@ fn test_compile_multigoal_query() {
     let rule = parse_sentence("?- q(X, Z), r(Z, Y).", &mut symbol_table).unwrap();
     let expected_assembly = compile_asm(
         r#"
+        allocate 1
         put_variable X3, A1
         put_variable Y1, A2
         call @100 ; q/2
         put_value Y1, A1
         put_variable X4, A2
         call @110 ; r/2
+        deallocate
         "#,
         &mut symbol_table,
     )

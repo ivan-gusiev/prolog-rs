@@ -1,0 +1,10 @@
+---
+source: tests/compiletests.rs
+expression: "case(input, collapse(result))"
+---
+a(A) :- h(A).
+-----
+000	get_variable X2, X1	// X2=A
+001	put_value X2, X1	// X2=A
+002	call @130
+
