@@ -1,0 +1,15 @@
+---
+source: tests/compiletests.rs
+expression: "case(input, collapse(result))"
+---
+?- p(a, X, Y), f(b, f(X)).
+-----
+000	put_structure a/0, X1
+001	put_variable Y1, X2
+002	put_variable X5, X3	// X5=Y, X3=X
+003	call @0
+004	put_structure b/0, X1
+005	put_structure f/1, X2
+006	set_value Y1
+007	call @10
+

@@ -1,0 +1,13 @@
+---
+source: tests/compiletests.rs
+expression: "case(input, writeout_compile_result(&result, &symbol_table))"
+---
+?- q(X, Z), f(b, Y).
+-----
+000	put_variable X3, X1	// X3=Y
+001	put_variable X4, X2	// X4=Z
+002	call @0
+003	put_structure b/0, X1
+004	put_variable X3, X2	// X3=Y
+005	call @0
+

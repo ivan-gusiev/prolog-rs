@@ -26,6 +26,8 @@ mod compiletests {
         "?- a.",
         "?- horizontal(line(pt(three, Y), pt(four, five))).",
         "?- q(X, Z).",
+        "?- q(X, Z), f(b, Y).",
+        "?- f(X, g(Y, a)), g(X, b).",
     })]
     fn test_query_compile(input: &str) {
         let mut symbol_table = SymbolTable::new();
@@ -57,6 +59,7 @@ mod compiletests {
         "?- p(Z, h(Z,W), f(W)).",
         "?- f(X, g(X,a)).",
         "?- horizontal(line(pt(X1, Y), pt(X2, Y))).",
+        "?- p(a, X, Y), f(b, f(X)).",
     })]
     fn test_compile_multifact_query(input: &str) {
         let mut assembly = Assembly::default();
