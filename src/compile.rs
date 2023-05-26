@@ -257,7 +257,7 @@ fn order_query_structs(
 // Calculates which variables are permanent in the specified rule.
 // Returns a map from variable name to its proposed index in the stack.
 // The indices are ordered by earliest appearance, left to right.
-fn get_permanent_variables(head: &Struct, goals: &[Struct]) -> HashMap<VarName, StackPtr> {
+fn get_permanent_variables(head: Option<&Struct>, goals: &[Struct]) -> HashMap<VarName, StackPtr> {
     // assign a sequential number to each variable
     let mut var_counter = HashMap::<VarName, usize>::new();
 
@@ -288,7 +288,9 @@ fn get_permanent_variables(head: &Struct, goals: &[Struct]) -> HashMap<VarName, 
         return HashMap::default();
     }
 
-    let head_vars = collect_variables(head, &mut var_counter);
+    let head_vars = head
+        .map(|h| collect_variables(h, &mut var_counter))
+        .unwrap_or_default();
     let mut goal_vars = goals
         .iter()
         .map(|g| collect_variables(g, &mut var_counter))
@@ -405,15 +407,29 @@ fn compile_goal(
 }
 
 pub fn compile_query(
-    query: Struct,
+    goals: Vec<Struct>,
     programs: &HashMap<Functor, CodePtr>,
 ) -> Result<CompileInfo, CompileError> {
-    compile_goal(
-        query,
-        programs,
-        &HashMap::default(),
-        &mut HashSet::default(),
-    )
+    // TODO: we probably need to treat all the variables as permanent
+    // because we want to save their values for the query output
+    let permanent_vars = get_permanent_variables(Option::None, &goals);
+    let mut instructions = vec![];
+
+    let mut seen = HashSet::<Local>::new();
+    let mut var_mapping = VarMapping::default();
+
+    for goal in goals {
+        let mut goal_result = compile_goal(goal, programs, &permanent_vars, &mut seen)?;
+        instructions.append(&mut goal_result.instructions);
+        seen.retain(Local::is_stack); // "remember" only the permanent variables
+        var_mapping.append(goal_result.var_mapping);
+    }
+
+    Ok(CompileInfo {
+        instructions,
+        var_mapping,
+        label_functor: None,
+    })
 }
 
 fn compile_head(
@@ -505,7 +521,7 @@ pub fn compile_rule(
     goals: Vec<Struct>,
     programs: &HashMap<Functor, CodePtr>,
 ) -> Result<CompileInfo, CompileError> {
-    let permanent_vars = get_permanent_variables(&head, &goals);
+    let permanent_vars = get_permanent_variables(Option::Some(&head), &goals);
     let mut instructions = vec![];
 
     // prologue
@@ -558,7 +574,6 @@ impl CompileInfo {
 pub enum CompileError {
     UnknownFunctor(Functor),
     UnsupportedRule(Sentence),
-    UnsupportedComplexQuery(Sentence),
     UnsupportedSentenceType(Sentence),
 }
 
@@ -578,11 +593,6 @@ impl SymDisplay for CompileError {
                 f,
                 "Cannot compile `{}`. Rule compilation not supported yet.",
                 to_display(rule, symbol_table)
-            ),
-            Self::UnsupportedComplexQuery(query) => write!(
-                f,
-                "Cannot compile `{}`. Query with multiple (or zero) goals not supported yet.",
-                to_display(query, symbol_table)
             ),
             Self::UnsupportedSentenceType(query) => write!(
                 f,
@@ -624,11 +634,8 @@ pub fn compile_sentence(
         let (head, goals) = sentence.unwrap_rule();
         compile_rule(head, goals, label_map)
     } else if sentence.is_query() {
-        if sentence.goals.len() != 1 {
-            return Err(CompileError::UnsupportedComplexQuery(sentence));
-        }
-        let mut goals = sentence.unwrap_query();
-        compile_query(goals.remove(0), label_map)
+        let goals = sentence.unwrap_query();
+        compile_query(goals, label_map)
     } else {
         Err(CompileError::UnsupportedSentenceType(sentence))
     }
@@ -647,11 +654,8 @@ pub fn compile_sentences(
             let (head, goals) = sentence.unwrap_rule();
             compile_rule(head, goals, &assembly.label_map)?.append_to_assembly(assembly);
         } else if sentence.is_query() {
-            if sentence.goals.len() != 1 {
-                return Err(CompileError::UnsupportedComplexQuery(sentence));
-            }
-            let mut goals = sentence.unwrap_query();
-            let query_result = compile_query(goals.remove(0), &assembly.label_map)?;
+            let goals = sentence.unwrap_query();
+            let query_result = compile_query(goals, &assembly.label_map)?;
             let entry_point = query_result.append_to_assembly(assembly);
             if let Some(old_entry_point) = assembly.entry_point.take() {
                 warnings.push(CompileWarning::IgnoredEntryPoint(old_entry_point.location))
@@ -717,12 +721,12 @@ fn test_flatten_big_struct() {
 #[test]
 fn test_compile_query() {
     use assembler::compile_asm;
-    use lang::parse_struct;
+    use lang::parse_sentence;
     use symbol::SymbolTable;
     use util::lbl_for;
     let mut symbol_table = SymbolTable::new();
-    let query = parse_struct("p(Z,h(Z,W),f(W))", &mut symbol_table).unwrap();
-    let labels = lbl_for(query.functor());
+    let query = parse_sentence("?- p(Z,h(Z,W),f(W)).", &mut symbol_table).unwrap();
+    let labels = lbl_for(&query.goals);
     let instructions = compile_asm(
         r#"
         put_variable X4, A1
@@ -738,7 +742,7 @@ fn test_compile_query() {
     .unwrap()
     .instructions;
     assert_eq!(
-        compile_query(query, &labels).unwrap(),
+        compile_query(query.goals, &labels).unwrap(),
         CompileInfo {
             instructions,
             var_mapping: VarMapping::from_iter([
@@ -753,12 +757,12 @@ fn test_compile_query() {
 #[test]
 fn test_compile_query2() {
     use assembler::compile_asm;
-    use lang::parse_struct;
+    use lang::parse_sentence;
     use symbol::SymbolTable;
     use util::lbl_for;
     let mut symbol_table = SymbolTable::new();
-    let query = parse_struct("f(b, Y)", &mut symbol_table).unwrap();
-    let labels = lbl_for(query.functor());
+    let query = parse_sentence("?- f(b, Y).", &mut symbol_table).unwrap();
+    let labels = lbl_for(&query.goals);
     let instructions = compile_asm(
         r#"
         put_structure b/0, A1
@@ -770,7 +774,7 @@ fn test_compile_query2() {
     .unwrap()
     .instructions;
     assert_eq!(
-        compile_query(query, &labels).unwrap(),
+        compile_query(query.goals, &labels).unwrap(),
         CompileInfo {
             instructions,
             var_mapping: VarMapping::from_iter([(RegPtr(3), symbol_table.intern("Y"))]),
@@ -819,14 +823,14 @@ fn test_compile_fact() {
 #[test]
 fn test_compile_query_line() {
     use assembler::compile_asm;
-    use lang::parse_struct;
+    use lang::parse_sentence;
     use symbol::SymbolTable;
     use util::lbl_for;
     let mut symbol_table = SymbolTable::new();
-    // same query with longer names
+    // same query as this, but with shorter names:
     // horizontal(line(point(X1, Y), point(X2, Y)))
-    let query = parse_struct("h(l(p(A, Y), p(B, Y)))", &mut symbol_table).unwrap();
-    let labels = lbl_for(query.functor());
+    let query = parse_sentence("?- h(l(p(A, Y), p(B, Y))).", &mut symbol_table).unwrap();
+    let labels = lbl_for(&query.goals);
     let instructions = compile_asm(
         r#"
         put_structure p/2, X2
@@ -845,7 +849,7 @@ fn test_compile_query_line() {
     .unwrap()
     .instructions;
     assert_eq!(
-        compile_query(query, &labels).unwrap(),
+        compile_query(query.goals, &labels).unwrap(),
         CompileInfo {
             instructions,
             var_mapping: VarMapping::from_iter([
@@ -905,7 +909,7 @@ fn test_get_permanent_variables() {
 
     let mut symbol_table = SymbolTable::new();
     let sentence = parse_sentence("p(X, Y) :- q(X, Z), r(Z, Y).", &mut symbol_table).unwrap();
-    let items = get_permanent_variables(&sentence.head.unwrap(), &sentence.goals);
+    let items = get_permanent_variables(sentence.head.as_ref(), &sentence.goals);
     assert_eq!(
         items,
         HashMap::from([
@@ -915,7 +919,7 @@ fn test_get_permanent_variables() {
     );
 
     let sentence = parse_sentence("a :- b(X), c(X).", &mut symbol_table).unwrap();
-    let items = get_permanent_variables(&sentence.head.unwrap(), &sentence.goals);
+    let items = get_permanent_variables(sentence.head.as_ref(), &sentence.goals);
     assert_eq!(
         items,
         HashMap::from([(symbol_table.intern("X"), StackPtr(1))])
@@ -961,6 +965,44 @@ fn test_compile_rule() {
             instructions: expected_assembly.instructions,
             var_mapping: VarMapping::from_iter([(RegPtr(3), x), (RegPtr(4), y)]), // TODO: variable Y refers to Y1, not X4
             label_functor: Some(p2),
+        })
+    )
+}
+
+#[test]
+fn test_compile_multigoal_query() {
+    use assembler::compile_asm;
+    use lang::parse_sentence;
+    use symbol::SymbolTable;
+    let mut symbol_table = SymbolTable::new();
+
+    let rule = parse_sentence("?- q(X, Z), r(Z, Y).", &mut symbol_table).unwrap();
+    let expected_assembly = compile_asm(
+        r#"
+        put_variable X3, A1
+        put_variable Y1, A2
+        call @100 ; q/2
+        put_value Y1, A1
+        put_variable X4, A2
+        call @110 ; r/2
+        "#,
+        &mut symbol_table,
+    )
+    .unwrap();
+    let q = symbol_table.intern("q");
+    let r = symbol_table.intern("r");
+    let q2 = Functor(q, 2);
+    let r2 = Functor(r, 2);
+    // let x = symbol_table.intern("X");
+    let y = symbol_table.intern("Y");
+    let z = symbol_table.intern("Z");
+    let label_map = HashMap::from_iter([(q2, CodePtr(100)), (r2, CodePtr(110))]);
+    assert_eq!(
+        compile_query(rule.goals, &label_map),
+        Ok(CompileInfo {
+            instructions: expected_assembly.instructions,
+            var_mapping: VarMapping::from_iter([(RegPtr(4), y), (RegPtr(3), z)]), // TODO: this is messed up
+            label_functor: None,
         })
     )
 }

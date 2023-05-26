@@ -2,7 +2,7 @@
 source: tests/compiletests.rs
 expression: "case(input, writeout_compile_result(&result, &symbol_table))"
 ---
-a
+?- a.
 -----
 000	call @0
 

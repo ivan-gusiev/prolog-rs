@@ -2,7 +2,7 @@
 source: tests/compiletests.rs
 expression: "case(input, writeout_compile_result(&result, &symbol_table))"
 ---
-f(b, Y)
+?- f(b, Y).
 -----
 000	put_structure b/0, X1
 001	put_variable X3, X2	// X3=Y

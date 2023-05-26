@@ -10,7 +10,7 @@ mod tests {
         compile::{compile_query, compile_sentences, CompileInfo},
         data::{CodePtr, Data, HeapPtr, Ref, RegPtr, Str},
         instr::Instruction,
-        lang::{parse_program, parse_struct, Functor, Struct, Term},
+        lang::{parse_program, parse_sentence, Functor, Struct, Term},
         machine::Machine,
         symbol::SymbolTable,
         util::lbl_for,
@@ -40,7 +40,7 @@ mod tests {
         call @0               % who knows where this points
     "#;
 
-    const QUERY: &str = "p(Z,h(Z,W), f(W))";
+    const QUERY: &str = "?- p(Z,h(Z,W), f(W)).";
 
     const ALLOCATE_PROGRAM: &str = r#"
         allocate 2
@@ -53,13 +53,13 @@ mod tests {
     #[test]
     fn program_compiles_to_bytecode() {
         let mut symbol_table = SymbolTable::new();
-        let query = parse_struct(QUERY, &mut symbol_table).unwrap();
-        let labels = lbl_for(query.functor());
+        let query = parse_sentence(QUERY, &mut symbol_table).unwrap();
+        let labels = lbl_for(&query.goals);
         let CompileInfo {
             instructions,
             var_mapping: _,
             label_functor: _,
-        } = compile_query(query, &labels).unwrap();
+        } = compile_query(query.goals, &labels).unwrap();
         let expected = compile_asm(PROGRAM1, &mut symbol_table)
             .unwrap()
             .instructions;

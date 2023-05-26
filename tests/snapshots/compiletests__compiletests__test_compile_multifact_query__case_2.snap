@@ -2,6 +2,6 @@
 source: tests/compiletests.rs
 expression: "case(input, collapse(result))"
 ---
-horizontal(line(pt(X1, Y), pt(X2, Y)))
+?- horizontal(line(pt(X1, Y), pt(X2, Y))).
 -----
 Query refers to an unknown functor horizontal/1.

@@ -2,7 +2,7 @@
 source: tests/compiletests.rs
 expression: "case(input, writeout_compile_result(&result, &symbol_table))"
 ---
-q(X, Z)
+?- q(X, Z).
 -----
 000	put_variable X3, X1	// X3=X
 001	put_variable X4, X2	// X4=Z

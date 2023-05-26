@@ -9,24 +9,24 @@ mod executetests {
     use prolog_rs::{
         compile::compile_query,
         l1_solve,
-        lang::parse_struct,
+        lang::{parse_sentence, parse_struct},
         machine::Machine,
         symbol::SymbolTable,
         util::{case, lbl_for, run_just_query, writeout_sym},
     };
 
     #[parameterized(input = {
-        "p(Z, h(Z,W), f(W))",
-        "f(X, g(X,a))",
-        "f(b, Y)",
-        "a"
+        "?- p(Z, h(Z,W), f(W)).",
+        "?- f(X, g(X,a)).",
+        "?- f(b, Y).",
+        "?- a.",
     })]
     fn test_query_execute(input: &str) {
         let mut symbol_table = SymbolTable::new();
-        let query = parse_struct(input, &mut symbol_table).unwrap();
+        let query = parse_sentence(input, &mut symbol_table).unwrap();
 
-        let labels = lbl_for(query.functor());
-        let query_result = compile_query(query, &labels).unwrap();
+        let labels = lbl_for(&query.goals);
+        let query_result = compile_query(query.goals, &labels).unwrap();
         let mut machine = Machine::new();
         run_just_query(&mut machine, &query_result.instructions).expect("machine failure");
 

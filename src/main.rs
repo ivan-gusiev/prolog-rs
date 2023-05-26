@@ -4,7 +4,7 @@ use prolog_rs::{
     asm::Assembly,
     assembler::compile_asm,
     compile::{compile_query, compile_sentence, compile_sentences, CompileInfo},
-    lang::{parse_program, parse_sentence, parse_struct},
+    lang::{parse_program, parse_sentence},
     symbol::{to_display, SymDisplay},
     util::write_program_result,
     PrologApp,
@@ -121,8 +121,8 @@ fn load_pro(path: &str, prolog: &mut PrologApp) -> Result<(), String> {
 }
 
 fn parse_and_compile_query(input: &str, context: &mut PrologApp) -> Result<CompileInfo, String> {
-    let query = parse_struct(input.trim_start_matches("?-"), &mut context.symbol_table)?;
-    compile_query(query, &context.assembly.label_map)
+    let query = parse_sentence(input, &mut context.symbol_table)?;
+    compile_query(query.goals, &context.assembly.label_map)
         .map_err(|err| err.sym_to_str(&context.symbol_table))
 }
 

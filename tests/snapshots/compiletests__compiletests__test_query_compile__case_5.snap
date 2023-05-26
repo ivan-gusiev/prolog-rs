@@ -2,7 +2,7 @@
 source: tests/compiletests.rs
 expression: "case(input, writeout_compile_result(&result, &symbol_table))"
 ---
-horizontal(line(pt(three, Y), pt(four, five)))
+?- horizontal(line(pt(three, Y), pt(four, five))).
 -----
 000	put_structure three/0, X4
 001	put_structure four/0, X6

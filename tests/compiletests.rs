@@ -19,19 +19,19 @@ mod compiletests {
     };
 
     #[parameterized(input = {
-        "p(Z, h(Z,W), f(W))",
-        "f(X, g(X,a))",
-        "f(b, Y)",
-        "p(f(X), h(Y, f(a)), Y)",
-        "a",
-        "horizontal(line(pt(three, Y), pt(four, five)))",
-        "q(X, Z)",
+        "?- p(Z, h(Z,W), f(W)).",
+        "?- f(X, g(X,a)).",
+        "?- f(b, Y).",
+        "?- p(f(X), h(Y, f(a)), Y).",
+        "?- a.",
+        "?- horizontal(line(pt(three, Y), pt(four, five))).",
+        "?- q(X, Z).",
     })]
     fn test_query_compile(input: &str) {
         let mut symbol_table = SymbolTable::new();
-        let query = parse_struct(input, &mut symbol_table).unwrap();
-        let labels = lbl_for(query.functor());
-        let result = compile_query(query, &labels).unwrap();
+        let query = parse_sentence(input, &mut symbol_table).unwrap();
+        let labels = lbl_for(&query.goals);
+        let result = compile_query(query.goals, &labels).unwrap();
 
         assert_display_snapshot!(case(input, writeout_compile_result(&result, &symbol_table)));
     }
@@ -54,9 +54,9 @@ mod compiletests {
     }
 
     #[parameterized(input = {
-        "p(Z, h(Z,W), f(W))",
-        "f(X, g(X,a))",
-        "horizontal(line(pt(X1, Y), pt(X2, Y)))",
+        "?- p(Z, h(Z,W), f(W)).",
+        "?- f(X, g(X,a)).",
+        "?- horizontal(line(pt(X1, Y), pt(X2, Y))).",
     })]
     fn test_compile_multifact_query(input: &str) {
         let mut assembly = Assembly::default();
@@ -67,7 +67,7 @@ mod compiletests {
             .append_to_assembly(&mut assembly);
 
         let result = compile_query(
-            parse_struct(input, &mut symbol_table).unwrap(),
+            parse_sentence(input, &mut symbol_table).unwrap().goals,
             &assembly.label_map,
         )
         .map(|compile_result| writeout_compile_result(&compile_result, &symbol_table))

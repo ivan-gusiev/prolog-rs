@@ -8,7 +8,7 @@ use crate::{
     compile::CompileInfo,
     data::{Addr, CodePtr, RegPtr},
     instr::Instruction,
-    lang::Functor,
+    lang::{Functor, Struct},
     machine::{Machine, MachineError},
     symbol::{to_display, SymDisplay, SymbolTable},
     var::VarBindings,
@@ -319,8 +319,9 @@ pub fn run_just_query(
     machine.execute().run()
 }
 
-pub fn lbl_for(f: Functor) -> HashMap<Functor, CodePtr> {
-    let mut map = HashMap::new();
-    map.insert(f, CodePtr(0));
-    map
+pub fn lbl_for(goals: &[Struct]) -> HashMap<Functor, CodePtr> {
+    goals
+        .into_iter()
+        .map(|goal| (goal.functor().clone(), CodePtr(0)))
+        .collect()
 }
