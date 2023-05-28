@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fmt::Display, hash::Hash, iter::FromIterator};
 
 use crate::{
-    data::{Addr, Data, HeapPtr, RegPtr},
+    data::{Addr, Data, HeapPtr, RegPtr, StackPtr},
     lang::{Term, VarName},
     symbol::{to_display, SymDisplay, SymbolTable},
 };
@@ -53,13 +53,13 @@ impl<T: Eq + Hash> FromIterator<(T, VarName)> for VarInfo<T> {
     }
 }
 
-impl<T: Eq + Hash> VarInfo<T> {
+impl<T: Clone + Eq + Hash> VarInfo<T> {
     pub fn from_hash(hash_map: HashMap<T, VarName>) -> VarInfo<T> {
         Self(hash_map)
     }
 
-    pub fn from_inverse(hash_map: HashMap<VarName, T>) -> VarInfo<T> {
-        Self::from_iter(hash_map.into_iter().map(|(v, t)| (t, v)))
+    pub fn from_inverse(hash_map: &HashMap<VarName, T>) -> VarInfo<T> {
+        Self::from_iter(hash_map.iter().map(|(v, t)| (t.clone(), *v)))
     }
 
     pub fn get(&self, key: &T) -> Option<VarName> {
@@ -85,7 +85,7 @@ impl<T: Eq + Hash> VarInfo<T> {
     pub fn traverse<NewT, F, E>(&self, mut mapper: F) -> Result<VarInfo<NewT>, E>
     where
         F: FnMut(&T) -> Result<NewT, E>,
-        NewT: Eq + Hash,
+        NewT: Clone + Eq + Hash,
     {
         let mut result = HashMap::<NewT, VarName>::new();
         for (t, v) in self.iter() {
@@ -97,7 +97,7 @@ impl<T: Eq + Hash> VarInfo<T> {
     pub fn traverse_filter<NewT, F, E>(&self, mut mapper: F) -> VarInfo<NewT>
     where
         F: FnMut(&T) -> Result<NewT, E>,
-        NewT: Eq + Hash,
+        NewT: Clone + Eq + Hash,
     {
         let mut result = HashMap::<NewT, VarName>::new();
         for (t, v) in self.iter() {
@@ -109,7 +109,9 @@ impl<T: Eq + Hash> VarInfo<T> {
     }
 }
 
-pub type VarMapping = VarInfo<RegPtr>;
+pub type VarRegs = VarInfo<RegPtr>;
+
+pub type VarMapping = VarInfo<StackPtr>;
 
 pub type VarBindings = VarInfo<HeapPtr>;
 

@@ -80,6 +80,7 @@ mod executetests {
     #[parameterized(input = {
         ("?- f(b, Y).", "f(X, g(X,a))."),
         ("?- p(X, Y), q(X, Z).", "p(a, b). q(a, d)."),
+        // TODO: add a thing with a rule here
     })]
     fn test_program_execute_l2(input: (&str, &str)) {
         let (query_text, program_text) = input;

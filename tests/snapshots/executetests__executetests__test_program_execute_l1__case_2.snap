@@ -6,7 +6,7 @@ expression: "case(input, output)"
 -----
 h: HEAP[18]
 s: HEAP[8]
-p: CODE[23]
+p: CODE[24]
 mode: write
 fail: false
 halt: false
@@ -24,16 +24,17 @@ code:
 010	get_structure v/0, X5
 011	get_structure w/0, X6
 012	proceed
-013	put_structure p/2, X2
-014	set_variable X4
-015	set_variable X5
-016	put_structure p/2, X3
-017	set_variable X6
-018	set_value X5
-019	put_structure l/2, X1
-020	set_value X2
-021	set_value X3
-022	call @0
+013	allocate 3
+014	put_structure p/2, X2
+015	set_variable Y1
+016	set_variable Y2
+017	put_structure p/2, X3
+018	set_variable Y3
+019	set_value Y2
+020	put_structure l/2, X1
+021	set_value X2
+022	set_value X3
+023	call @0
 
 heap:
 000	<STR,1>
@@ -67,10 +68,14 @@ regs:
 
 pdl:
 
+stack depth 0, cp=CODE[0]:
+000	<REF,2>
+001	<REF,3>
+002	<REF,6>
+
 
 000	A	(HEAP[2]) =	<STR,13>	// u
 001	B	(HEAP[6]) =	<STR,17>	// w
 002	Y	(HEAP[3]) =	<STR,15>	// v
 
-000	H	(HEAP[3]) =	<STR,15>	// v
 

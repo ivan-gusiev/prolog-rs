@@ -279,6 +279,10 @@ impl Machine {
         }
     }
 
+    pub fn deref(&self, addr: Addr) -> MachineResult<Addr> {
+        deref(self, addr)
+    }
+
     pub fn bind_variables(&self, var_mapping: &VarMapping) -> MachineResult<VarBindings> {
         var_mapping.traverse(|&reg| self.trace_heap(reg.into()))
     }

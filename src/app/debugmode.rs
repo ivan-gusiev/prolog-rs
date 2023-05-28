@@ -2,8 +2,8 @@ extern crate crossterm;
 extern crate tui;
 
 use prolog_rs::{
-    data::{CodePtr, HeapPtr, RegPtr},
-    symbol::SymDisplay,
+    data::{CodePtr, Data, HeapPtr, RegPtr, StackPtr, Str},
+    symbol::{to_display, SymDisplay},
     util::collapse,
 };
 
@@ -115,14 +115,22 @@ impl<'a> App<'a> {
         let st = &self.prolog.symbol_table;
         let annotate_reg = |reg: RegPtr| {
             let mut annotations = Vec::<String>::new();
-            if let Some(q) = self.prolog.query.as_ref() {
-                if let Some(x) = q.var_mapping.get(&reg) {
-                    annotations.push(format!("q.{}", x.sym_to_str(st)))
-                }
-            }
-            if let Some(p) = self.prolog.program.as_ref() {
-                if let Some(x) = p.get(&reg) {
-                    annotations.push(format!("p.{}", x.sym_to_str(st)))
+            if let Ok(value) = self
+                .prolog
+                .machine
+                .deref(reg.into())
+                .and_then(|addr| self.prolog.machine.get_store(addr))
+            {
+                match value {
+                    Data::Functor(f) => {
+                        annotations.push(format!("{}", to_display(&f, st)));
+                    }
+                    Data::Str(Str(f_ptr)) => {
+                        if let Data::Functor(f) = self.prolog.machine.get_heap(f_ptr) {
+                            annotations.push(format!("{}", to_display(&f, st)));
+                        }
+                    }
+                    _ => (),
                 }
             }
             annotations.join(", ")
@@ -135,7 +143,23 @@ impl<'a> App<'a> {
             .collect()
     }
 
-    fn stack(&self) -> impl Iterator<Item = String> + '_ {
+    fn stack(&'a self) -> Vec<String> {
+        let st = &self.prolog.symbol_table;
+        let annotate = |stack: &StackPtr| -> String {
+            let mut annotations = Vec::<String>::new();
+            if let Some(q) = self.prolog.query.as_ref() {
+                if let Some(x) = q.var_mapping.get(stack) {
+                    annotations.push(format!("q.{}", to_display(&x, st)))
+                }
+            }
+            if let Some(p) = self.prolog.program.as_ref() {
+                if let Some(x) = p.get(stack) {
+                    annotations.push(format!("p.{}", x.sym_to_str(st)))
+                }
+            }
+            annotations.join(", ")
+        };
+
         self.prolog
             .machine
             .walk_stack()
@@ -144,9 +168,10 @@ impl<'a> App<'a> {
                 iter::once(format!("depth #{depth}: CP = {}", stack.cp)).chain(
                     stack
                         .iter_var()
-                        .map(|(ptr, data)| format!("Y{} = {}", ptr.0, data)),
+                        .map(|(ptr, data)| format!("Y{} = {} ({})", ptr.0, data, annotate(&ptr))),
                 )
             })
+            .collect()
     }
 
     fn next_instruction(&mut self) {
@@ -477,7 +502,7 @@ where
 }
 
 fn render_stack<'a>(app: &App<'a>) -> Table<'a> {
-    let rows = app.stack().map(|str| {
+    let rows = app.stack().into_iter().map(|str| {
         let cells = vec![Cell::from(str)];
         Row::new(cells).height(1)
     });

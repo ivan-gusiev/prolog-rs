@@ -32,13 +32,14 @@ mod tests {
         "#;
 
     // TODO: uncomment last line when we add calls
-    const PROGRAM1: &str = r#"
-        put_variable X4, A1   % ?- p(Z,
+    const QUERY_ASM_L2: &str = r#"
+        allocate 2
+        put_variable Y1, A1   % ?- p(Z,
         put_structure h/2, A2 %        h
-        set_value X4          %         (Z,
-        set_variable X5       %            W),
+        set_value Y1          %         (Z,
+        set_variable Y2       %            W),
         put_structure f/1, A3 %               f
-        set_value X5          %                (W))
+        set_value Y2          %                (W))
         call @0               % who knows where this points
     "#;
 
@@ -62,7 +63,7 @@ mod tests {
             var_mapping: _,
             label_functor: _,
         } = compile_query(query.goals, &labels).unwrap();
-        let expected = compile_asm(PROGRAM1, &mut symbol_table)
+        let expected = compile_asm(QUERY_ASM_L2, &mut symbol_table)
             .unwrap()
             .instructions;
         assert_eq!(expected.as_slice(), instructions.as_slice());

@@ -30,6 +30,10 @@
         * e.g. keep the stack frame, and clean up on ExecutionEnvironment::drop
     * how does this help with labeling program variables, if we care about that?
 - [ ] auto-bind variables in the debug interface
+- [ ] compile: number temporary variables from X1 and up consecutively
+    * consider variables A, B, C, D, E where B and D are permanent
+    * this will result in `A->X1, B->Y1, C->X3, D->Y2, E->X5`
+    * we want `A->X1, B->Y1, C->X2, D->Y2, E->X3`
 
 ### Bugs
 - [x] Type `?- X` then `X`. It cannot figure out the unification. 

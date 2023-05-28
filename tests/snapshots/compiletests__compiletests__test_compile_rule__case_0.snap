@@ -5,13 +5,13 @@ expression: "case(input, collapse(result))"
 p(X, Y) :- q(X, Z), r(Z, Y).
 -----
 000	allocate 2
-001	get_variable X3, X1	// X3=X
-002	get_variable Y1, X2
-003	put_value X3, X1	// X3=X
-004	put_variable Y2, X2
+001	get_variable X3, X1
+002	get_variable Y1, X2	// Y1=Y
+003	put_value X3, X1
+004	put_variable Y2, X2	// Y2=Z
 005	call @100
-006	put_value Y2, X1
-007	put_value Y1, X2
+006	put_value Y2, X1	// Y2=Z
+007	put_value Y1, X2	// Y1=Y
 008	call @110
 009	deallocate
 

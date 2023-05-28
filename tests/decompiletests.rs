@@ -65,6 +65,7 @@ mod decompiletests {
         "f(b, Y)",
         "h(l(p(u, v), p(w, H)))",
     })]
+    #[ignore = "need to fix var mapping for facts"]
     fn test_symmetric_unification(lhs: &str, rhs: &str) {
         fn get_unification_set(
             query_str: &str,

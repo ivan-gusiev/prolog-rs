@@ -10,10 +10,9 @@ QUERY
 
 PROGRAM
 ____
-000	Y	(HEAP[4]) =	g/2	// g(b, a)
 
 X1	// query.X
-X2	// program.Y
-X3	// program.Y
+X2	
+X3	
 X4	
 

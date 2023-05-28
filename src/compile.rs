@@ -11,6 +11,7 @@ use symbol::{to_display, SymDisplay};
 use var::VarMapping;
 
 use crate::data::{Addr, StackDepth, StackPtr};
+use crate::var::VarRegs;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 struct TermId(usize);
@@ -254,35 +255,36 @@ fn order_query_structs(
     result
 }
 
-// Calculates which variables are permanent in the specified rule.
-// Returns a map from variable name to its proposed index in the stack.
-// The indices are ordered by earliest appearance, left to right.
+// Extracts all the variables from the term and orders them left to right
+fn collect_variables<I: From<usize>>(
+    str: &Struct,
+    var_counter: &mut HashMap<VarName, I>,
+) -> HashSet<VarName> {
+    let mut result = HashSet::default();
+    let root = Term::Struct(str.clone());
+    let mut q = vec![&root];
+
+    loop {
+        match q.pop() {
+            Some(Term::Struct(s)) => q.extend(s.terms().iter().rev()),
+            Some(Term::Variable(v)) => {
+                let next_index = var_counter.len() + 1;
+                var_counter.entry(*v).or_insert(next_index.into());
+                result.insert(*v);
+            }
+            None => break,
+        }
+    }
+
+    result
+}
+
+/// Calculates which variables are permanent in the specified rule.
+/// Returns a map from variable name to its proposed index in the stack.
+/// The indices are ordered by earliest appearance, left to right.
 fn get_permanent_variables(head: Option<&Struct>, goals: &[Struct]) -> HashMap<VarName, StackPtr> {
     // assign a sequential number to each variable
     let mut var_counter = HashMap::<VarName, usize>::new();
-
-    fn collect_variables(
-        str: &Struct,
-        var_counter: &mut HashMap<VarName, usize>,
-    ) -> HashSet<VarName> {
-        let mut result = HashSet::default();
-        let root = Term::Struct(str.clone());
-        let mut q = vec![&root];
-
-        loop {
-            match q.pop() {
-                Some(Term::Struct(s)) => q.extend(s.terms()),
-                Some(Term::Variable(v)) => {
-                    let next_index = var_counter.len();
-                    var_counter.entry(*v).or_insert(next_index);
-                    result.insert(*v);
-                }
-                None => break,
-            }
-        }
-
-        result
-    }
 
     if goals.is_empty() {
         return HashMap::default();
@@ -318,7 +320,7 @@ fn get_permanent_variables(head: Option<&Struct>, goals: &[Struct]) -> HashMap<V
     ordered
         .into_iter()
         .enumerate()
-        .map(|(idx, (var, _))| (var, StackPtr(idx + 1)))
+        .map(|(idx, (var, _))| (var, (idx + 1).into()))
         .collect()
 }
 
@@ -330,9 +332,9 @@ fn compile_goal(
     seen: &mut HashSet<Local>,
 ) -> Result<CompileInfo, CompileError> {
     let (registers_with_root, vars, root_functor) = flatten_struct(query);
-    let var_mapping = VarMapping::from_inverse(vars.clone());
+    let var_regs = VarRegs::from_inverse(&vars);
     let get_local = |regptr: &RegPtr| {
-        var_mapping
+        var_regs
             .get(regptr)
             .and_then(|var| stack_vars.get(&var))
             .map(Local::from_stack)
@@ -401,7 +403,7 @@ fn compile_goal(
 
     Ok(CompileInfo {
         instructions,
-        var_mapping,
+        var_mapping: VarMapping::from_inverse(stack_vars),
         label_functor: None,
     })
 }
@@ -410,30 +412,35 @@ pub fn compile_query(
     goals: Vec<Struct>,
     programs: &HashMap<Functor, CodePtr>,
 ) -> Result<CompileInfo, CompileError> {
-    // TODO: we probably need to treat all the variables as permanent
-    // because we want to save their values for the query output
-    let permanent_vars = get_permanent_variables(Option::None, &goals);
+    let stack_vars = {
+        let mut vars = HashMap::default();
+        for goal in goals.iter() {
+            collect_variables(goal, &mut vars);
+        }
+        vars
+    };
     let mut instructions = vec![];
 
     // prologue
-    if !permanent_vars.is_empty() {
-        instructions.push(Instruction::Allocate(StackDepth(permanent_vars.len())));
+    if !stack_vars.is_empty() {
+        instructions.push(Instruction::Allocate(StackDepth(stack_vars.len())));
     }
 
     let mut seen = HashSet::<Local>::new();
     let mut var_mapping = VarMapping::default();
 
     for goal in goals {
-        let mut goal_result = compile_goal(goal, programs, &permanent_vars, &mut seen)?;
+        let mut goal_result = compile_goal(goal, programs, &stack_vars, &mut seen)?;
         instructions.append(&mut goal_result.instructions);
         seen.retain(Local::is_stack); // "remember" only the permanent variables
         var_mapping.append(goal_result.var_mapping);
     }
 
     // epilogue
-    if !permanent_vars.is_empty() {
-        instructions.push(Instruction::Deallocate);
-    }
+    // TODO: uncomment once we make `publish` work
+    // if !stack_vars.is_empty() {
+    //     instructions.push(Instruction::Deallocate);
+    // }
 
     Ok(CompileInfo {
         instructions,
@@ -448,9 +455,9 @@ fn compile_head(
     seen: &mut HashSet<Local>,
 ) -> CompileInfo {
     let (registers_with_root, vars, root_functor) = flatten_struct(goal);
-    let var_mapping = VarMapping::from_inverse(vars.clone());
+    let var_regs = VarRegs::from_inverse(&vars);
     let get_local = |regptr: &RegPtr| {
-        var_mapping
+        var_regs
             .get(regptr)
             .and_then(|var| stack_vars.get(&var))
             .map(Local::from_stack)
@@ -515,7 +522,7 @@ fn compile_head(
 
     CompileInfo {
         instructions,
-        var_mapping,
+        var_mapping: VarMapping::from_inverse(stack_vars),
         label_functor: Some(root_functor),
     }
 }
@@ -743,13 +750,15 @@ fn test_compile_query() {
     let labels = lbl_for(&query.goals);
     let instructions = compile_asm(
         r#"
-        put_variable X4, A1
+        allocate 2
+        put_variable Y1, A1
         put_structure h/2, A2
-        set_value X4
-        set_variable X5
+        set_value Y1
+        set_variable Y2
         put_structure f/1, A3
-        set_value X5
+        set_value Y2
         call @0
+        #deallocate
         "#,
         &mut symbol_table,
     )
@@ -760,8 +769,8 @@ fn test_compile_query() {
         CompileInfo {
             instructions,
             var_mapping: VarMapping::from_iter([
-                (RegPtr(4), symbol_table.intern("Z")),
-                (RegPtr(5), symbol_table.intern("W"))
+                (StackPtr(1), symbol_table.intern("Z")),
+                (StackPtr(2), symbol_table.intern("W"))
             ]),
             label_functor: None
         }
@@ -769,18 +778,18 @@ fn test_compile_query() {
 }
 
 #[test]
-fn test_compile_query2() {
+fn test_compile_query_no_allocate() {
     use assembler::compile_asm;
     use lang::parse_sentence;
     use symbol::SymbolTable;
     use util::lbl_for;
     let mut symbol_table = SymbolTable::new();
-    let query = parse_sentence("?- f(b, Y).", &mut symbol_table).unwrap();
+    let query = parse_sentence("?- f(b, a).", &mut symbol_table).unwrap();
     let labels = lbl_for(&query.goals);
     let instructions = compile_asm(
         r#"
         put_structure b/0, A1
-        put_variable X3, A2
+        put_structure a/0, A2
         call @0
         "#,
         &mut symbol_table,
@@ -791,7 +800,7 @@ fn test_compile_query2() {
         compile_query(query.goals, &labels).unwrap(),
         CompileInfo {
             instructions,
-            var_mapping: VarMapping::from_iter([(RegPtr(3), symbol_table.intern("Y"))]),
+            var_mapping: VarMapping::default(),
             label_functor: None,
         }
     )
@@ -825,10 +834,7 @@ fn test_compile_fact() {
         compile_fact(program),
         CompileInfo {
             instructions,
-            var_mapping: VarMapping::from_iter([
-                (RegPtr(4), symbol_table.intern("X")),
-                (RegPtr(5), symbol_table.intern("Y"))
-            ]),
+            var_mapping: VarMapping::default(),
             label_functor: Some(Functor(symbol_table.intern("p"), 3)),
         }
     )
@@ -847,16 +853,18 @@ fn test_compile_query_line() {
     let labels = lbl_for(&query.goals);
     let instructions = compile_asm(
         r#"
+        allocate 3
         put_structure p/2, X2
-        set_variable X4
-        set_variable X5
+        set_variable Y1
+        set_variable Y2
         put_structure p/2, X3
-        set_variable X6
-        set_value X5
+        set_variable Y3
+        set_value Y2
         put_structure l/2, A1
         set_value X2
         set_value X3
         call @0
+        #deallocate
         "#,
         &mut symbol_table,
     )
@@ -867,9 +875,9 @@ fn test_compile_query_line() {
         CompileInfo {
             instructions,
             var_mapping: VarMapping::from_iter([
-                (RegPtr(4), symbol_table.intern("A")),
-                (RegPtr(5), symbol_table.intern("Y")),
-                (RegPtr(6), symbol_table.intern("B")),
+                (StackPtr(1), symbol_table.intern("A")),
+                (StackPtr(2), symbol_table.intern("Y")),
+                (StackPtr(3), symbol_table.intern("B")),
             ]),
             label_functor: None,
         }
@@ -906,14 +914,33 @@ fn test_compile_fact_line() {
         compile_fact(fact),
         CompileInfo {
             instructions,
-            var_mapping: VarMapping::from_iter([
-                (RegPtr(4), symbol_table.intern("A")),
-                (RegPtr(5), symbol_table.intern("Y")),
-                (RegPtr(6), symbol_table.intern("B")),
-            ]),
+            var_mapping: VarMapping::default(),
             label_functor: Some(Functor(symbol_table.intern("h"), 1)),
         }
     )
+}
+
+#[test]
+fn test_collect_variables() {
+    use lang::parse_sentence;
+    use symbol::SymbolTable;
+
+    let mut symbol_table = SymbolTable::new();
+    let sentence = parse_sentence("?- p(X, Y), q(X, Z), r(Z, Y).", &mut symbol_table).unwrap();
+    let mut result = HashMap::<VarName, StackPtr>::default();
+
+    for goal in sentence.goals {
+        collect_variables(&goal, &mut result);
+    }
+
+    assert_eq!(
+        result,
+        HashMap::from([
+            (symbol_table.intern("X"), StackPtr(1)),
+            (symbol_table.intern("Y"), StackPtr(2)),
+            (symbol_table.intern("Z"), StackPtr(3))
+        ])
+    );
 }
 
 #[test]
@@ -970,14 +997,14 @@ fn test_compile_rule() {
     let p2 = Functor(p, 2);
     let q2 = Functor(q, 2);
     let r2 = Functor(r, 2);
-    let x = symbol_table.intern("X");
     let y = symbol_table.intern("Y");
+    let z = symbol_table.intern("Z");
     let label_map = HashMap::from_iter([(q2, CodePtr(100)), (r2, CodePtr(110))]);
     assert_eq!(
         compile_rule(rule.head.unwrap(), rule.goals, &label_map),
         Ok(CompileInfo {
             instructions: expected_assembly.instructions,
-            var_mapping: VarMapping::from_iter([(RegPtr(3), x), (RegPtr(4), y)]), // TODO: variable Y refers to Y1, not X4
+            var_mapping: VarMapping::from_iter([(StackPtr(1), y), (StackPtr(2), z),]),
             label_functor: Some(p2),
         })
     )
@@ -993,14 +1020,14 @@ fn test_compile_multigoal_query() {
     let rule = parse_sentence("?- q(X, Z), r(Z, Y).", &mut symbol_table).unwrap();
     let expected_assembly = compile_asm(
         r#"
-        allocate 1
-        put_variable X3, A1
-        put_variable Y1, A2
+        allocate 3
+        put_variable Y1, A1
+        put_variable Y2, A2
         call @100 ; q/2
-        put_value Y1, A1
-        put_variable X4, A2
+        put_value Y2, A1
+        put_variable Y3, A2
         call @110 ; r/2
-        deallocate
+        #deallocate
         "#,
         &mut symbol_table,
     )
@@ -1009,7 +1036,7 @@ fn test_compile_multigoal_query() {
     let r = symbol_table.intern("r");
     let q2 = Functor(q, 2);
     let r2 = Functor(r, 2);
-    // let x = symbol_table.intern("X");
+    let x = symbol_table.intern("X");
     let y = symbol_table.intern("Y");
     let z = symbol_table.intern("Z");
     let label_map = HashMap::from_iter([(q2, CodePtr(100)), (r2, CodePtr(110))]);
@@ -1017,7 +1044,11 @@ fn test_compile_multigoal_query() {
         compile_query(rule.goals, &label_map),
         Ok(CompileInfo {
             instructions: expected_assembly.instructions,
-            var_mapping: VarMapping::from_iter([(RegPtr(4), y), (RegPtr(3), z)]), // TODO: this is messed up
+            var_mapping: VarMapping::from_iter([
+                (StackPtr(1), x),
+                (StackPtr(2), z),
+                (StackPtr(3), y),
+            ]),
             label_functor: None,
         })
     )

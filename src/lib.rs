@@ -139,18 +139,10 @@ pub fn l2_solve(mut program: Vec<Sentence>, query: Sentence) -> Result<Solution,
         .unwrap()
         .1
         .clone();
-    let mut query_bindings = VarBindings::default();
     solution.machine = Machine::new();
     solution.machine.load_assembly(&solution.assembly);
-    solution
-        .machine
-        .execute()
-        .with_call_hook(|machine| {
-            query_bindings = machine.bind_variables(&query_mapping)?;
-            Ok(())
-        })
-        .run()?;
-    solution.query_bindings = query_bindings;
+    solution.machine.execute().run()?;
+    solution.query_bindings = solution.machine.bind_variables(&query_mapping)?;
     solution.program_bindings = solution.machine.bind_variables(&program_mapping)?;
 
     Ok(solution)

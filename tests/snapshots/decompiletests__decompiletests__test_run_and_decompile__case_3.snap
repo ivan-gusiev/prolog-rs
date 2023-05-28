@@ -10,14 +10,11 @@ QUERY
 
 PROGRAM
 ____
-000	Y	(HEAP[8]) =	<REF,8>	// Y
-001	X1	(HEAP[7]) =	<REF,7>	// X1
-002	X2	(HEAP[11]) =	<REF,11>	// X2
 
 X1	// query.A
 X2	
 X3	
-X4	// program.X1
-X5	// program.Y
-X6	// program.X2
+X4	
+X5	
+X6	
 

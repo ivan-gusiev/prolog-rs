@@ -4,11 +4,12 @@ expression: "case(input, collapse(result))"
 ---
 ?- p(Z, h(Z,W), f(W)).
 -----
-000	put_variable X4, X1	// X4=Z
-001	put_structure h/2, X2
-002	set_value X4	// X4=Z
-003	set_variable X5	// X5=W
-004	put_structure f/1, X3
-005	set_value X5	// X5=W
-006	call @0
+000	allocate 2
+001	put_variable Y1, X1	// Y1=Z
+002	put_structure h/2, X2
+003	set_value Y1	// Y1=Z
+004	set_variable Y2	// Y2=W
+005	put_structure f/1, X3
+006	set_value Y2	// Y2=W
+007	call @0
 

@@ -10,10 +10,9 @@ QUERY
 
 PROGRAM
 ____
-000	X	(HEAP[1]) =	b/0	// b
 
-X1	// program.X
+X1	
 X2	// query.Y
-X3	// program.X
+X3	
 X4	
 

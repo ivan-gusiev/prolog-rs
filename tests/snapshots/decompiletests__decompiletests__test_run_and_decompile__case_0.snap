@@ -11,14 +11,12 @@ QUERY
 
 PROGRAM
 ____
-000	W	(HEAP[3]) =	f/1	// f(a)
-001	Z	(HEAP[6]) =	f/1	// f(f(a))
 
-X1	// program.Z
+X1	
 X2	
 X3	// query.Y
-X4	// program.Z
-X5	// program.W
-X6	// program.W
+X4	
+X5	
+X6	
 X7	
 

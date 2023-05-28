@@ -5,20 +5,20 @@ expression: "case(input, collapse(result))"
 f(X) :- p(X, r(Z, Y)), h(l(p(A, X), p(B, X))).
 -----
 000	allocate 1
-001	get_variable Y1, X1
-002	put_value Y1, X1
-003	put_structure r/2, X2	// X2=X
+001	get_variable Y1, X1	// Y1=X
+002	put_value Y1, X1	// Y1=X
+003	put_structure r/2, X2
 004	set_variable X4
 005	set_variable X5
 006	call @120
-007	put_structure p/2, X2	// X2=X
+007	put_structure p/2, X2
 008	set_variable X4
-009	set_value Y1
+009	set_value Y1	// Y1=X
 010	put_structure p/2, X3
 011	set_variable X6
-012	set_value Y1
+012	set_value Y1	// Y1=X
 013	put_structure l/2, X1
-014	set_value X2	// X2=X
+014	set_value X2
 015	set_value X3
 016	call @130
 017	deallocate

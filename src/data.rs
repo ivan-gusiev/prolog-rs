@@ -45,6 +45,12 @@ impl Display for StackPtr {
     }
 }
 
+impl From<usize> for StackPtr {
+    fn from(value: usize) -> Self {
+        Self(value)
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub struct CodePtr(pub usize);
 

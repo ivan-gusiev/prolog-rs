@@ -160,9 +160,15 @@ pub fn writeout_compile_result(compile_result: &CompileInfo, symbol_table: &Symb
         let mut out = Vec::<String>::new();
         let mut annotations = Vec::<String>::with_capacity(2);
         let process_local = |local: &Addr, ann: &mut Vec<String>| {
-            if let Addr::Reg(reg) = local {
-                if let Some(var) = compile_result.var_mapping.get(reg) {
-                    ann.push(format!("{}={}", reg, to_display(&var, symbol_table)))
+            // TODO: once we start mapping temporaries, uncomment this
+            // if let Addr::Reg(reg) = local {
+            //     if let Some(var) = compile_result.var_mapping.get(reg) {
+            //         ann.push(format!("{}={}", reg, to_display(&var, symbol_table)))
+            //     }
+            // }
+            if let Addr::Stack(ptr) = local {
+                if let Some(var) = compile_result.var_mapping.get(ptr) {
+                    ann.push(format!("{}={}", ptr, to_display(&var, symbol_table)))
                 }
             }
         };
@@ -321,7 +327,7 @@ pub fn run_just_query(
 
 pub fn lbl_for(goals: &[Struct]) -> HashMap<Functor, CodePtr> {
     goals
-        .into_iter()
-        .map(|goal| (goal.functor().clone(), CodePtr(0)))
+        .iter()
+        .map(|goal| (goal.functor(), CodePtr(0)))
         .collect()
 }

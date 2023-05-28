@@ -1,0 +1,56 @@
+---
+source: tests/executetests.rs
+expression: "case(input, output)"
+---
+(?- p(X, Y), q(X, Z)., p(a, b). q(a, d).)
+-----
+h: HEAP[9]
+s: HEAP[4]
+p: CODE[13]
+mode: write
+fail: false
+halt: false
+code:
+000	get_structure a/0, X1
+001	get_structure b/0, X2
+002	proceed
+003	get_structure a/0, X1
+004	get_structure d/0, X2
+005	proceed
+006	allocate 3
+007	put_variable Y1, X1
+008	put_variable Y2, X2
+009	call @0
+010	put_value Y1, X1
+011	put_variable Y3, X2
+012	call @3
+
+heap:
+000	<STR,3>
+001	<STR,5>
+002	<STR,3>
+003	a/0
+004	<STR,5>
+005	b/0
+006	<STR,8>
+007	<STR,8>
+008	d/0
+
+regs:
+000	<EMPTY>
+001	<REF,0>
+002	<REF,6>
+
+pdl:
+
+stack depth 0, cp=CODE[0]:
+000	<REF,0>
+001	<REF,1>
+002	<REF,6>
+
+
+000	X	(HEAP[0]) =	<STR,3>	// a
+001	Y	(HEAP[1]) =	<STR,5>	// b
+002	Z	(HEAP[6]) =	<STR,8>	// d
+
+
