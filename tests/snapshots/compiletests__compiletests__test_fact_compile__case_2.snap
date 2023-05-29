@@ -5,6 +5,6 @@ expression: "case(input, writeout_compile_result(&result, &symbol_table))"
 f(b, Y)
 -----
 000	get_structure b/0, X1
-001	get_variable X3, X2
+001	get_variable X3, X2	// X3=Y
 002	proceed
 

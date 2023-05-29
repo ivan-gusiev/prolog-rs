@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fmt::Display, hash::Hash, iter::FromIterator};
 
 use crate::{
-    data::{Addr, Data, HeapPtr, RegPtr, StackPtr},
+    data::{Addr, Data, HeapPtr, Local, RegPtr},
     lang::{Term, VarName},
     symbol::{to_display, SymDisplay, SymbolTable},
 };
@@ -107,11 +107,18 @@ impl<T: Clone + Eq + Hash> VarInfo<T> {
         }
         VarInfo::from_hash(result)
     }
+
+    pub fn retain_keys<F>(&mut self, mut f: F)
+    where
+        F: FnMut(&T) -> bool,
+    {
+        self.0.retain(|k, _| f(k))
+    }
 }
 
 pub type VarRegs = VarInfo<RegPtr>;
 
-pub type VarMapping = VarInfo<StackPtr>;
+pub type VarMapping = VarInfo<Local>;
 
 pub type VarBindings = VarInfo<HeapPtr>;
 

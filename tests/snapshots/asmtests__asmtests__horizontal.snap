@@ -15,19 +15,18 @@ horizontal(line(pt(X1, Y), pt(X2, Y))).
 007	unify_variable X6
 008	unify_value X5
 009	proceed
-010	ENTRYPOINT: allocate 1
-011	put_structure two/0, X4
-012	put_structure three/0, X6
-013	put_structure four/0, X7
-014	put_structure pt/2, X2
-015	set_value X4
-016	set_variable Y1
-017	put_structure pt/2, X3
-018	set_value X6
-019	set_value X7
-020	put_structure line/2, X1
-021	set_value X2
-022	set_value X3
-023	call @0
+010	ENTRYPOINT: put_structure two/0, X4
+011	put_structure three/0, X6
+012	put_structure four/0, X7
+013	put_structure pt/2, X2
+014	set_value X4
+015	set_variable X5
+016	put_structure pt/2, X3
+017	set_value X6
+018	set_value X7
+019	put_structure line/2, X1
+020	set_value X2
+021	set_value X3
+022	call @0
 
 

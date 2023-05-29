@@ -32,16 +32,14 @@ not initialized.
 
 ## Proposed solution for L2
 
-We can protect the query variable registers by putting them all on stack.
-This way no overwrites will occur, and reading the results will be much simpler.
-Instead of a hook we will introduce a new variant of `deallocate`, 
-called `publish`, which will perform exactly the same actions on the machine,
-but will also bind the query variables to the corresponding heap locations.
+We can protect the query variable registers by putting them on stack for more goals.
+This way, no overwrites will occur, and reading the results will be much simpler.
+Instead of a hook we will introduce a new instruction called `publish`, which will 
+bind the query variables to the corresponding heap locations.
 
 1. Add a new storage area in the machine, `stack_mapping`, which will store the mappings
-in the format of `(VarName, StackPtr, HeapPtr)`.
-2. Add a new instruction `publish`, that:
-    * performs exactly the same actions as `deallocate`
-    * after that, mutate the `stack_mapping` to set the correct heap pointers.
-3. Query compiler will use the `publish` instruction instead of `deallocate`.
-4. All the variables in a query will be considered permanent (and live on stack).
+in the format of `(VarName, Addr, HeapPtr)`.
+2. Add a new instruction `publish`
+    * that mutates the `stack_mapping` to set the correct heap pointers.
+3. Query compiler will emit the `publish` instruction at the epilogue, before `deallocate`.
+4. All the variables in a multi-goal query will be considered permanent, and live on stack.

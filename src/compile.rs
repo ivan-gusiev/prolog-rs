@@ -4,14 +4,11 @@ use std::hash::Hash;
 use std::iter::FromIterator;
 
 use asm::{Assembly, EntryPoint};
-use data::{CodePtr, RegPtr};
+use data::{CodePtr, Local, RegPtr, StackDepth, StackPtr};
 use instr::Instruction;
 use lang::{Functor, Sentence, Struct, Term, VarName};
 use symbol::{to_display, SymDisplay};
-use var::VarMapping;
-
-use crate::data::{Addr, StackDepth, StackPtr};
-use crate::var::VarRegs;
+use var::{VarMapping, VarRegs};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 struct TermId(usize);
@@ -119,43 +116,6 @@ struct FlattenedReg(RegPtr, FlattenedTerm<RegPtr>);
 impl FlattenedReg {
     fn to_tuple(&self) -> (RegPtr, &FlattenedTerm<RegPtr>) {
         (self.0, &self.1)
-    }
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
-enum Local {
-    Reg(RegPtr),
-    Stack(StackPtr),
-}
-
-impl Local {
-    fn from_stack(stack: &StackPtr) -> Local {
-        Local::Stack(*stack)
-    }
-
-    fn is_stack(&self) -> bool {
-        matches!(self, Local::Stack(_))
-    }
-}
-
-impl From<Local> for Addr {
-    fn from(value: Local) -> Self {
-        match value {
-            Local::Reg(regptr) => Addr::Reg(regptr),
-            Local::Stack(stackptr) => Addr::Stack(stackptr),
-        }
-    }
-}
-
-impl From<RegPtr> for Local {
-    fn from(value: RegPtr) -> Self {
-        Local::Reg(value)
-    }
-}
-
-impl From<&RegPtr> for Local {
-    fn from(value: &RegPtr) -> Self {
-        Local::Reg(*value)
     }
 }
 
@@ -324,7 +284,7 @@ fn get_permanent_variables(head: Option<&Struct>, goals: &[Struct]) -> HashMap<V
         .collect()
 }
 
-// compiles queries or rule goals
+// compiles goals for queries or rules
 fn compile_goal(
     query: Struct,
     programs: &HashMap<Functor, CodePtr>,
@@ -337,8 +297,8 @@ fn compile_goal(
         var_regs
             .get(regptr)
             .and_then(|var| stack_vars.get(&var))
-            .map(Local::from_stack)
-            .unwrap_or_else(|| Local::Reg(*regptr))
+            .map(Local::from)
+            .unwrap_or_else(|| Local::from(regptr))
     };
     let program_code_ptr = programs
         .get(&root_functor)
@@ -401,9 +361,11 @@ fn compile_goal(
     // call the corresponding program
     instructions.push(Instruction::Call(*program_code_ptr));
 
+    let var_mapping = VarMapping::from_iter(var_regs.iter().map(|(r, &name)| (get_local(r), name)));
+
     Ok(CompileInfo {
         instructions,
-        var_mapping: VarMapping::from_inverse(stack_vars),
+        var_mapping,
         label_functor: None,
     })
 }
@@ -412,7 +374,10 @@ pub fn compile_query(
     goals: Vec<Struct>,
     programs: &HashMap<Functor, CodePtr>,
 ) -> Result<CompileInfo, CompileError> {
-    let stack_vars = {
+    let stack_vars = if goals.len() < 2 {
+        // don't allocate a stack frame
+        HashMap::default()
+    } else {
         let mut vars = HashMap::default();
         for goal in goals.iter() {
             collect_variables(goal, &mut vars);
@@ -437,10 +402,11 @@ pub fn compile_query(
     }
 
     // epilogue
-    // TODO: uncomment once we make `publish` work
-    // if !stack_vars.is_empty() {
-    //     instructions.push(Instruction::Deallocate);
-    // }
+    if !stack_vars.is_empty() {
+        // TODO: uncomment once we make `publish` work
+        //instructions.push(Instruction::Deallocate);
+        var_mapping.retain_keys(Local::is_stack);
+    }
 
     Ok(CompileInfo {
         instructions,
@@ -460,8 +426,8 @@ fn compile_head(
         var_regs
             .get(regptr)
             .and_then(|var| stack_vars.get(&var))
-            .map(Local::from_stack)
-            .unwrap_or_else(|| Local::Reg(*regptr))
+            .map(Local::from)
+            .unwrap_or_else(|| Local::from(regptr))
     };
     let registers = &registers_with_root[1..];
     let reg_map: HashMap<RegPtr, &FlattenedTerm<RegPtr>> =
@@ -520,9 +486,10 @@ fn compile_head(
         }
     }
 
+    let var_mapping = VarMapping::from_iter(var_regs.iter().map(|(r, &name)| (get_local(r), name)));
     CompileInfo {
         instructions,
-        var_mapping: VarMapping::from_inverse(stack_vars),
+        var_mapping,
         label_functor: Some(root_functor),
     }
 }
@@ -548,21 +515,24 @@ pub fn compile_rule(
 
     let mut seen = HashSet::<Local>::new();
     let mut head_result = compile_head(head, &permanent_vars, &mut seen);
+    let mut var_mapping = head_result.var_mapping;
     instructions.append(&mut head_result.instructions);
     for goal in goals {
         let mut goal_result = compile_goal(goal, programs, &permanent_vars, &mut seen)?;
         instructions.append(&mut goal_result.instructions);
+        var_mapping.append(goal_result.var_mapping);
         seen.retain(Local::is_stack); // "remember" only the permanent variables
     }
 
     // epilogue
     if !permanent_vars.is_empty() {
         instructions.push(Instruction::Deallocate);
+        var_mapping.retain_keys(Local::is_stack);
     }
 
     Ok(CompileInfo {
         instructions,
-        var_mapping: head_result.var_mapping,
+        var_mapping,
         label_functor: head_result.label_functor,
     })
 }
@@ -750,15 +720,13 @@ fn test_compile_query() {
     let labels = lbl_for(&query.goals);
     let instructions = compile_asm(
         r#"
-        allocate 2
-        put_variable Y1, A1
+        put_variable X4, A1
         put_structure h/2, A2
-        set_value Y1
-        set_variable Y2
+        set_value X4
+        set_variable X5
         put_structure f/1, A3
-        set_value Y2
+        set_value X5
         call @0
-        #deallocate
         "#,
         &mut symbol_table,
     )
@@ -769,8 +737,8 @@ fn test_compile_query() {
         CompileInfo {
             instructions,
             var_mapping: VarMapping::from_iter([
-                (StackPtr(1), symbol_table.intern("Z")),
-                (StackPtr(2), symbol_table.intern("W"))
+                (RegPtr(4).into(), symbol_table.intern("Z")),
+                (RegPtr(5).into(), symbol_table.intern("W"))
             ]),
             label_functor: None
         }
@@ -834,7 +802,10 @@ fn test_compile_fact() {
         compile_fact(program),
         CompileInfo {
             instructions,
-            var_mapping: VarMapping::default(),
+            var_mapping: VarMapping::from_iter([
+                (RegPtr(4).into(), symbol_table.intern("X")),
+                (RegPtr(5).into(), symbol_table.intern("Y")),
+            ]),
             label_functor: Some(Functor(symbol_table.intern("p"), 3)),
         }
     )
@@ -853,18 +824,16 @@ fn test_compile_query_line() {
     let labels = lbl_for(&query.goals);
     let instructions = compile_asm(
         r#"
-        allocate 3
         put_structure p/2, X2
-        set_variable Y1
-        set_variable Y2
+        set_variable X4
+        set_variable X5
         put_structure p/2, X3
-        set_variable Y3
-        set_value Y2
+        set_variable X6
+        set_value X5
         put_structure l/2, A1
         set_value X2
         set_value X3
         call @0
-        #deallocate
         "#,
         &mut symbol_table,
     )
@@ -875,9 +844,9 @@ fn test_compile_query_line() {
         CompileInfo {
             instructions,
             var_mapping: VarMapping::from_iter([
-                (StackPtr(1), symbol_table.intern("A")),
-                (StackPtr(2), symbol_table.intern("Y")),
-                (StackPtr(3), symbol_table.intern("B")),
+                (RegPtr(4).into(), symbol_table.intern("A")),
+                (RegPtr(5).into(), symbol_table.intern("Y")),
+                (RegPtr(6).into(), symbol_table.intern("B")),
             ]),
             label_functor: None,
         }
@@ -914,7 +883,11 @@ fn test_compile_fact_line() {
         compile_fact(fact),
         CompileInfo {
             instructions,
-            var_mapping: VarMapping::default(),
+            var_mapping: VarMapping::from_iter([
+                (RegPtr(4).into(), symbol_table.intern("A")),
+                (RegPtr(5).into(), symbol_table.intern("Y")),
+                (RegPtr(6).into(), symbol_table.intern("B")),
+            ]),
             label_functor: Some(Functor(symbol_table.intern("h"), 1)),
         }
     )
@@ -1004,7 +977,7 @@ fn test_compile_rule() {
         compile_rule(rule.head.unwrap(), rule.goals, &label_map),
         Ok(CompileInfo {
             instructions: expected_assembly.instructions,
-            var_mapping: VarMapping::from_iter([(StackPtr(1), y), (StackPtr(2), z),]),
+            var_mapping: VarMapping::from_iter([(StackPtr(1).into(), y), (StackPtr(2).into(), z),]),
             label_functor: Some(p2),
         })
     )
@@ -1045,11 +1018,23 @@ fn test_compile_multigoal_query() {
         Ok(CompileInfo {
             instructions: expected_assembly.instructions,
             var_mapping: VarMapping::from_iter([
-                (StackPtr(1), x),
-                (StackPtr(2), z),
-                (StackPtr(3), y),
+                (StackPtr(1).into(), x),
+                (StackPtr(2).into(), z),
+                (StackPtr(3).into(), y),
             ]),
             label_functor: None,
         })
     )
+}
+
+#[test]
+fn test_compile_empty_query() {
+    assert_eq!(
+        compile_query(vec![], &HashMap::default()),
+        Ok(CompileInfo {
+            instructions: vec![],
+            var_mapping: VarMapping::default(),
+            label_functor: None,
+        })
+    );
 }

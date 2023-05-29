@@ -4,8 +4,7 @@ expression: "case(input, writeout_compile_result(&result, &symbol_table))"
 ---
 ?- f(b, Y).
 -----
-000	allocate 1
-001	put_structure b/0, X1
-002	put_variable Y1, X2	// Y1=Y
-003	call @0
+000	put_structure b/0, X1
+001	put_variable X3, X2	// X3=Y
+002	call @0
 

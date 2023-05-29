@@ -34,6 +34,8 @@
     * consider variables A, B, C, D, E where B and D are permanent
     * this will result in `A->X1, B->Y1, C->X3, D->Y2, E->X5`
     * we want `A->X1, B->Y1, C->X2, D->Y2, E->X3`
+- [ ] actually, I don't like that all query variables are in stack
+    * keep some of them in regs? e.g. if there is only one `call` instruction
 
 ### Bugs
 - [x] Type `?- X` then `X`. It cannot figure out the unification. 

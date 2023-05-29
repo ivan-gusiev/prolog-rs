@@ -148,12 +148,12 @@ impl<'a> App<'a> {
         let annotate = |stack: &StackPtr| -> String {
             let mut annotations = Vec::<String>::new();
             if let Some(q) = self.prolog.query.as_ref() {
-                if let Some(x) = q.var_mapping.get(stack) {
+                if let Some(x) = q.var_mapping.get(&stack.into()) {
                     annotations.push(format!("q.{}", to_display(&x, st)))
                 }
             }
             if let Some(p) = self.prolog.program.as_ref() {
-                if let Some(x) = p.get(stack) {
+                if let Some(x) = p.get(&stack.into()) {
                     annotations.push(format!("p.{}", x.sym_to_str(st)))
                 }
             }

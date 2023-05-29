@@ -1,8 +1,9 @@
 use lang::Functor;
-use std::fmt::{Display, Formatter};
-use std::ops;
-
-use crate::symbol::SymDisplay;
+use std::{
+    fmt::{Display, Formatter},
+    ops,
+};
+use symbol::SymDisplay;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub struct HeapPtr(pub usize);
@@ -176,6 +177,7 @@ impl Display for Mode {
     }
 }
 
+/// A tagged pointer to machine addressable storage
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum Addr {
     Heap(HeapPtr),
@@ -208,5 +210,75 @@ impl From<HeapPtr> for Addr {
 impl From<StackPtr> for Addr {
     fn from(ptr: StackPtr) -> Self {
         Addr::Stack(ptr)
+    }
+}
+
+impl Addr {
+    pub fn get_local(&self) -> Option<Local> {
+        match self {
+            Addr::Heap(_) => None,
+            Addr::Reg(r) => Some(Local::Reg(*r)),
+            Addr::Stack(s) => Some(Local::Stack(*s)),
+        }
+    }
+}
+
+/// A reference to local execution environment.
+/// Either a register variable or a stack variable
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
+pub enum Local {
+    Reg(RegPtr),
+    Stack(StackPtr),
+}
+
+impl Local {
+    pub fn from_stack(stack: &StackPtr) -> Local {
+        Local::Stack(*stack)
+    }
+
+    pub fn is_stack(&self) -> bool {
+        matches!(self, Local::Stack(_))
+    }
+}
+
+impl From<Local> for Addr {
+    fn from(value: Local) -> Self {
+        match value {
+            Local::Reg(regptr) => Addr::Reg(regptr),
+            Local::Stack(stackptr) => Addr::Stack(stackptr),
+        }
+    }
+}
+
+impl From<RegPtr> for Local {
+    fn from(value: RegPtr) -> Self {
+        Local::Reg(value)
+    }
+}
+
+impl From<&RegPtr> for Local {
+    fn from(value: &RegPtr) -> Self {
+        Local::Reg(*value)
+    }
+}
+
+impl From<StackPtr> for Local {
+    fn from(value: StackPtr) -> Self {
+        Local::Stack(value)
+    }
+}
+
+impl From<&StackPtr> for Local {
+    fn from(value: &StackPtr) -> Self {
+        Local::Stack(*value)
+    }
+}
+
+impl Display for Local {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        match self {
+            Self::Reg(r) => write!(f, "{r}"),
+            Self::Stack(s) => write!(f, "{s}"),
+        }
     }
 }

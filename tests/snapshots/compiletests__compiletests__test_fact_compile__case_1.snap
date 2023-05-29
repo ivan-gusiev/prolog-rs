@@ -4,9 +4,9 @@ expression: "case(input, writeout_compile_result(&result, &symbol_table))"
 ---
 f(X, g(X,a))
 -----
-000	get_variable X3, X1
+000	get_variable X3, X1	// X3=X
 001	get_structure g/2, X2
-002	unify_value X3
+002	unify_value X3	// X3=X
 003	unify_variable X4
 004	get_structure a/0, X4
 005	proceed

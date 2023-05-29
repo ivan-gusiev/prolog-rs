@@ -159,16 +159,16 @@ pub fn writeout_compile_result(compile_result: &CompileInfo, symbol_table: &Symb
     ) -> Vec<String> {
         let mut out = Vec::<String>::new();
         let mut annotations = Vec::<String>::with_capacity(2);
-        let process_local = |local: &Addr, ann: &mut Vec<String>| {
+        let process_local = |addr: &Addr, ann: &mut Vec<String>| {
             // TODO: once we start mapping temporaries, uncomment this
             // if let Addr::Reg(reg) = local {
             //     if let Some(var) = compile_result.var_mapping.get(reg) {
             //         ann.push(format!("{}={}", reg, to_display(&var, symbol_table)))
             //     }
             // }
-            if let Addr::Stack(ptr) = local {
-                if let Some(var) = compile_result.var_mapping.get(ptr) {
-                    ann.push(format!("{}={}", ptr, to_display(&var, symbol_table)))
+            if let Some(local) = addr.get_local() {
+                if let Some(var) = compile_result.var_mapping.get(&local) {
+                    ann.push(format!("{}={}", local, to_display(&var, symbol_table)))
                 }
             }
         };
