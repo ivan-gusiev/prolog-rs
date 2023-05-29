@@ -6,7 +6,7 @@ expression: "case(input, output)"
 -----
 h: HEAP[16]
 s: HEAP[6]
-p: CODE[18]
+p: CODE[19]
 mode: write
 fail: false
 halt: false
@@ -29,6 +29,7 @@ code:
 015	put_structure f/1, X3
 016	set_value Y2
 017	call @0
+018	publish
 
 heap:
 000	<STR,9>

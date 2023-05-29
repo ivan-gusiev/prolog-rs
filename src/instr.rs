@@ -21,6 +21,7 @@ pub enum Instruction {
     GetValue(Addr, Addr),
     Allocate(StackDepth),
     Deallocate,
+    Publish,
 }
 
 impl Display for Instruction {
@@ -44,6 +45,7 @@ impl Display for Instruction {
             Instruction::GetValue(x, a) => write!(f, "get_value {x}, {a}"),
             Instruction::Allocate(d) => write!(f, "allocate {d}"),
             Instruction::Deallocate => write!(f, "deallocate"),
+            Instruction::Publish => write!(f, "publish"),
         }
     }
 }

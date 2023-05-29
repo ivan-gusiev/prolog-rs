@@ -11,4 +11,5 @@ expression: "case(input, collapse(result))"
 004	set_value Y1	// Y1=X
 005	set_value X4
 006	call @10
+007	publish
 

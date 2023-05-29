@@ -11,4 +11,5 @@ expression: "case(input, writeout_compile_result(&result, &symbol_table))"
 004	set_value Y1	// Y1=X
 005	set_value X4
 006	call @0
+007	publish
 

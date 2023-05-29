@@ -98,6 +98,20 @@ q/2: proceed
 r/2: proceed
     "#;
 
+    const L2_QUERY: &str = r#"
+     allocate 3             % ?-
+     put_variable Y1, X1    % Y1=X
+     put_variable Y2, X2    % Y2=Z
+     call q/2
+     put_structure b/0, X1
+     put_variable Y3, X2	% Y3=Y
+     call r/2
+     publish
+     deallocate
+q/2: proceed
+r/2: proceed
+        "#;
+
     #[parameterized(input = {
         QUERY_L0,
         QUERY_L1,
@@ -109,6 +123,7 @@ r/2: proceed
         DIGITS_IN_NAMES,
         MULTI_LABEL,
         L2_RULE,
+        L2_QUERY,
     })]
     fn test_assembler(input: &str) {
         let mut symbol_table = prolog_rs::symbol::SymbolTable::new();

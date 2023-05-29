@@ -399,6 +399,7 @@ pub fn compile_query(
     }
 
     // epilogue
+    instructions.push(Instruction::Publish);
     if !stack_vars.is_empty() {
         // TODO: uncomment once we make `publish` work
         //instructions.push(Instruction::Deallocate);
@@ -725,6 +726,7 @@ fn test_compile_query() {
         put_structure f/1, A3
         set_value Y2
         call @0
+        publish
         #deallocate
         "#,
         &mut symbol_table,
@@ -758,6 +760,7 @@ fn test_compile_query_no_allocate() {
         put_structure b/0, A1
         put_structure a/0, A2
         call @0
+        publish
         "#,
         &mut symbol_table,
     )
@@ -834,6 +837,7 @@ fn test_compile_query_line() {
         set_value X2
         set_value X3
         call @0
+        publish
         #deallocate
         "#,
         &mut symbol_table,
@@ -1000,6 +1004,7 @@ fn test_compile_multigoal_query() {
         put_value Y2, A1
         put_variable Y3, A2
         call @110 ; r/2
+        publish
         #deallocate
         "#,
         &mut symbol_table,
@@ -1032,7 +1037,7 @@ fn test_compile_empty_query() {
     assert_eq!(
         compile_query(vec![], &HashMap::default()),
         Ok(CompileInfo {
-            instructions: vec![],
+            instructions: vec![Instruction::Publish],
             var_mapping: VarMapping::default(),
             label_functor: None,
         })

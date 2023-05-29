@@ -266,6 +266,8 @@ fn command_to_instr(
         (nm @ "proceed", args) => bad_args(nm, args),
         ("deallocate", []) => Ok(Instruction::Deallocate),
         (nm @ "deallocate", args) => bad_args(nm, args),
+        ("publish", []) => Ok(Instruction::Publish),
+        (nm @ "publish", args) => bad_args(nm, args),
         (x, _) => Err(format!("Unknown command {x}")),
     }
 }

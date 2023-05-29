@@ -13,7 +13,7 @@ use util::{writeout, writeout_sym};
 
 use crate::{
     asm::Assembly,
-    data::{StackDepth, StackPtr},
+    data::{StackDepth, StackPtr, VarRecord},
 };
 
 #[derive(Debug)]
@@ -29,7 +29,8 @@ pub struct Machine {
     mode: Mode,
     fail: bool,
     halt: bool,
-    pdl: Vec<Addr>, // push-down list for unification
+    pdl: Vec<Addr>,       // push-down list for unification
+    vars: Vec<VarRecord>, // variable mappings for query result
 }
 
 impl Machine {
@@ -47,6 +48,7 @@ impl Machine {
             fail: false,
             halt: false,
             pdl: vec![],
+            vars: vec![],
         }
     }
 
@@ -243,6 +245,35 @@ impl Machine {
         self.pdl.is_empty()
     }
 
+    pub fn vars(&self) -> &[VarRecord] {
+        &self.vars
+    }
+
+    pub fn vars_mut(&mut self) -> &mut Vec<VarRecord> {
+        &mut self.vars
+    }
+
+    pub fn set_var_mappings(&mut self, mapping: &VarMapping) {
+        self.vars.clear();
+        self.vars
+            .extend(mapping.iter().map(VarRecord::from_mapping));
+    }
+
+    pub fn get_var_bindings(&self) -> VarBindings {
+        self.vars
+            .iter()
+            .map(|rec| (rec.address, rec.variable))
+            .collect()
+    }
+
+    pub fn bind_vars(&mut self) -> MResult {
+        for i in 0..self.vars.len() {
+            self.vars[i].address = self.trace_heap(self.vars[i].mapping.into())?;
+        }
+
+        Ok(())
+    }
+
     pub fn current_instruction(&self) -> Option<Instruction> {
         let index: usize = self.get_p().into();
         self.code.get(index).copied()
@@ -264,7 +295,8 @@ impl Machine {
         *self = Default::default();
         self.set_code(&assembly.instructions);
         if let Some(entry_point) = &assembly.entry_point {
-            self.set_p(entry_point.location)
+            self.set_p(entry_point.location);
+            self.set_var_mappings(&entry_point.variables);
         }
     }
 
@@ -680,6 +712,11 @@ fn deallocate(machine: &mut Machine) -> IResult {
     Ok(Some(frame.cp))
 }
 
+fn publish(machine: &mut Machine) -> IResult {
+    machine.bind_vars()?;
+    Ok(None)
+}
+
 fn execute_instruction(machine: &mut Machine, instruction: Instruction) -> MResult {
     let nextp = match instruction {
         Instruction::PutStructure(functor, register) => put_structure(machine, functor, register),
@@ -696,6 +733,7 @@ fn execute_instruction(machine: &mut Machine, instruction: Instruction) -> MResu
         Instruction::GetValue(xreg, areg) => get_value(machine, xreg, areg),
         Instruction::Allocate(depth) => allocate(machine, depth),
         Instruction::Deallocate => deallocate(machine),
+        Instruction::Publish => publish(machine),
     }?;
     machine.set_p(nextp.unwrap_or(machine.get_p() + instruction.size()));
     Ok(())

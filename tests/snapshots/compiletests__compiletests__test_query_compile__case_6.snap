@@ -8,4 +8,5 @@ expression: "case(input, writeout_compile_result(&result, &symbol_table))"
 001	put_variable Y1, X1	// Y1=X
 002	put_variable Y2, X2	// Y2=Z
 003	call @0
+004	publish
 

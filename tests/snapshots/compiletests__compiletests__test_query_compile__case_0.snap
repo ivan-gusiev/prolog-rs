@@ -12,4 +12,5 @@ expression: "case(input, writeout_compile_result(&result, &symbol_table))"
 005	put_structure f/1, X3
 006	set_value Y2	// Y2=W
 007	call @0
+008	publish
 

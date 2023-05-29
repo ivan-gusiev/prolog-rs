@@ -1,4 +1,4 @@
-use lang::Functor;
+use lang::{Functor, VarName};
 use std::{
     fmt::{Display, Formatter},
     ops,
@@ -279,6 +279,23 @@ impl Display for Local {
         match self {
             Self::Reg(r) => write!(f, "{r}"),
             Self::Stack(s) => write!(f, "{s}"),
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Debug, Hash)]
+pub struct VarRecord {
+    pub variable: VarName,
+    pub mapping: Local,
+    pub address: HeapPtr,
+}
+
+impl VarRecord {
+    pub fn from_mapping(item: (&Local, &VarName)) -> VarRecord {
+        Self {
+            variable: *item.1,
+            mapping: *item.0,
+            address: HeapPtr(0),
         }
     }
 }

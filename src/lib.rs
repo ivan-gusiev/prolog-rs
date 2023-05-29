@@ -124,26 +124,11 @@ pub fn l2_solve(mut program: Vec<Sentence>, query: Sentence) -> Result<Solution,
         compile_sentences(program, &mut a)?;
         a
     };
-    let query_mapping = solution
-        .assembly
-        .entry_point
-        .as_ref()
-        .unwrap()
-        .variables
-        .clone();
-    let program_mapping = solution
-        .assembly
-        .bindings_map
-        .iter()
-        .next()
-        .unwrap()
-        .1
-        .clone();
     solution.machine = Machine::new();
     solution.machine.load_assembly(&solution.assembly);
     solution.machine.execute().run()?;
-    solution.query_bindings = solution.machine.bind_variables(&query_mapping)?;
-    solution.program_bindings = solution.machine.bind_variables(&program_mapping)?;
+    solution.query_bindings = solution.machine.get_var_bindings();
+    solution.program_bindings = VarBindings::default();
 
     Ok(solution)
 }

@@ -1,0 +1,30 @@
+---
+source: tests/asmtests.rs
+expression: "case(input, output)"
+---
+
+     allocate 3             % ?-
+     put_variable Y1, X1    % Y1=X
+     put_variable Y2, X2    % Y2=Z
+     call q/2
+     put_structure b/0, X1
+     put_variable Y3, X2	% Y3=Y
+     call r/2
+     publish
+     deallocate
+q/2: proceed
+r/2: proceed
+        
+-----
+000	allocate 3
+001	put_variable Y1, X1
+002	put_variable Y2, X2
+003	call @9
+004	put_structure b/0, X1
+005	put_variable Y3, X2
+006	call @10
+007	publish
+008	deallocate
+009	q/2: proceed
+010	r/2: proceed
+
