@@ -34,8 +34,6 @@
     * consider variables A, B, C, D, E where B and D are permanent
     * this will result in `A->X1, B->Y1, C->X3, D->Y2, E->X5`
     * we want `A->X1, B->Y1, C->X2, D->Y2, E->X3`
-- [ ] actually, I don't like that all query variables are in stack
-    * keep some of them in regs? e.g. if there is only one `call` instruction
 
 ### Bugs
 - [x] Type `?- X` then `X`. It cannot figure out the unification. 
@@ -82,3 +80,6 @@
 - [x] machine: move class to a separate module `machine.rs`
 - [x] Full sentence Prolog parser.
 - [x] asm: move `asm::Assembly::from_asm` to `assembler::compile_asm`
+- [x] actually, I don't like that all query variables are in stack
+    * keep some of them in regs? e.g. if there is only one `call` instruction
+    * WONTFIX: even for simple instructions, the call still destroys the correct registers

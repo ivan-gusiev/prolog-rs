@@ -31,15 +31,15 @@ mod tests {
         set_value X4          %              X4)
         "#;
 
-    // TODO: uncomment last line when we add calls
     const QUERY_ASM_L2: &str = r#"
-        put_variable X4, A1   % ?- p(Z,
+        allocate 2
+        put_variable Y1, A1   % ?- p(Z,
         put_structure h/2, A2 %        h
-        set_value X4          %         (Z,
-        set_variable X5       %            W),
+        set_value Y1          %         (Z,
+        set_variable Y2       %            W),
         put_structure f/1, A3 %               f
-        set_value X5          %                (W))
-        call @0               % who knows where this points
+        set_value Y2          %                (W))
+        call @0               % by convention, p/3 points to 0
     "#;
 
     const QUERY: &str = "?- p(Z,h(Z,W), f(W)).";

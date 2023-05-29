@@ -374,10 +374,7 @@ pub fn compile_query(
     goals: Vec<Struct>,
     programs: &HashMap<Functor, CodePtr>,
 ) -> Result<CompileInfo, CompileError> {
-    let stack_vars = if goals.len() < 2 {
-        // don't allocate a stack frame
-        HashMap::default()
-    } else {
+    let stack_vars = {
         let mut vars = HashMap::default();
         for goal in goals.iter() {
             collect_variables(goal, &mut vars);
@@ -720,13 +717,15 @@ fn test_compile_query() {
     let labels = lbl_for(&query.goals);
     let instructions = compile_asm(
         r#"
-        put_variable X4, A1
+        allocate 2
+        put_variable Y1, A1
         put_structure h/2, A2
-        set_value X4
-        set_variable X5
+        set_value Y1
+        set_variable Y2
         put_structure f/1, A3
-        set_value X5
+        set_value Y2
         call @0
+        #deallocate
         "#,
         &mut symbol_table,
     )
@@ -737,8 +736,8 @@ fn test_compile_query() {
         CompileInfo {
             instructions,
             var_mapping: VarMapping::from_iter([
-                (RegPtr(4).into(), symbol_table.intern("Z")),
-                (RegPtr(5).into(), symbol_table.intern("W"))
+                (StackPtr(1).into(), symbol_table.intern("Z")),
+                (StackPtr(2).into(), symbol_table.intern("W"))
             ]),
             label_functor: None
         }
@@ -824,16 +823,18 @@ fn test_compile_query_line() {
     let labels = lbl_for(&query.goals);
     let instructions = compile_asm(
         r#"
+        allocate 3
         put_structure p/2, X2
-        set_variable X4
-        set_variable X5
+        set_variable Y1
+        set_variable Y2
         put_structure p/2, X3
-        set_variable X6
-        set_value X5
+        set_variable Y3
+        set_value Y2
         put_structure l/2, A1
         set_value X2
         set_value X3
         call @0
+        #deallocate
         "#,
         &mut symbol_table,
     )
@@ -844,15 +845,14 @@ fn test_compile_query_line() {
         CompileInfo {
             instructions,
             var_mapping: VarMapping::from_iter([
-                (RegPtr(4).into(), symbol_table.intern("A")),
-                (RegPtr(5).into(), symbol_table.intern("Y")),
-                (RegPtr(6).into(), symbol_table.intern("B")),
+                (StackPtr(1).into(), symbol_table.intern("A")),
+                (StackPtr(2).into(), symbol_table.intern("Y")),
+                (StackPtr(3).into(), symbol_table.intern("B")),
             ]),
             label_functor: None,
         }
     )
 }
-
 #[test]
 fn test_compile_fact_line() {
     use assembler::compile_asm;
