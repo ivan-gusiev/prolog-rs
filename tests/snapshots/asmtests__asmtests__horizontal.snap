@@ -30,5 +30,6 @@ horizontal(line(pt(X1, Y), pt(X2, Y))).
 022	set_value X3
 023	call @0
 024	publish
+025	deallocate
 
 

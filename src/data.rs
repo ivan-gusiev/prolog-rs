@@ -75,6 +75,12 @@ impl From<CodePtr> for usize {
     }
 }
 
+impl From<usize> for CodePtr {
+    fn from(value: usize) -> Self {
+        CodePtr(value)
+    }
+}
+
 /// represents the number of variables in a stack frame
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub struct StackDepth(pub usize);

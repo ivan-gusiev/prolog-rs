@@ -316,6 +316,7 @@ pub fn run_just_query(
     machine.set_code(&[Instruction::Proceed]);
     let p = machine.append_code(instructions);
     machine.set_p(p);
+    machine.set_cp(CodePtr(instructions.len()) + 1);
     machine.execute().run()
 }
 

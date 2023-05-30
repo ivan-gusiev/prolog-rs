@@ -9,4 +9,5 @@ expression: "case(input, writeout_compile_result(&result, &symbol_table))"
 002	put_variable Y2, X2	// Y2=Z
 003	call @0
 004	publish
+005	deallocate
 

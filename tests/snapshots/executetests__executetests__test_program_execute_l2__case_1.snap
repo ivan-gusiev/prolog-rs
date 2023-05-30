@@ -6,7 +6,7 @@ expression: "case(input, output)"
 -----
 h: HEAP[9]
 s: HEAP[4]
-p: CODE[14]
+p: CODE[15]
 mode: write
 fail: false
 halt: false
@@ -25,6 +25,7 @@ code:
 011	put_variable Y3, X2
 012	call @3
 013	publish
+014	deallocate
 
 heap:
 000	<STR,3>
@@ -43,11 +44,6 @@ regs:
 002	<REF,6>
 
 pdl:
-
-stack depth 0, cp=CODE[0]:
-000	<REF,0>
-001	<REF,1>
-002	<REF,6>
 
 
 000	X	(HEAP[0]) =	<STR,3>	// a

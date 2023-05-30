@@ -14,4 +14,5 @@ expression: "case(input, collapse(result))"
 007	set_value Y1	// Y1=X
 008	call @10
 009	publish
+010	deallocate
 

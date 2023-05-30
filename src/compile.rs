@@ -401,8 +401,7 @@ pub fn compile_query(
     // epilogue
     instructions.push(Instruction::Publish);
     if !stack_vars.is_empty() {
-        // TODO: uncomment once we make `publish` work
-        //instructions.push(Instruction::Deallocate);
+        instructions.push(Instruction::Deallocate);
         var_mapping.retain_keys(Local::is_stack);
     }
 
@@ -727,7 +726,7 @@ fn test_compile_query() {
         set_value Y2
         call @0
         publish
-        #deallocate
+        deallocate
         "#,
         &mut symbol_table,
     )
@@ -838,7 +837,7 @@ fn test_compile_query_line() {
         set_value X3
         call @0
         publish
-        #deallocate
+        deallocate
         "#,
         &mut symbol_table,
     )
@@ -1005,7 +1004,7 @@ fn test_compile_multigoal_query() {
         put_variable Y3, A2
         call @110 ; r/2
         publish
-        #deallocate
+        deallocate
         "#,
         &mut symbol_table,
     )

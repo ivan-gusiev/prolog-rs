@@ -296,6 +296,7 @@ impl Machine {
         self.set_code(&assembly.instructions);
         if let Some(entry_point) = &assembly.entry_point {
             self.set_p(entry_point.location);
+            self.set_cp(assembly.instructions.len().into());
             self.set_var_mappings(&entry_point.variables);
         }
     }

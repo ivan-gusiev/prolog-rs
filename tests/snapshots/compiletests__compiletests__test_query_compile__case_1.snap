@@ -12,4 +12,5 @@ expression: "case(input, writeout_compile_result(&result, &symbol_table))"
 005	set_value X4
 006	call @0
 007	publish
+008	deallocate
 

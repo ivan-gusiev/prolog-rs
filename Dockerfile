@@ -2,7 +2,7 @@
 FROM rust AS build-stage
 
 ADD . /usr/src/prolog-rs
-WORKDIR /usr/src/myapp
+WORKDIR /usr/src/prolog-rs
 
 RUN cargo build --release
 

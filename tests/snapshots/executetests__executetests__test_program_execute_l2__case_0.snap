@@ -6,7 +6,7 @@ expression: "case(input, output)"
 -----
 h: HEAP[9]
 s: HEAP[2]
-p: CODE[11]
+p: CODE[12]
 mode: write
 fail: false
 halt: false
@@ -22,6 +22,7 @@ code:
 008	put_variable Y1, X2
 009	call @0
 010	publish
+011	deallocate
 
 heap:
 000	<STR,1>
@@ -42,9 +43,6 @@ regs:
 004	<REF,6>
 
 pdl:
-
-stack depth 0, cp=CODE[0]:
-000	<REF,2>
 
 
 000	Y	(HEAP[2]) =	<STR,4>	// g(b, a)

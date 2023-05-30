@@ -41,6 +41,7 @@ mod tests {
         set_value Y2          %                (W))
         call @0               % by convention, p/3 points to 0
         publish
+        deallocate
     "#;
 
     const QUERY: &str = "?- p(Z,h(Z,W), f(W)).";
