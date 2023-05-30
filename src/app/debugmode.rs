@@ -105,6 +105,7 @@ impl<'a> App<'a> {
             ("H", machine.get_h().to_string()),
             ("S", machine.get_s().to_string()),
             ("P", machine.get_p().to_string()),
+            ("CP", machine.get_cp().to_string()),
             ("Mode", machine.get_mode().to_string()),
             ("Fail", machine.get_fail().to_string()),
             ("Halt", machine.get_halt().to_string()),
@@ -174,17 +175,29 @@ impl<'a> App<'a> {
             .collect()
     }
 
+    fn bindings(&self) -> Vec<(String, String, String)> {
+        let st = &self.prolog.symbol_table;
+
+        self.prolog
+            .machine
+            .vars()
+            .into_iter()
+            .map(|rec| {
+                (
+                    rec.variable.sym_to_str(st),
+                    rec.mapping.to_string(),
+                    rec.address.to_string(),
+                )
+            })
+            .collect()
+    }
+
     fn next_instruction(&mut self) {
         _ = self.prolog.machine.step();
     }
 
     fn bind_variables(&mut self) {
-        if let Some(query_info) = &self.prolog.query {
-            self.prolog.query_variables = self
-                .prolog
-                .machine
-                .bind_good_variables(&query_info.var_mapping);
-        }
+        _ = self.prolog.machine.bind_vars();
     }
 }
 
@@ -454,15 +467,13 @@ where
 {
     let selected_style = Style::default().add_modifier(Modifier::REVERSED);
     let name_style = Style::default().fg(Color::White);
-    let st = &app.prolog.symbol_table;
     let rows = app
-        .prolog
-        .query_variables
-        .iter()
-        .map(|(heap_ptr, var_name)| {
+        .bindings()
+        .into_iter()
+        .map(|(var_name, local, heap_ptr)| {
             let cells = vec![
-                Cell::from(var_name.sym_to_str(st)).style(name_style),
-                Cell::from(" = "),
+                Cell::from(var_name).style(name_style),
+                Cell::from(local.to_string()),
                 Cell::from(heap_ptr.to_string()),
             ];
             Row::new(cells).height(1)
@@ -475,9 +486,9 @@ where
                 .title("Query Bindings"),
         )
         .widths(&[
-            Constraint::Min(1),
-            Constraint::Length(3),
-            Constraint::Percentage(100),
+            Constraint::Percentage(50),
+            Constraint::Percentage(25),
+            Constraint::Percentage(25),
         ])
 }
 

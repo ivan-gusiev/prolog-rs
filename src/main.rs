@@ -7,6 +7,7 @@ use prolog_rs::{
     lang::{parse_program, parse_sentence},
     symbol::{to_display, SymDisplay},
     util::write_program_result,
+    var::VarBindings,
     PrologApp,
 };
 
@@ -45,8 +46,10 @@ fn main() -> RustyResult<()> {
                     "load" => {
                         prolog.machine.set_code(&prolog.assembly.instructions[..]);
                         if let Some(query) = prolog.query.as_ref() {
-                            let query_p = prolog.machine.append_code(&query.instructions[..]);
+                            let query_p = prolog.machine.append_code(&query.instructions);
                             prolog.machine.set_p(query_p);
+                            prolog.machine.set_cp(prolog.machine.code_len().into());
+                            prolog.machine.set_var_mappings(&query.var_mapping);
                         }
                     }
                     load_cmd if load_cmd.starts_with("load") => {
@@ -138,25 +141,13 @@ fn run_and_output(context: &mut PrologApp) -> Result<(), String> {
 
     let query_p = context.machine.append_code(&query_result.instructions);
     context.machine.set_p(query_p);
+    context.machine.set_cp(context.machine.code_len().into());
+    context.machine.set_var_mappings(&query_result.var_mapping);
 
-    let query_vars = &mut context.query_variables;
-    context
-        .machine
-        .execute()
-        .with_call_hook(|machine| {
-            machine
-                .bind_variables(&query_result.var_mapping)
-                .map(|vars| {
-                    *query_vars = vars;
-                })
-        })
-        .run()?;
+    context.machine.execute().run()?;
 
-    context.program_variables = context
-        .program
-        .as_ref()
-        .map(|mapping| context.machine.bind_good_variables(mapping))
-        .unwrap_or_default();
+    context.query_variables = context.machine.get_var_bindings();
+    context.program_variables = VarBindings::default();
 
     output_result(context)?;
     Ok(())
