@@ -181,7 +181,7 @@ impl<'a> App<'a> {
         self.prolog
             .machine
             .vars()
-            .into_iter()
+            .iter()
             .map(|rec| {
                 (
                     rec.variable.sym_to_str(st),
@@ -473,8 +473,8 @@ where
         .map(|(var_name, local, heap_ptr)| {
             let cells = vec![
                 Cell::from(var_name).style(name_style),
-                Cell::from(local.to_string()),
-                Cell::from(heap_ptr.to_string()),
+                Cell::from(local),
+                Cell::from(heap_ptr),
             ];
             Row::new(cells).height(1)
         });
