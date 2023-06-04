@@ -1,5 +1,5 @@
 ---
-source: tests/decompiletests.rs
+source: tests/constructtests.rs
 expression: "case(program_str.to_owned() + \" | ?- \" + query_str, result)"
 ---
 horizontal(line(pt(X1, Y), pt(X2, Y))) | ?- horizontal(A)

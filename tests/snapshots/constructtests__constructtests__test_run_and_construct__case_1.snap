@@ -1,5 +1,5 @@
 ---
-source: tests/decompiletests.rs
+source: tests/constructtests.rs
 expression: "case(program_str.to_owned() + \" | ?- \" + query_str, result)"
 ---
 f(X, g(X,a)) | ?- f(b, Y)

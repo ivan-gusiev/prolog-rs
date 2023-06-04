@@ -28,7 +28,7 @@ enum InputState {
     CodeNavigator,
     FlagEditor,
     HeapNavigator,
-    Decompiler,
+    Constructor,
 }
 
 impl InputState {
@@ -58,10 +58,10 @@ impl InputState {
         q      back to debug
         UP     move up
         DOWN   move down
-        d      decompile"#;
+        c      construct terms"#;
 
-        const DECOMPILER_TEXT: &str = r#"
-    Decompiler Output >>>
+        const CONSTRUCTOR_TEXT: &str = r#"
+    Constructor Output >>>
         {}
 
         q      back to data
@@ -73,7 +73,7 @@ impl InputState {
             InputState::CodeNavigator => CODE_NAVIGATION_TEXT,
             InputState::FlagEditor => FLAG_EDITOR_TEXT,
             InputState::HeapNavigator => DATA_NAVIGATOR_TEXT,
-            InputState::Decompiler => DECOMPILER_TEXT,
+            InputState::Constructor => CONSTRUCTOR_TEXT,
         }
     }
 }
@@ -296,12 +296,12 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                     }
                     KeyCode::Char('d') => {
                         if app.data_state.selected().is_some() {
-                            app.input_state = InputState::Decompiler;
+                            app.input_state = InputState::Constructor;
                         }
                     }
                     _ => {}
                 },
-                InputState::Decompiler => match key.code {
+                InputState::Constructor => match key.code {
                     KeyCode::Char('q') => {
                         app.input_state = InputState::HeapNavigator;
                     }
@@ -524,25 +524,25 @@ fn render_stack<'a>(app: &App<'a>) -> Table<'a> {
 
 fn render_help<'a>(app: &mut App) -> Paragraph<'a> {
     let text = match app.input_state {
-        InputState::Decompiler => {
+        InputState::Constructor => {
             let heap_len = app.prolog.machine.heap_len();
             let heap_ptr = HeapPtr(dec_mod(
                 inc_mod(app.data_state.selected().unwrap_or(0), heap_len),
                 heap_len,
             ));
-            let decompile_result = app.prolog.machine.decompile(
+            let construct_result = app.prolog.machine.construct_term(
                 heap_ptr.into(),
                 &app.prolog.query_variables,
                 &mut app.prolog.symbol_table,
             );
 
-            let decompile = decompile_result
+            let construct = construct_result
                 .map(|t| t.sym_to_str(&app.prolog.symbol_table))
                 .map_err(|err| err.to_string());
 
-            InputState::Decompiler
+            InputState::Constructor
                 .help_text()
-                .replace("{}", collapse(decompile).as_str())
+                .replace("{}", collapse(construct).as_str())
         }
         _ => app.input_state.help_text().to_string(),
     };

@@ -9,12 +9,12 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub enum DecompileError {
+pub enum ConstructError {
     CircularRef,
     Machine(MachineError),
 }
 
-impl DecompileError {
+impl ConstructError {
     pub fn message(&self) -> &'static str {
         match self {
             Self::CircularRef => "Circular reference detected when decompiling a term",
@@ -23,27 +23,27 @@ impl DecompileError {
     }
 }
 
-impl Display for DecompileError {
+impl Display for ConstructError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.message())
     }
 }
 
-impl From<DecompileError> for String {
-    fn from(value: DecompileError) -> Self {
+impl From<ConstructError> for String {
+    fn from(value: ConstructError) -> Self {
         format!("{value}")
     }
 }
 
-impl From<MachineError> for DecompileError {
+impl From<MachineError> for ConstructError {
     fn from(value: MachineError) -> Self {
         Self::Machine(value)
     }
 }
 
-pub type DecompileResult<T> = Result<T, DecompileError>;
+pub type ConstructResult<T> = Result<T, ConstructError>;
 
-pub struct DecompileEnvironment<'a> {
+pub struct ConstructEnvironment<'a> {
     machine: &'a Machine,
     symbol_table: &'a mut SymbolTable,
     var_bindings: VarBindings,
@@ -51,7 +51,7 @@ pub struct DecompileEnvironment<'a> {
     unnamed_var_counter: usize,
 }
 
-impl<'a> DecompileEnvironment<'a> {
+impl<'a> ConstructEnvironment<'a> {
     pub fn new(
         machine: &'a Machine,
         query_bindings: &'a VarBindings,
@@ -66,7 +66,7 @@ impl<'a> DecompileEnvironment<'a> {
         }
     }
 
-    pub fn run(&mut self, addr: Addr) -> DecompileResult<Term> {
+    pub fn run(&mut self, addr: Addr) -> ConstructResult<Term> {
         let heap_root = match addr {
             Addr::Heap(ptr) => ptr,
             other => self.machine.trace_heap(other)?,
@@ -76,24 +76,24 @@ impl<'a> DecompileEnvironment<'a> {
         result
     }
 
-    fn decompile_str(&mut self, Str(ptr): Str) -> DecompileResult<Term> {
+    fn construct_str(&mut self, Str(ptr): Str) -> ConstructResult<Term> {
         match self.machine.get_heap(ptr) {
-            Data::Functor(f) => self.decompile_functor(ptr, f),
+            Data::Functor(f) => self.construct_functor(ptr, f),
             _ => Err(MachineError::NoStrFunctor.into()),
         }
     }
 
-    fn decompile_functor(&mut self, ptr: HeapPtr, f: Functor) -> DecompileResult<Term> {
+    fn construct_functor(&mut self, ptr: HeapPtr, f: Functor) -> ConstructResult<Term> {
         let mut subterms = Vec::<Term>::new();
         for i in 1..=f.arity() {
             subterms.push(self.run_impl(ptr + i as usize)?)
         }
         Struct::new(f, &subterms)
             .map(Term::Struct)
-            .map_err(|_| DecompileError::from(MachineError::BadArity))
+            .map_err(|_| ConstructError::from(MachineError::BadArity))
     }
 
-    fn decompile_ref(&mut self, Ref(mut ptr): Ref) -> DecompileResult<Term> {
+    fn construct_ref(&mut self, Ref(mut ptr): Ref) -> ConstructResult<Term> {
         let mut last_name: Option<VarName> = None;
         loop {
             if let Some(new_name) = self.var_bindings.get(&ptr) {
@@ -110,9 +110,9 @@ impl<'a> DecompileEnvironment<'a> {
                         break Ok(self.new_variable(ptr));
                     }
                 }
-                Data::Str(str) => break self.decompile_str(str),
-                Data::Functor(f) => break self.decompile_functor(ptr, f),
-                Data::Empty => break Err(DecompileError::from(MachineError::EmptyRef)),
+                Data::Str(str) => break self.construct_str(str),
+                Data::Functor(f) => break self.construct_functor(ptr, f),
+                Data::Empty => break Err(ConstructError::from(MachineError::EmptyRef)),
             }
         }
     }
@@ -126,18 +126,18 @@ impl<'a> DecompileEnvironment<'a> {
         Term::Variable(name)
     }
 
-    fn run_impl(&mut self, addr: HeapPtr) -> DecompileResult<Term> {
+    fn run_impl(&mut self, addr: HeapPtr) -> ConstructResult<Term> {
         if self.seen.contains(&addr) {
             // circular reference
-            return Err(DecompileError::CircularRef);
+            return Err(ConstructError::CircularRef);
         } else {
             self.seen.insert(addr);
         }
 
         match self.machine.get_heap(addr) {
-            Data::Ref(r) => self.decompile_ref(r),
-            Data::Str(str) => self.decompile_str(str),
-            Data::Functor(f) => self.decompile_functor(addr, f),
+            Data::Ref(r) => self.construct_ref(r),
+            Data::Str(str) => self.construct_str(str),
+            Data::Functor(f) => self.construct_functor(addr, f),
             Data::Empty => Err(MachineError::EmptyRef.into()),
         }
     }

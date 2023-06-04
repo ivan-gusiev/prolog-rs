@@ -1,8 +1,8 @@
 pub mod asm;
 pub mod assembler;
 pub mod compile;
+pub mod construct;
 pub mod data;
-pub mod decompile;
 pub mod instr;
 pub mod lang;
 pub mod machine;

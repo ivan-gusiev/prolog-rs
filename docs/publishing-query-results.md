@@ -13,8 +13,8 @@ The approach taken until and up to L1 was to track program registers
 as well as machine heap during execution.
 1. During compilation, establish the mapping `RegPtr -> VarName`
 2. During execution, transform it to the `HeapPtr -> VarName` mapping
-3. After the machine stops successfully, decompile the corresponding heap pointers, 
-and assign them to the correct variable names.
+3. After the machine stops successfully, construct the terms from 
+the corresponding heap pointers, and assign them to the correct variable names.
 
 To enable step 2, we used to attach a runtime hook to the machine, 
 which binds the query variables to the heap just after the 

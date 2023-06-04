@@ -2,15 +2,16 @@
 - [ ] more compiler tests (e.g. from the brown book)
 - [ ] static type system?
 - [ ] byte-address `call p/n` instead of index-address into array
-- [ ] decompile: is it possible for `DecompileEnvironment::run_impl` to be non-recursive?
+- [ ] construct: is it possible for `ConstructEnvironment::run_impl` to be non-recursive?
 - [ ] update `[A-Z]+\.md` files
 - [ ] write more docs
     * explain horizontal line
     * explain `var.rs` and binding
 - [ ] really fix the code organization, extern crate stuff et al
     * move `main` out of `lib`?
-- [ ] decompile: employ var names from queries when possible
-    * maybe wait until L2 machine implementation
+- [ ] construct: employ var names from queries when possible
+    * one option would be to have a trace mode, and put a code ref on each call
+    * we could use these markers to select a "current term" when decompiling
 - [ ] convert getters and setters to read-only and mutable references
     * `get_x(&self) -> &X` to `x(&self) -> &X` 
     * `set_x(&mut self, value)` to `x_mut(&mut self) -> &mut X`
@@ -21,10 +22,7 @@
     * called "singleton variables"; sounds weird?
 - [ ] asm: instead of labels pointing to the actual code, point them to a thunk
     * will help with `assert`/`retract` in the future
-    * will enable referring to terms before defining their facts or rules 
-- [ ] labeling program variables
-    * one option would be to have a trace mode, and put a code ref on each call
-    * we could use these markers to select a "current term" when decompiling
+    * will enable referring to terms before defining their facts or rules
 - [ ] compile: number temporary variables from X1 and up consecutively
     * consider variables A, B, C, D, E where B and D are permanent
     * this will result in `A->X1, B->Y1, C->X3, D->Y2, E->X5`
@@ -37,10 +35,10 @@
     * fix the variable descriptions by dereferencing mappings:
     * before code execution, turn all RegPtr's into HeapPtr's
     * DONE: the root cause was incorrectly implemented `bind` operation
-- [x] decompile: make sure that for a horizontal line, `horizontal(A)` decompiles correctly
+- [x] construct: make sure that for a horizontal line, `horizontal(A)` constructs correctly
     * today it returns `UnknownVariable`
     * needs either autonaming temp variables, or to keep the list of all program mappings
-- [x] decompile: decompiling a self-referential (buggy) heap causes stack overflow
+- [x] construct: decompiling a self-referential (buggy) heap causes stack overflow
     * `executetests::test_program_execute::case_1` fails
     * add a cache of already-seen terms
 - [x] `CompileResult::append_to_assembly` steals functors for queries
@@ -68,7 +66,7 @@
 - [x] compile: term_map seems to be useless (`term_map[Ti] == Xi`)
     * not useless
     * the equation is only correct if the term does not have repeating terms
-- [x] decompile: move code to a separate module `decompile.rs`
+- [x] construct: move code to a separate module `construct.rs`
 - [x] multi-fact tests
 - [x] roll my own topological sort 
     * used generations approach instead of that

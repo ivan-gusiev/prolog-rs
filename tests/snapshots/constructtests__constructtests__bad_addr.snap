@@ -1,5 +1,5 @@
 ---
-source: tests/decompiletests.rs
+source: tests/constructtests.rs
 expression: collapse(result)
 ---
 "Term points to an empty heap cell"

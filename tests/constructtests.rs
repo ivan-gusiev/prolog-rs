@@ -3,7 +3,7 @@ extern crate parameterized;
 extern crate prolog_rs;
 
 #[cfg(test)]
-mod decompiletests {
+mod constructtests {
     use std::collections::{HashMap, HashSet};
 
     use insta::{assert_debug_snapshot, assert_display_snapshot};
@@ -30,7 +30,7 @@ mod decompiletests {
         "f(X, g(X,a))",
         "horizontal(A)"
     })]
-    fn test_run_and_decompile(program_str: &str, query_str: &str) {
+    fn test_run_and_construct(program_str: &str, query_str: &str) {
         let mut symbol_table = SymbolTable::new();
         let query = parse_struct(query_str, &mut symbol_table).unwrap();
         let program = parse_struct(program_str, &mut symbol_table).unwrap();
@@ -128,7 +128,7 @@ mod decompiletests {
         machine.set_heap(ptr, Data::Functor(Functor(symbol_table.intern("f"), 2)));
 
         let result = machine
-            .decompile(ptr.into(), &var_bindings, &mut symbol_table)
+            .construct_term(ptr.into(), &var_bindings, &mut symbol_table)
             .map(|term| term.sym_to_str(&symbol_table))
             .map_err(|e| format!("{e}"));
         assert_debug_snapshot!(collapse(result));

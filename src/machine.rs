@@ -1,5 +1,5 @@
+use construct::{ConstructEnvironment, ConstructResult};
 use data::{Addr, CodePtr, Data, HeapPtr, Mode, Ref, RegPtr, Str};
-use decompile::{DecompileEnvironment, DecompileResult};
 use instr::Instruction;
 use lang::{Functor, Term, VarName};
 use std::{
@@ -324,21 +324,21 @@ impl Machine {
         var_mapping.traverse_filter(|&reg| self.trace_heap(reg.into()))
     }
 
-    pub fn decompile(
+    pub fn construct_term(
         &self,
         addr: Addr,
         var_bindings: &VarBindings,
         symbol_table: &mut SymbolTable,
-    ) -> DecompileResult<Term> {
-        DecompileEnvironment::new(self, var_bindings, symbol_table).run(addr)
+    ) -> ConstructResult<Term> {
+        ConstructEnvironment::new(self, var_bindings, symbol_table).run(addr)
     }
 
     pub fn describe_vars(
         &self,
         var_bindings: &VarBindings,
         symbol_table: &mut SymbolTable,
-    ) -> DecompileResult<Vec<VarDescription>> {
-        let mut env = DecompileEnvironment::new(self, var_bindings, symbol_table);
+    ) -> ConstructResult<Vec<VarDescription>> {
+        let mut env = ConstructEnvironment::new(self, var_bindings, symbol_table);
         let mut mappings = var_bindings
             .iter()
             .map(|(&r, &n)| (n, r))
