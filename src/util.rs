@@ -79,13 +79,13 @@ pub fn write_program_result(
     machine: &Machine,
     symbol_table: &mut SymbolTable,
     query_bindings: &VarBindings,
-    program_bindings: &VarBindings,
+    maybe_program_bindings: Option<&VarBindings>,
 ) -> String {
     fn write_program_result_impl(
         machine: &Machine,
         symbol_table: &mut SymbolTable,
         query_bindings: &VarBindings,
-        program_bindings: &VarBindings,
+        maybe_program_bindings: Option<&VarBindings>,
     ) -> Result<String, Error> {
         let mut out = String::new();
         writeln!(out, "QUERY\n----")?;
@@ -98,21 +98,28 @@ pub fn write_program_result(
             )
         )?;
         writeln!(out, "PROGRAM\n____")?;
-        writeln!(
-            out,
-            "{}",
-            writeout_sym(
-                &machine
-                    .describe_vars(program_bindings, symbol_table)
-                    .unwrap(),
-                symbol_table
-            )
-        )?;
+        if let Some(program_bindings) = maybe_program_bindings {
+            writeln!(
+                out,
+                "{}",
+                writeout_sym(
+                    &machine
+                        .describe_vars(program_bindings, symbol_table)
+                        .unwrap(),
+                    symbol_table
+                )
+            )?;
+        }
         Ok(out)
     }
 
-    write_program_result_impl(machine, symbol_table, query_bindings, program_bindings).unwrap()
-    //.unwrap_or_else(|e| format!("{e}"))
+    write_program_result_impl(
+        machine,
+        symbol_table,
+        query_bindings,
+        maybe_program_bindings,
+    )
+    .unwrap()
 }
 
 pub fn writeout_annotated_mappings(

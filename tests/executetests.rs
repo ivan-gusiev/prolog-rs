@@ -49,7 +49,7 @@ mod executetests {
         let program = parse_struct(program_text, &mut symbol_table).unwrap();
         let solution = l1_solve(program, query).unwrap();
         let query_bindings = solution.query_bindings;
-        let program_bindings = solution.program_bindings;
+        let program_bindings = solution.program_bindings.unwrap_or_default();
 
         let input = format!("({query_text}, {program_text})");
         let output = if solution.machine.get_fail() {
@@ -80,7 +80,7 @@ mod executetests {
     #[parameterized(input = {
         ("?- f(b, Y).", "f(X, g(X,a))."),
         ("?- p(X, Y), q(X, Z).", "p(a, b). q(a, d)."),
-        // TODO: add a thing with a rule here
+        ("?- cat(X).", "legs(joe, four). says(joe, meow). cat(X) :- legs(X, four), says(X, meow)."),
     })]
     fn test_program_execute_l2(input: (&str, &str)) {
         let (query_text, program_text) = input;
@@ -89,26 +89,18 @@ mod executetests {
         let program = parse_program(program_text, &mut symbol_table).unwrap();
         let solution = l2_solve(program, query).unwrap();
         let query_bindings = solution.query_bindings;
-        let program_bindings = solution.program_bindings;
 
         let input = format!("({query_text}, {program_text})");
         let output = if solution.machine.get_fail() {
             solution.machine.dbg(&symbol_table)
         } else {
             format!(
-                "{}\n{}\n{}",
+                "{}\n{}",
                 solution.machine.dbg(&symbol_table),
                 writeout_sym(
                     &solution
                         .machine
                         .describe_vars(&query_bindings, &mut symbol_table)
-                        .unwrap(),
-                    &symbol_table
-                ),
-                writeout_sym(
-                    &solution
-                        .machine
-                        .describe_vars(&program_bindings, &mut symbol_table)
                         .unwrap(),
                     &symbol_table
                 )

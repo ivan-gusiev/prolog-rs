@@ -176,7 +176,7 @@ fn print_vars(app: &mut PrologApp) -> Result<(), String> {
             &app.machine,
             &mut app.symbol_table,
             &app.query_variables,
-            &app.program_variables
+            Option::Some(&app.program_variables),
         )
     );
     Ok(())

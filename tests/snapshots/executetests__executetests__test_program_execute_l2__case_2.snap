@@ -1,0 +1,53 @@
+---
+source: tests/executetests.rs
+expression: "case(input, output)"
+---
+(?- cat(X)., legs(joe, four). says(joe, meow). cat(X) :- legs(X, four), says(X, meow).)
+-----
+h: HEAP[7]
+s: HEAP[7]
+p: CODE[20]
+mode: read
+fail: false
+halt: false
+code:
+000	get_structure joe/0, X1
+001	get_structure four/0, X2
+002	proceed
+003	get_structure joe/0, X1
+004	get_structure meow/0, X2
+005	proceed
+006	allocate 1
+007	get_variable Y1, X1
+008	put_value Y1, X1
+009	put_structure four/0, X2
+010	call @0
+011	put_value Y1, X1
+012	put_structure meow/0, X2
+013	call @3
+014	deallocate
+015	allocate 1
+016	put_variable Y1, X1
+017	call @6
+018	publish
+019	deallocate
+
+heap:
+000	<STR,4>
+001	<STR,2>
+002	four/0
+003	<STR,4>
+004	joe/0
+005	<STR,6>
+006	meow/0
+
+regs:
+000	<EMPTY>
+001	<REF,0>
+002	<STR,6>
+
+pdl:
+
+
+000	X	(HEAP[0]) =	<STR,4>	// joe
+

@@ -45,14 +45,11 @@ mod decompiletests {
             &machine,
             &mut symbol_table,
             &query_bindings,
-            &program_bindings,
-        ) + writeout_annotated_mappings(
-            &machine,
-            &query_bindings,
-            &program_bindings,
-            &symbol_table,
-        )
-        .as_str();
+            program_bindings.as_ref(),
+        ) + program_bindings
+            .map(|pb| writeout_annotated_mappings(&machine, &query_bindings, &pb, &symbol_table))
+            .unwrap_or(String::new())
+            .as_str();
         assert_display_snapshot!(case(program_str.to_owned() + " | ?- " + query_str, result));
     }
 
@@ -77,7 +74,7 @@ mod decompiletests {
                 machine,
                 assembly: _assembly,
                 query_bindings,
-                program_bindings,
+                program_bindings: maybe_program_bindings,
             } = l1_solve(program, query).unwrap();
 
             if machine.get_fail() {
@@ -90,11 +87,13 @@ mod decompiletests {
                 for vd in qdesc {
                     result.insert(vd.to_assignment());
                 }
-                let pdesc = machine
-                    .describe_vars(&program_bindings, &mut symbol_table)
-                    .unwrap();
-                for vd in pdesc {
-                    result.insert(vd.to_assignment());
+                if let Some(program_bindings) = maybe_program_bindings {
+                    let pdesc = machine
+                        .describe_vars(&program_bindings, &mut symbol_table)
+                        .unwrap();
+                    for vd in pdesc {
+                        result.insert(vd.to_assignment());
+                    }
                 }
                 (symbol_table, result)
             }

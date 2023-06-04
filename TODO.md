@@ -22,14 +22,9 @@
 - [ ] asm: instead of labels pointing to the actual code, point them to a thunk
     * will help with `assert`/`retract` in the future
     * will enable referring to terms before defining their facts or rules 
-- [ ] find a better way of binding variable names to the corresponding data
-    * today the process is `var_mapping` -> `var_binding` -> `call_hook`
-    * call_hook is weird, and the whole thing is not very robust (?)
-    * we could protect query variables in a stack frame, and ditch binding
-    * how do we handle the extraction? 
-        * e.g. keep the stack frame, and clean up on ExecutionEnvironment::drop
-    * how does this help with labeling program variables, if we care about that?
-- [ ] auto-bind variables in the debug interface
+- [ ] labeling program variables
+    * one option would be to have a trace mode, and put a code ref on each call
+    * we could use these markers to select a "current term" when decompiling
 - [ ] compile: number temporary variables from X1 and up consecutively
     * consider variables A, B, C, D, E where B and D are permanent
     * this will result in `A->X1, B->Y1, C->X3, D->Y2, E->X5`
@@ -83,3 +78,11 @@
 - [x] actually, I don't like that all query variables are in stack
     * keep some of them in regs? e.g. if there is only one `call` instruction
     * WONTFIX: even for simple instructions, the call still destroys the correct registers
+- [x] auto-bind variables in the debug interface
+    * WONTFIX: is not relevant after implementing the `publish` instruction
+- [x] find a better way of binding variable names to the corresponding data
+    * today the process is `var_mapping` -> `var_binding` -> `call_hook`
+    * call_hook is weird, and the whole thing is not very robust (?)
+    * we could protect query variables in a stack frame, and ditch binding
+    * how do we handle the extraction? 
+        * e.g. keep the stack frame, and clean up on ExecutionEnvironment::drop

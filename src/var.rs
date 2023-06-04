@@ -122,8 +122,6 @@ pub type VarMapping = VarInfo<Local>;
 
 pub type VarBindings = VarInfo<HeapPtr>;
 
-pub type VarValues = VarInfo<Term>;
-
 #[derive(Debug)]
 pub struct VarDescription(VarName, Addr, Data, Term);
 

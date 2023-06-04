@@ -71,7 +71,7 @@ pub struct Solution {
     pub machine: Machine,
     pub assembly: Assembly,
     pub query_bindings: VarBindings,
-    pub program_bindings: VarBindings,
+    pub program_bindings: Option<VarBindings>,
 }
 
 pub fn l1_solve(program: Struct, query: Struct) -> Result<Solution, PrologError> {
@@ -110,7 +110,7 @@ pub fn l1_solve(program: Struct, query: Struct) -> Result<Solution, PrologError>
         })
         .run()?;
     solution.query_bindings = query_bindings;
-    solution.program_bindings = solution.machine.bind_variables(&program_mapping)?;
+    solution.program_bindings = Option::Some(solution.machine.bind_variables(&program_mapping)?);
 
     Ok(solution)
 }
@@ -128,7 +128,7 @@ pub fn l2_solve(mut program: Vec<Sentence>, query: Sentence) -> Result<Solution,
     solution.machine.load_assembly(&solution.assembly);
     solution.machine.execute().run()?;
     solution.query_bindings = solution.machine.get_var_bindings();
-    solution.program_bindings = VarBindings::default();
+    solution.program_bindings = Option::None;
 
     Ok(solution)
 }
