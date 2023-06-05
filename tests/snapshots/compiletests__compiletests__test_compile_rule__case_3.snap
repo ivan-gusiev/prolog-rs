@@ -1,0 +1,12 @@
+---
+source: tests/compiletests.rs
+expression: "case(input, collapse(result))"
+---
+unused(X, Warn) :- h(X).
+-----
+000	; WARN: Rule contains variables [Warn] that are not bound to any goals.
+001	get_variable X3, X1	// X3=X
+002	get_variable X4, X2	// X4=Warn, X2=X
+003	put_variable X2, X1	// X2=X
+004	call @130
+

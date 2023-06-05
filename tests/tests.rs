@@ -63,6 +63,7 @@ mod tests {
             instructions,
             var_mapping: _,
             label_functor: _,
+            warnings: _,
         } = compile_query(query.goals, &labels).unwrap();
         let expected = compile_asm(QUERY_ASM_L2, &mut symbol_table)
             .unwrap()

@@ -10,6 +10,8 @@ use lang::{Functor, Sentence, Struct, Term, VarName};
 use symbol::{to_display, SymDisplay};
 use var::{VarMapping, VarRegs};
 
+use crate::util::WriteVec;
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 struct TermId(usize);
 
@@ -240,32 +242,43 @@ fn collect_variables<I: From<usize>>(
 }
 
 /// Calculates which variables are permanent in the specified rule.
-/// Returns a map from variable name to its proposed index in the stack.
+/// Returns a tuple. First item is the set of singleton variables (for warnings).
+/// Second item is map from variable name to its proposed index in the stack.
 /// The indices are ordered by earliest appearance, left to right.
-fn get_permanent_variables(head: Option<&Struct>, goals: &[Struct]) -> HashMap<VarName, StackPtr> {
+fn get_permanent_variables(
+    head: Option<&Struct>,
+    goals: &[Struct],
+) -> (HashSet<VarName>, HashMap<VarName, StackPtr>) {
     // assign a sequential number to each variable
     let mut var_counter = HashMap::<VarName, usize>::new();
 
     if goals.is_empty() {
-        return HashMap::default();
+        return (HashSet::default(), HashMap::default());
     }
 
-    let head_vars = head
+    let mut head_vars = head
         .map(|h| collect_variables(h, &mut var_counter))
         .unwrap_or_default();
-    let mut goal_vars = goals
+    let mut singleton_vars = head_vars.clone();
+    let goal_vars = goals
         .iter()
         .map(|g| collect_variables(g, &mut var_counter))
         .collect::<Vec<_>>();
 
-    // the first goal and the head share the variable set,
-    // because the head can never mutate its variables
-    goal_vars[0].extend(head_vars);
-
     let mut seen = HashSet::<VarName>::new();
     let mut permanent = HashSet::<VarName>::new();
 
-    for goal in goal_vars.iter() {
+    for (i, mut goal) in goal_vars.into_iter().enumerate() {
+        for var in goal.iter() {
+            singleton_vars.remove(var);
+        }
+
+        if i == 0 {
+            // the first goal and the head share the variable set,
+            // because the head can never mutate its variables
+            goal.extend(head_vars.drain());
+        }
+
         let occur_again = goal.intersection(&seen);
         permanent.extend(occur_again);
         seen.extend(goal);
@@ -277,11 +290,14 @@ fn get_permanent_variables(head: Option<&Struct>, goals: &[Struct]) -> HashMap<V
         .map(|var| (var, var_counter.remove(&var).unwrap_or_default()))
         .collect::<Vec<_>>();
     ordered.sort_by_key(|(_, index)| *index);
-    ordered
-        .into_iter()
-        .enumerate()
-        .map(|(idx, (var, _))| (var, (idx + 1).into()))
-        .collect()
+    (
+        singleton_vars,
+        ordered
+            .into_iter()
+            .enumerate()
+            .map(|(idx, (var, _))| (var, (idx + 1).into()))
+            .collect(),
+    )
 }
 
 // compiles goals for queries or rules
@@ -367,6 +383,7 @@ fn compile_goal(
         instructions,
         var_mapping,
         label_functor: None,
+        warnings: vec![],
     })
 }
 
@@ -409,6 +426,7 @@ pub fn compile_query(
         instructions,
         var_mapping,
         label_functor: None,
+        warnings: vec![],
     })
 }
 
@@ -488,6 +506,7 @@ fn compile_head(
         instructions,
         var_mapping,
         label_functor: Some(root_functor),
+        warnings: vec![],
     }
 }
 
@@ -502,8 +521,15 @@ pub fn compile_rule(
     goals: Vec<Struct>,
     programs: &HashMap<Functor, CodePtr>,
 ) -> Result<CompileInfo, CompileError> {
-    let permanent_vars = get_permanent_variables(Option::Some(&head), &goals);
+    let (singleton_vars, permanent_vars) = get_permanent_variables(Option::Some(&head), &goals);
     let mut instructions = vec![];
+    let mut warnings = vec![];
+
+    if !singleton_vars.is_empty() {
+        warnings.push(CompileWarning::UnusedVariables(
+            singleton_vars.into_iter().collect(),
+        ))
+    }
 
     // prologue
     if !permanent_vars.is_empty() {
@@ -531,6 +557,7 @@ pub fn compile_rule(
         instructions,
         var_mapping,
         label_functor: head_result.label_functor,
+        warnings,
     })
 }
 
@@ -539,6 +566,7 @@ pub struct CompileInfo {
     pub instructions: Vec<Instruction>,
     pub var_mapping: VarMapping,
     pub label_functor: Option<Functor>,
+    pub warnings: Vec<CompileWarning>,
 }
 
 impl CompileInfo {
@@ -594,18 +622,24 @@ impl SymDisplay for CompileError {
 #[derive(Debug, PartialEq, Eq)]
 pub enum CompileWarning {
     IgnoredEntryPoint(CodePtr),
+    UnusedVariables(Vec<VarName>),
 }
 
 impl SymDisplay for CompileWarning {
     fn sym_fmt(
         &self,
         f: &mut Formatter<'_>,
-        _symbol_table: &crate::symbol::SymbolTable,
+        symbol_table: &crate::symbol::SymbolTable,
     ) -> Result<(), std::fmt::Error> {
         match self {
             Self::IgnoredEntryPoint(ptr) => write!(
                 f,
                 "Program contains multiple entry points. Ignoring the one at @{ptr}."
+            ),
+            Self::UnusedVariables(vars) => write!(
+                f,
+                "Rule contains variables [{}] that are not bound to any goals.",
+                to_display(&WriteVec::new(vars), symbol_table),
             ),
         }
     }
@@ -636,15 +670,19 @@ pub fn compile_sentences(
     let mut warnings = Vec::<CompileWarning>::new();
     for sentence in sentences {
         if sentence.is_fact() {
-            let fact = sentence.unwrap_fact();
-            compile_fact(fact).append_to_assembly(assembly);
+            let mut fact_info = compile_fact(sentence.unwrap_fact());
+            warnings.extend(fact_info.warnings.drain(..));
+            fact_info.append_to_assembly(assembly);
         } else if sentence.is_rule() {
             let (head, goals) = sentence.unwrap_rule();
-            compile_rule(head, goals, &assembly.label_map)?.append_to_assembly(assembly);
+            let mut rule_info = compile_rule(head, goals, &assembly.label_map)?;
+            warnings.extend(rule_info.warnings.drain(..));
+            rule_info.append_to_assembly(assembly);
         } else if sentence.is_query() {
             let goals = sentence.unwrap_query();
-            let query_result = compile_query(goals, &assembly.label_map)?;
-            let entry_point = query_result.append_to_assembly(assembly);
+            let mut query_info = compile_query(goals, &assembly.label_map)?;
+            warnings.extend(query_info.warnings.drain(..));
+            let entry_point = query_info.append_to_assembly(assembly);
             if let Some(old_entry_point) = assembly.entry_point.take() {
                 warnings.push(CompileWarning::IgnoredEntryPoint(old_entry_point.location))
             }
@@ -740,7 +778,8 @@ fn test_compile_query() {
                 (StackPtr(1).into(), symbol_table.intern("Z")),
                 (StackPtr(2).into(), symbol_table.intern("W"))
             ]),
-            label_functor: None
+            label_functor: None,
+            warnings: vec![],
         }
     )
 }
@@ -771,6 +810,7 @@ fn test_compile_query_no_allocate() {
             instructions,
             var_mapping: VarMapping::default(),
             label_functor: None,
+            warnings: vec![],
         }
     )
 }
@@ -808,6 +848,7 @@ fn test_compile_fact() {
                 (RegPtr(5).into(), symbol_table.intern("Y")),
             ]),
             label_functor: Some(Functor(symbol_table.intern("p"), 3)),
+            warnings: vec![],
         }
     )
 }
@@ -853,6 +894,7 @@ fn test_compile_query_line() {
                 (StackPtr(3).into(), symbol_table.intern("B")),
             ]),
             label_functor: None,
+            warnings: vec![],
         }
     )
 }
@@ -892,6 +934,7 @@ fn test_compile_fact_line() {
                 (RegPtr(6).into(), symbol_table.intern("B")),
             ]),
             label_functor: Some(Functor(symbol_table.intern("h"), 1)),
+            warnings: vec![],
         }
     )
 }
@@ -929,17 +972,33 @@ fn test_get_permanent_variables() {
     let items = get_permanent_variables(sentence.head.as_ref(), &sentence.goals);
     assert_eq!(
         items,
-        HashMap::from([
-            (symbol_table.intern("Y"), StackPtr(1)),
-            (symbol_table.intern("Z"), StackPtr(2))
-        ])
+        (
+            HashSet::default(),
+            HashMap::from([
+                (symbol_table.intern("Y"), StackPtr(1)),
+                (symbol_table.intern("Z"), StackPtr(2))
+            ])
+        )
     );
 
     let sentence = parse_sentence("a :- b(X), c(X).", &mut symbol_table).unwrap();
     let items = get_permanent_variables(sentence.head.as_ref(), &sentence.goals);
     assert_eq!(
         items,
-        HashMap::from([(symbol_table.intern("X"), StackPtr(1))])
+        (
+            HashSet::default(),
+            HashMap::from([(symbol_table.intern("X"), StackPtr(1))])
+        )
+    );
+
+    let sentence = parse_sentence("r(A, B) :- s(B), t(B).", &mut symbol_table).unwrap();
+    let items = get_permanent_variables(sentence.head.as_ref(), &sentence.goals);
+    assert_eq!(
+        items,
+        (
+            HashSet::from([symbol_table.intern("A")]),
+            HashMap::from([(symbol_table.intern("B"), StackPtr(1))])
+        )
     )
 }
 
@@ -982,6 +1041,7 @@ fn test_compile_rule() {
             instructions: expected_assembly.instructions,
             var_mapping: VarMapping::from_iter([(StackPtr(1).into(), y), (StackPtr(2).into(), z),]),
             label_functor: Some(p2),
+            warnings: vec![],
         })
     )
 }
@@ -1027,6 +1087,7 @@ fn test_compile_multigoal_query() {
                 (StackPtr(3).into(), y),
             ]),
             label_functor: None,
+            warnings: vec![],
         })
     )
 }
@@ -1039,6 +1100,7 @@ fn test_compile_empty_query() {
             instructions: vec![Instruction::Publish],
             var_mapping: VarMapping::default(),
             label_functor: None,
+            warnings: vec![],
         })
     );
 }

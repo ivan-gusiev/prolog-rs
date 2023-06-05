@@ -17,9 +17,9 @@
     * `set_x(&mut self, value)` to `x_mut(&mut self) -> &mut X`
 - [ ] transform stack frame into the real thing
     * it should be a linked list of words
-- [ ] fix the varmapping for rules (must be able to point to stack)
 - [ ] compile: warn when a variable from the head of a rule is not used in its goals
-    * called "singleton variables"; sounds weird?
+    * add a test for that
+    * thread the warnings through the system to assembly
 - [ ] asm: instead of labels pointing to the actual code, point them to a thunk
     * will help with `assert`/`retract` in the future
     * will enable referring to terms before defining their facts or rules
@@ -84,3 +84,4 @@
     * we could protect query variables in a stack frame, and ditch binding
     * how do we handle the extraction? 
         * e.g. keep the stack frame, and clean up on ExecutionEnvironment::drop
+- [x] fix the varmapping for rules (must be able to point to stack)

@@ -179,6 +179,10 @@ pub fn writeout_compile_result(compile_result: &CompileInfo, symbol_table: &Symb
             }
         };
 
+        for warning in compile_result.warnings.iter() {
+            out.push(format!("; WARN: {}", to_display(warning, symbol_table)));
+        }
+
         for instr in compile_result.instructions.iter() {
             annotations.clear();
             match instr {
