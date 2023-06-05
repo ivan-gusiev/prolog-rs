@@ -10,6 +10,10 @@ pub type VarName = Symbol;
 pub type FunctorName = Symbol;
 pub type Arity = u32;
 
+pub fn var_name_is_not_ignorable(varname: &VarName) -> bool {
+    !varname.get_flag()
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub struct Functor(pub FunctorName, pub Arity);
 
@@ -225,6 +229,12 @@ impl SymDisplay for Sentence {
     }
 }
 
+fn mk_variable(chars: impl Iterator<Item = char>, symbol_table: &mut SymbolTable) -> Symbol {
+    let str: String = chars.collect();
+    let ignorable = str.starts_with("_");
+    symbol_table.intern(str).with_flag(ignorable)
+}
+
 peg::parser!(
     grammar prolog_parser() for str {
         rule whitespace()
@@ -243,7 +253,7 @@ peg::parser!(
             = ['a'..='z' | 'A'..='Z' | '0'..='9' | '_']*
 
         rule varname() -> std::iter::Chain<std::iter::Once<char>, std::vec::IntoIter<char>>
-            = quiet!{ initial:['A'..='Z'] rest:rest() {once(initial).chain(rest.into_iter())}}
+            = quiet!{ initial:['A'..='Z' | '_'] rest:rest() {once(initial).chain(rest.into_iter())}}
             / expected!("variable name")
 
         rule structname() -> std::iter::Chain<std::iter::Once<char>, std::vec::IntoIter<char>>
@@ -254,7 +264,7 @@ peg::parser!(
             = (whitespace() / comment())*
 
         rule variable(symbols: &mut SymbolTable) -> Term
-            = n:varname() { Term::Variable(symbols.intern_chars( n )) }
+            = n:varname() { Term::Variable(mk_variable(n, symbols)) }
 
         rule structure(symbols: &mut SymbolTable) -> Struct
             = n:structname() "(" ts:(term(symbols) ** ",") ")" { Struct::from_name(symbols.intern_chars(n), ts.as_slice()) }

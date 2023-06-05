@@ -6,11 +6,10 @@ use std::iter::FromIterator;
 use asm::{Assembly, EntryPoint};
 use data::{CodePtr, Local, RegPtr, StackDepth, StackPtr};
 use instr::Instruction;
-use lang::{Functor, Sentence, Struct, Term, VarName};
+use lang::{var_name_is_not_ignorable, Functor, Sentence, Struct, Term, VarName};
 use symbol::{to_display, SymDisplay};
+use util::WriteVec;
 use var::{VarMapping, VarRegs};
-
-use crate::util::WriteVec;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 struct TermId(usize);
@@ -521,10 +520,11 @@ pub fn compile_rule(
     goals: Vec<Struct>,
     programs: &HashMap<Functor, CodePtr>,
 ) -> Result<CompileInfo, CompileError> {
-    let (singleton_vars, permanent_vars) = get_permanent_variables(Option::Some(&head), &goals);
+    let (mut singleton_vars, permanent_vars) = get_permanent_variables(Option::Some(&head), &goals);
     let mut instructions = vec![];
     let mut warnings = vec![];
 
+    singleton_vars.retain(var_name_is_not_ignorable);
     if !singleton_vars.is_empty() {
         warnings.push(CompileWarning::UnusedVariables(
             singleton_vars.into_iter().collect(),

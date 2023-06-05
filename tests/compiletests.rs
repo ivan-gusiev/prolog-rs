@@ -83,6 +83,7 @@ mod compiletests {
         "f(X) :- p(X, r(Z, Y)), h(l(p(A, X), p(B, X))).",
         "a(A) :- h(A).",
         "unused(X, Warn) :- h(X).",
+        "unused(X, _Nowarn) :- h(X).",
     })]
     fn test_compile_rule(input: &str) {
         let mut symbol_table = SymbolTable::new();

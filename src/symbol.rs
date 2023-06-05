@@ -8,22 +8,42 @@ use self::string_interner::{DefaultSymbol, StringInterner, Symbol as _};
 
 type InternalSymbol = DefaultSymbol;
 
-// TODO: This panics if the interned string symbol starts with bit 1. Fix this.
+// TODO: This panics if the interned string symbol starts with first two bits set. Fix this.
 /// An inlinable, copyable reference to a string
-/// If the head bit is 1, clear it and treat the whole thing as a [InternalSymbol].
+/// Layout: IF....ll|........|........|........ (big endian)
+/// Bits I and F are the flag bits, ll are either data or string length.
+/// If the I bit is 1, treat the data bits as a [InternalSymbol].
+/// Bit F is user data.
 /// Otherwise,
-///   * the first byte is the length (0-3).
+///   * the bits ll encode string length (0-3).
 ///   * the next 0-3 bytes are string content
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Symbol(u8, u8, u8, u8);
 
 impl Symbol {
     pub fn is_interned(&self) -> bool {
-        is_head_set(self.0)
+        is_iflag_set(self.0)
     }
 
     pub fn is_inline(&self) -> bool {
         !self.is_interned()
+    }
+
+    pub fn get_flag(&self) -> bool {
+        is_fflag_set(self.0)
+    }
+
+    pub fn set_flag(&mut self, value: bool) {
+        self.0 = if value {
+            set_fflag(self.0)
+        } else {
+            clear_fflag(self.0)
+        }
+    }
+
+    pub fn with_flag(mut self, value: bool) -> Self {
+        self.set_flag(value);
+        self
     }
 
     // private because it can panic
@@ -120,7 +140,7 @@ impl TryFrom<InternalSymbol> for Symbol {
 impl TryFrom<Symbol> for String {
     type Error = ();
 
-    fn try_from(value: Symbol) -> Result<Self, Self::Error> {
+    fn try_from(mut value: Symbol) -> Result<Self, Self::Error> {
         if !value.is_inline() {
             return Err(());
         }
@@ -131,6 +151,7 @@ impl TryFrom<Symbol> for String {
                 .map_err(|_| ())
         }
 
+        value.0 = clear_head(value.0);
         match value.0 {
             0 => Ok(String::new()),
             1 => mkstr(&[value.1]),
@@ -155,12 +176,25 @@ impl TryFrom<Symbol> for InternalSymbol {
     }
 }
 
-fn is_head_set(byte: u8) -> bool {
+fn is_iflag_set(byte: u8) -> bool {
     byte & 0x80 == 0x80
 }
 
+fn is_fflag_set(byte: u8) -> bool {
+    byte & 0x40 == 0x40
+}
+
+fn set_fflag(byte: u8) -> u8 {
+    byte | 0x40
+}
+
+fn clear_fflag(byte: u8) -> u8 {
+    byte & 0xbf
+}
+
 fn clear_head(byte: u8) -> u8 {
-    byte & 0x7f
+    // 0x3f = 00111111
+    byte & 0x3f
 }
 
 /// A symbol table that associates any non-self-sufficient [Symbol] with a string.
@@ -253,4 +287,21 @@ fn test_roundtrip_string() {
     let mut table = SymbolTable::new();
     let sym = table.intern("caterpillar");
     assert_eq!(table.resolve(sym), Some("caterpillar".to_string()))
+}
+
+#[test]
+fn test_flag() {
+    let from_str = Symbol::try_from("cat").unwrap();
+    assert_eq!(false, from_str.get_flag());
+
+    let mut table = SymbolTable::new();
+    let mut from_table = table.intern("caterpillar");
+    from_table = from_table.with_flag(true);
+    assert_eq!(true, from_table.get_flag());
+
+    from_table.set_flag(false);
+    assert_eq!(false, from_table.get_flag());
+
+    let result = table.resolve(from_table.with_flag(true)).unwrap();
+    assert_eq!(result, "caterpillar".to_string());
 }

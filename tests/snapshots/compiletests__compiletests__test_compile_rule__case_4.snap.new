@@ -1,0 +1,12 @@
+---
+source: tests/compiletests.rs
+assertion_line: 103
+expression: "case(input, collapse(result))"
+---
+unused(X, _Nowarn) :- h(X).
+-----
+000	get_variable X3, X1	// X3=X
+001	get_variable X4, X2	// X4=_Nowarn, X2=X
+002	put_variable X2, X1	// X2=X
+003	call @130
+
