@@ -524,6 +524,7 @@ pub fn compile_rule(
     let mut instructions = vec![];
     let mut warnings = vec![];
 
+    // warn on unused variables in the rule head
     singleton_vars.retain(var_name_is_not_ignorable);
     if !singleton_vars.is_empty() {
         warnings.push(CompileWarning::UnusedVariables(
@@ -671,17 +672,17 @@ pub fn compile_sentences(
     for sentence in sentences {
         if sentence.is_fact() {
             let mut fact_info = compile_fact(sentence.unwrap_fact());
-            warnings.extend(fact_info.warnings.drain(..));
+            warnings.append(&mut fact_info.warnings);
             fact_info.append_to_assembly(assembly);
         } else if sentence.is_rule() {
             let (head, goals) = sentence.unwrap_rule();
             let mut rule_info = compile_rule(head, goals, &assembly.label_map)?;
-            warnings.extend(rule_info.warnings.drain(..));
+            warnings.append(&mut rule_info.warnings);
             rule_info.append_to_assembly(assembly);
         } else if sentence.is_query() {
             let goals = sentence.unwrap_query();
             let mut query_info = compile_query(goals, &assembly.label_map)?;
-            warnings.extend(query_info.warnings.drain(..));
+            warnings.append(&mut query_info.warnings);
             let entry_point = query_info.append_to_assembly(assembly);
             if let Some(old_entry_point) = assembly.entry_point.take() {
                 warnings.push(CompileWarning::IgnoredEntryPoint(old_entry_point.location))

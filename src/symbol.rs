@@ -292,15 +292,15 @@ fn test_roundtrip_string() {
 #[test]
 fn test_flag() {
     let from_str = Symbol::try_from("cat").unwrap();
-    assert_eq!(false, from_str.get_flag());
+    assert!(!from_str.get_flag());
 
     let mut table = SymbolTable::new();
     let mut from_table = table.intern("caterpillar");
     from_table = from_table.with_flag(true);
-    assert_eq!(true, from_table.get_flag());
+    assert!(from_table.get_flag());
 
     from_table.set_flag(false);
-    assert_eq!(false, from_table.get_flag());
+    assert!(!from_table.get_flag());
 
     let result = table.resolve(from_table.with_flag(true)).unwrap();
     assert_eq!(result, "caterpillar".to_string());

@@ -231,7 +231,7 @@ impl SymDisplay for Sentence {
 
 fn mk_variable(chars: impl Iterator<Item = char>, symbol_table: &mut SymbolTable) -> Symbol {
     let str: String = chars.collect();
-    let ignorable = str.starts_with("_");
+    let ignorable = str.starts_with('_');
     symbol_table.intern(str).with_flag(ignorable)
 }
 

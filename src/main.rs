@@ -3,7 +3,7 @@ use app::debugmode::start_debugmode;
 use prolog_rs::{
     asm::Assembly,
     assembler::compile_asm,
-    compile::{compile_query, compile_sentence, compile_sentences, CompileInfo},
+    compile::{compile_sentence, compile_sentences, CompileInfo, CompileWarning},
     lang::{parse_program, parse_sentence},
     symbol::{to_display, SymDisplay},
     util::write_program_result,
@@ -63,7 +63,7 @@ fn main() -> RustyResult<()> {
                     "vars" => succeed(print_vars(&mut prolog)),
                     "run" => succeed(run_and_output(&mut prolog)),
                     query if query.starts_with("?-") => {
-                        match parse_and_compile_query(query, &mut prolog) {
+                        match parse_and_compile_sentence(query, &mut prolog) {
                             Ok(term) => {
                                 prolog.query = Some(term);
                                 if prolog.ready_to_run() && prolog.immediate_execution {
@@ -73,7 +73,7 @@ fn main() -> RustyResult<()> {
                             Err(err) => println!("{err}"),
                         }
                     }
-                    program => match parse_and_compile_nonquery(program, &mut prolog) {
+                    program => match parse_and_compile_sentence(program, &mut prolog) {
                         Ok(compile_result) => {
                             prolog.program = Some(
                                 compile_result
@@ -116,23 +116,21 @@ fn load_pro(path: &str, prolog: &mut PrologApp) -> Result<(), String> {
     let sentences = parse_program(&listing, &mut prolog.symbol_table)?;
     let warnings = compile_sentences(sentences, &mut assembly)
         .map_err(|e| e.sym_to_str(&prolog.symbol_table))?;
-    for warning in warnings {
-        println!("{}", to_display(&warning, &prolog.symbol_table))
-    }
+
+    print_warnings(&warnings, prolog);
+
     prolog.machine.load_assembly(&assembly);
     Ok(())
 }
 
-fn parse_and_compile_query(input: &str, context: &mut PrologApp) -> Result<CompileInfo, String> {
-    let query = parse_sentence(input, &mut context.symbol_table)?;
-    compile_query(query.goals, &context.assembly.label_map)
-        .map_err(|err| err.sym_to_str(&context.symbol_table))
-}
-
-fn parse_and_compile_nonquery(input: &str, context: &mut PrologApp) -> Result<CompileInfo, String> {
+fn parse_and_compile_sentence(input: &str, context: &mut PrologApp) -> Result<CompileInfo, String> {
     let program = parse_sentence(input, &mut context.symbol_table)?;
-    compile_sentence(program, &context.assembly.label_map)
-        .map_err(|err| err.sym_to_str(&context.symbol_table))
+    let result = compile_sentence(program, &context.assembly.label_map)
+        .map_err(|err| err.sym_to_str(&context.symbol_table))?;
+
+    print_warnings(&result.warnings, context);
+
+    Ok(result)
 }
 
 fn run_and_output(context: &mut PrologApp) -> Result<(), String> {
@@ -180,6 +178,12 @@ fn print_vars(app: &mut PrologApp) -> Result<(), String> {
         )
     );
     Ok(())
+}
+
+fn print_warnings(warns: &[CompileWarning], app: &PrologApp) {
+    for warn in warns {
+        println!("WARNING: {}", to_display(warn, &app.symbol_table))
+    }
 }
 
 fn succeed<T: ToString>(result: Result<(), T>) {
