@@ -17,9 +17,6 @@
     * `set_x(&mut self, value)` to `x_mut(&mut self) -> &mut X`
 - [ ] transform stack frame into the real thing
     * it should be a linked list of words
-- [ ] compile: warn when a variable from the head of a rule is not used in its goals
-    * add a test for that
-    * thread the warnings through the system to assembly
 - [ ] asm: instead of labels pointing to the actual code, point them to a thunk
     * will help with `assert`/`retract` in the future
     * will enable referring to terms before defining their facts or rules
@@ -27,6 +24,7 @@
     * consider variables A, B, C, D, E where B and D are permanent
     * this will result in `A->X1, B->Y1, C->X3, D->Y2, E->X5`
     * we want `A->X1, B->Y1, C->X2, D->Y2, E->X3`
+- [ ] tests: file-based test cases
 
 ### Bugs
 - [x] Type `?- X` then `X`. It cannot figure out the unification. 
@@ -85,3 +83,6 @@
     * how do we handle the extraction? 
         * e.g. keep the stack frame, and clean up on ExecutionEnvironment::drop
 - [x] fix the varmapping for rules (must be able to point to stack)
+- [x] compile: warn when a variable from the head of a rule is not used in its goals
+    * add a test for that
+    * thread the warnings through the system to assembly

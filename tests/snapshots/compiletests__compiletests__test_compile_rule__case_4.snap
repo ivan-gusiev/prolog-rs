@@ -1,6 +1,5 @@
 ---
 source: tests/compiletests.rs
-assertion_line: 103
 expression: "case(input, collapse(result))"
 ---
 unused(X, _Nowarn) :- h(X).

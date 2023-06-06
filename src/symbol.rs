@@ -2,13 +2,49 @@
 extern crate string_interner;
 
 use std::convert::{TryFrom, TryInto};
-use std::fmt::{Display, Error, Formatter, Write};
+use std::fmt::{Display, Error, Formatter};
 
-use self::string_interner::{DefaultSymbol, StringInterner, Symbol as _};
+use self::string_interner::{DefaultBackend, StringInterner, Symbol as _};
 
-type InternalSymbol = DefaultSymbol;
+// a symbol is a 32-bit unsigned integer
+const TOTAL_BITS: u8 = 32;
+// its first two bits are tags, rest is data
+const TAG_BITS: u8 = 2;
+// i-flag controls if the symbol is interned or contained in the bytes
+const INDEX_IFLAG: u8 = 0;
+// f-flag is generic and user-set
+const INDEX_FFLAG: u8 = 1;
 
-// TODO: This panics if the interned string symbol starts with first two bits set. Fix this.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+struct PrologSymbolTableEntry(u32);
+
+impl PrologSymbolTableEntry {
+    const USEFUL_BITS: u8 = TOTAL_BITS - TAG_BITS;
+    // a binary number equal to a USEFUL_BITS bits, all set to 1
+    const MAX_USEFUL_VALUE: u32 = (1 << (Self::USEFUL_BITS + 1)) - 1;
+}
+
+impl From<PrologSymbolTableEntry> for u32 {
+    fn from(value: PrologSymbolTableEntry) -> Self {
+        value.0
+    }
+}
+
+impl string_interner::Symbol for PrologSymbolTableEntry {
+    fn try_from_usize(index: usize) -> Option<Self> {
+        let index = index as u32;
+        if index <= Self::MAX_USEFUL_VALUE {
+            Some(Self(index))
+        } else {
+            None
+        }
+    }
+
+    fn to_usize(self) -> usize {
+        self.0 as usize
+    }
+}
+
 /// An inlinable, copyable reference to a string
 /// Layout: IF....ll|........|........|........ (big endian)
 /// Bits I and F are the flag bits, ll are either data or string length.
@@ -48,12 +84,16 @@ impl Symbol {
 
     // private because it can panic
     fn get_string(&self) -> String {
-        (*self).try_into().expect("symbol should inline-encoded")
+        (*self)
+            .try_into()
+            .expect("get_string: expected string represenation, got table entry")
     }
 
     // private because it can panic
-    fn get_sym(&self) -> InternalSymbol {
-        (*self).try_into().expect("symbol should inline-encoded")
+    fn get_sym(&self) -> PrologSymbolTableEntry {
+        (*self)
+            .try_into()
+            .expect("get_sym: expected table entry, got string representation")
     }
 }
 
@@ -124,16 +164,10 @@ impl TryFrom<String> for Symbol {
     }
 }
 
-impl TryFrom<InternalSymbol> for Symbol {
-    type Error = ();
-
-    fn try_from(value: InternalSymbol) -> Result<Self, Self::Error> {
-        let val: u32 = value.to_usize().try_into().map_err(|_| ())?;
-        if val & 0x80000000 == 0x80000000 {
-            return Err(());
-        }
-
-        Ok((val | 0x80000000).into())
+impl From<PrologSymbolTableEntry> for Symbol {
+    fn from(value: PrologSymbolTableEntry) -> Self {
+        let val: u32 = value.into();
+        (val | 0x80000000).into()
     }
 }
 
@@ -162,7 +196,7 @@ impl TryFrom<Symbol> for String {
     }
 }
 
-impl TryFrom<Symbol> for InternalSymbol {
+impl TryFrom<Symbol> for PrologSymbolTableEntry {
     type Error = ();
 
     fn try_from(mut value: Symbol) -> Result<Self, Self::Error> {
@@ -172,35 +206,48 @@ impl TryFrom<Symbol> for InternalSymbol {
 
         value.0 = clear_head(value.0);
         let combined: u32 = value.into();
-        InternalSymbol::try_from_usize(combined as usize).ok_or(())
+        Self::try_from_usize(combined as usize).ok_or(())
     }
 }
 
-fn is_iflag_set(byte: u8) -> bool {
-    byte & 0x80 == 0x80
+const fn get_byte_mask(index: u8) -> u8 {
+    (1usize << (8 - index - 1)) as u8
 }
 
+const MASK_IFLAG: u8 = get_byte_mask(INDEX_IFLAG);
+fn is_iflag_set(byte: u8) -> bool {
+    byte & MASK_IFLAG == MASK_IFLAG
+}
+
+const MASK_FFLAG: u8 = get_byte_mask(INDEX_FFLAG);
 fn is_fflag_set(byte: u8) -> bool {
-    byte & 0x40 == 0x40
+    byte & MASK_FFLAG == MASK_FFLAG
 }
 
 fn set_fflag(byte: u8) -> u8 {
-    byte | 0x40
+    byte | MASK_FFLAG
 }
 
 fn clear_fflag(byte: u8) -> u8 {
-    byte & 0xbf
+    byte & (!MASK_FFLAG)
 }
 
+const MASK_HEAD: u8 = !(get_byte_mask(TAG_BITS - 1) - 1);
 fn clear_head(byte: u8) -> u8 {
-    // 0x3f = 00111111
-    byte & 0x3f
+    byte & !MASK_HEAD
 }
 
+type PrologInterner = StringInterner<DefaultBackend<PrologSymbolTableEntry>>;
 /// A symbol table that associates any non-self-sufficient [Symbol] with a string.
 /// Really an opaque wrapper over the library implementation of string interner.
-#[derive(Default, Debug, Clone)]
-pub struct SymbolTable(StringInterner);
+#[derive(Debug, Clone)]
+pub struct SymbolTable(PrologInterner);
+
+impl Default for SymbolTable {
+    fn default() -> Self {
+        Self(PrologInterner::new())
+    }
+}
 
 impl SymbolTable {
     pub fn new() -> SymbolTable {
@@ -210,15 +257,7 @@ impl SymbolTable {
     pub fn intern<T: AsRef<str>>(&mut self, str: T) -> Symbol {
         match str.as_ref().try_into() {
             Ok(sym) => sym,
-            Err(_) => {
-                let sisym = self.0.get_or_intern(str);
-                sisym.try_into().unwrap_or_else(|_| {
-                    panic!(
-                        "{}",
-                        "Interning backend returned a higher than expected symbol index {sisym:?}"
-                    )
-                })
-            }
+            Err(_) => self.0.get_or_intern(str).into(),
         }
     }
 
@@ -244,9 +283,7 @@ pub trait SymDisplay: Sized {
     fn sym_fmt(&self, f: &mut Formatter<'_>, symbol_table: &SymbolTable) -> Result<(), Error>;
 
     fn sym_to_str(&self, symbol_table: &SymbolTable) -> String {
-        let mut s = String::new();
-        write!(s, "{}", to_display(self, symbol_table)).unwrap();
-        s
+        to_display(self, symbol_table).to_string()
     }
 }
 
