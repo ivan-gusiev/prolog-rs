@@ -1,31 +1,32 @@
+pub mod stack;
+
+use asm::Assembly;
 use construct::{ConstructEnvironment, ConstructResult};
-use data::{Addr, CodePtr, Data, HeapPtr, Mode, Ref, RegPtr, Str};
+use data::{
+    Addr, CodePtr, Data, FramePtr, HeapPtr, Mode, Ref, RegPtr, StackDepth, StackPtr, Str, VarRecord,
+};
 use instr::Instruction;
 use lang::{Functor, Term, VarName};
-use std::{
-    fmt::{Display, Write},
-    iter,
-};
+use machine::stack::StackData;
+use std::fmt::{Display, Write};
 use symbol::SymbolTable;
 use var::{VarBindings, VarDescription, VarMapping};
 
 use util::{writeout, writeout_sym};
 
-use crate::{
-    asm::Assembly,
-    data::{StackDepth, StackPtr, VarRecord},
-};
+use self::stack::{StackFrame, StackIterator, StackSlice, StackWalk};
 
 #[derive(Debug)]
 pub struct Machine {
     heap: Vec<Data>,
     reg: Vec<Data>,
     code: Vec<Instruction>,
-    stack: Vec<StackFrame>,
+    stack: Vec<StackData>,
     h: HeapPtr,  // heap top
     s: HeapPtr,  // subterm to be matched
     p: CodePtr,  // instruction to be executed
     cp: CodePtr, // continuation instruction to proceed to
+    e: FramePtr, // current stack environment
     mode: Mode,
     fail: bool,
     halt: bool,
@@ -44,6 +45,7 @@ impl Machine {
             s: HeapPtr(0),
             p: CodePtr(0),
             cp: CodePtr(0),
+            e: FramePtr(0),
             mode: Mode::Read,
             fail: false,
             halt: false,
@@ -98,22 +100,36 @@ impl Machine {
     }
 
     pub fn get_stack(&self, ptr: StackPtr) -> MachineResult<Data> {
-        let frame = self.peek_stack().ok_or(MachineError::StackUnderflow)?;
+        let frame = self
+            .peek_stack_frame()
+            .ok_or(MachineError::StackUnderflow)?;
         frame.get_var(ptr)
     }
 
     pub fn set_stack(&mut self, ptr: StackPtr, value: Data) -> MResult {
-        let frame = self.peek_stack_mut().ok_or(MachineError::StackUnderflow)?;
-        frame.set_var(ptr, value)
+        let mut frame = self
+            .peek_stack_frame()
+            .ok_or(MachineError::StackUnderflow)?;
+        frame.write_through(self, ptr, value)
     }
 
-    pub fn iter_stack(&self) -> MachineResult<impl ExactSizeIterator<Item = (StackPtr, &Data)>> {
-        let frame = self.peek_stack().ok_or(MachineError::StackUnderflow)?;
-        Ok(frame.iter_var())
+    fn stack_global(&self) -> StackSlice {
+        StackSlice::from(&self.stack[..])
     }
 
-    pub fn walk_stack(&self) -> impl ExactSizeIterator<Item = &StackFrame> {
-        self.stack.iter().rev()
+    pub fn iter_stack(
+        &self,
+    ) -> MachineResult<impl ExactSizeIterator<Item = (StackPtr, Data)> + '_> {
+        let frame = self
+            .peek_stack_frame()
+            .ok_or(MachineError::StackUnderflow)?;
+        let len = frame.vars.len();
+        let e = self.e().0;
+        Ok(StackIterator::new(&self.stack[e + 3..e + 3 + len]))
+    }
+
+    pub fn walk_stack(&self) -> StackWalk {
+        StackWalk::new(self)
     }
 
     pub fn get_code(&self) -> Vec<Instruction> {
@@ -171,6 +187,14 @@ impl Machine {
         self.cp = value
     }
 
+    pub fn e(&self) -> FramePtr {
+        self.e
+    }
+
+    pub fn e_mut(&mut self) -> &mut FramePtr {
+        &mut self.e
+    }
+
     pub fn get_mode(&self) -> Mode {
         self.mode
     }
@@ -225,20 +249,26 @@ impl Machine {
         self.pdl.pop()
     }
 
-    pub fn push_stack(&mut self, frame: StackFrame) {
-        self.stack.push(frame)
+    pub fn push_stack_frame(&mut self, frame: StackFrame) -> FramePtr {
+        let cur = FramePtr(self.stack.len());
+        self.stack.extend(frame.write_to_vec());
+        cur
     }
 
-    pub fn pop_stack(&mut self) -> Option<StackFrame> {
-        self.stack.pop()
+    pub fn pop_stack_frame(&mut self) -> Option<StackFrame> {
+        if let Some(frame) = self.peek_stack_frame() {
+            self.e = frame.ce;
+            // this allows to clear the last frame where e=ce=0
+            self.stack.truncate(self.stack.len() - frame.size());
+            Some(frame)
+        } else {
+            None
+        }
     }
 
-    pub fn peek_stack(&self) -> Option<&StackFrame> {
-        self.stack.last()
-    }
-
-    pub fn peek_stack_mut(&mut self) -> Option<&mut StackFrame> {
-        self.stack.last_mut()
+    pub fn peek_stack_frame(&self) -> Option<StackFrame> {
+        let frame = StackFrame::read_from_slice(self.stack_global()[self.e()..].into());
+        frame.ok()
     }
 
     pub fn is_pdl_empty(&self) -> bool {
@@ -370,9 +400,16 @@ impl Machine {
         writeln!(str, "heap:\n{}", writeout_sym(&self.heap, symbol_table)).unwrap();
         writeln!(str, "regs:\n{}", writeout_sym(&self.reg, symbol_table)).unwrap();
         writeln!(str, "pdl:\n{}", writeout(self.pdl.iter())).unwrap();
-        for (i, frame) in self.walk_stack().enumerate() {
-            writeln!(str, "stack depth {i}, cp={}:", frame.cp).unwrap();
-            writeln!(str, "{}", writeout_sym(&frame.vars, symbol_table)).unwrap();
+        for (i, frame_result) in self.walk_stack().enumerate() {
+            match frame_result {
+                Ok(frame) => {
+                    writeln!(str, "stack depth {i}, cp={}:", frame.cp).unwrap();
+                    writeln!(str, "{}", writeout_sym(&frame.vars, symbol_table)).unwrap();
+                }
+                Err(e) => {
+                    writeln!(str, "error: {e}").unwrap();
+                }
+            }
         }
         str
     }
@@ -381,45 +418,6 @@ impl Machine {
 impl Default for Machine {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[derive(Debug)]
-pub struct StackFrame {
-    pub cp: CodePtr,
-    pub vars: Vec<Data>,
-}
-
-impl StackFrame {
-    pub fn new(cp: CodePtr, depth: StackDepth) -> StackFrame {
-        StackFrame {
-            cp,
-            vars: iter::repeat(Data::Empty).take(depth.0).collect(),
-        }
-    }
-
-    pub fn get_var(&self, StackPtr(index): StackPtr) -> MachineResult<Data> {
-        self.vars
-            .get(index - 1)
-            .copied()
-            .ok_or(MachineError::StackSmash)
-    }
-
-    pub fn set_var(&mut self, StackPtr(index): StackPtr, value: Data) -> MResult {
-        match self.vars.get_mut(index - 1) {
-            Some(slot) => {
-                *slot = value;
-                Ok(())
-            }
-            None => Err(MachineError::StackSmash),
-        }
-    }
-
-    pub fn iter_var(&self) -> impl ExactSizeIterator<Item = (StackPtr, &Data)> {
-        self.vars
-            .iter()
-            .enumerate()
-            .map(|(idx, data)| (StackPtr(idx + 1), data))
     }
 }
 
@@ -434,6 +432,7 @@ pub enum MachineError {
     OutOfBoundsP,
     StackUnderflow,
     StackSmash,
+    StackTypeError,
 }
 
 impl MachineError {
@@ -448,6 +447,9 @@ impl MachineError {
             Self::OutOfBoundsP => "Instruction pointer P is out of code bounds",
             Self::StackUnderflow => "Attempt to access a stack frame which was not allocated",
             Self::StackSmash => "Attempt to access stack variable past the frame length",
+            Self::StackTypeError => {
+                "Attempt to access a non-variable stack record as a stack variable"
+            }
         }
     }
 }
@@ -704,12 +706,14 @@ fn get_value(machine: &mut Machine, target: Addr, argument: Addr) -> IResult {
 }
 
 fn allocate(machine: &mut Machine, depth: StackDepth) -> IResult {
-    machine.push_stack(StackFrame::new(machine.cp, depth));
+    *machine.e_mut() = machine.push_stack_frame(StackFrame::new(machine.e, machine.cp, depth));
     Ok(None)
 }
 
 fn deallocate(machine: &mut Machine) -> IResult {
-    let frame = machine.pop_stack().ok_or(MachineError::StackUnderflow)?;
+    let frame = machine
+        .pop_stack_frame()
+        .ok_or(MachineError::StackUnderflow)?;
     Ok(Some(frame.cp))
 }
 

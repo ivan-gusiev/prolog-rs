@@ -165,12 +165,17 @@ impl<'a> App<'a> {
             .machine
             .walk_stack()
             .enumerate()
-            .flat_map(|(depth, stack)| {
-                iter::once(format!("depth #{depth}: CP = {}", stack.cp)).chain(
-                    stack
-                        .iter_var()
-                        .map(|(ptr, data)| format!("Y{} = {} ({})", ptr.0, data, annotate(&ptr))),
-                )
+            .flat_map(|(depth, stack_result)| match stack_result {
+                Ok(stack) => {
+                    iter::once(format!("depth #{depth}: CP = {}", stack.cp))
+                        .chain(stack.iter_var().map(|(ptr, data)| {
+                            format!("Y{} = {} ({})", ptr.0, data, annotate(&ptr))
+                        }))
+                        .collect::<Vec<_>>()
+                }
+                Err(e) => {
+                    vec![format!("stack walk error: {e}")]
+                }
             })
             .collect()
     }

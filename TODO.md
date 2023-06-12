@@ -9,14 +9,12 @@
     * explain `var.rs` and binding
 - [ ] really fix the code organization, extern crate stuff et al
     * move `main` out of `lib`?
-- [ ] construct: employ var names from queries when possible
+- [ ] construct: employ var names from rules and facts when possible
     * one option would be to have a trace mode, and put a code ref on each call
     * we could use these markers to select a "current term" when decompiling
 - [ ] convert getters and setters to read-only and mutable references
     * `get_x(&self) -> &X` to `x(&self) -> &X` 
     * `set_x(&mut self, value)` to `x_mut(&mut self) -> &mut X`
-- [ ] transform stack frame into the real thing
-    * it should be a linked list of words
 - [ ] asm: instead of labels pointing to the actual code, point them to a thunk
     * will help with `assert`/`retract` in the future
     * will enable referring to terms before defining their facts or rules
@@ -25,6 +23,8 @@
     * this will result in `A->X1, B->Y1, C->X3, D->Y2, E->X5`
     * we want `A->X1, B->Y1, C->X2, D->Y2, E->X3`
 - [ ] tests: file-based test cases
+- [ ] stack: remove StackFrame, have something like StackView
+    * maybe solve the `e==0 && stack.len==0` problem somehow
 
 ### Bugs
 - [x] Type `?- X` then `X`. It cannot figure out the unification. 
@@ -86,3 +86,5 @@
 - [x] compile: warn when a variable from the head of a rule is not used in its goals
     * add a test for that
     * thread the warnings through the system to assembly
+- [x] transform stack frame into the real thing
+    * it should be a linked list of words

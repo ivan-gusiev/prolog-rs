@@ -52,6 +52,29 @@ impl From<usize> for StackPtr {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash, PartialOrd, Ord)]
+pub struct FramePtr(pub usize);
+
+impl Display for FramePtr {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "STACK[{}]", self.0)
+    }
+}
+
+impl From<usize> for FramePtr {
+    fn from(value: usize) -> Self {
+        Self(value)
+    }
+}
+
+impl ops::Add<usize> for FramePtr {
+    type Output = FramePtr;
+
+    fn add(self, rhs: usize) -> FramePtr {
+        Self(self.0 + rhs)
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub struct CodePtr(pub usize);
 
