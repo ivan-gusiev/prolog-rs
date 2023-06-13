@@ -121,7 +121,7 @@ impl<'a> ConstructEnvironment<'a> {
         self.unnamed_var_counter += 1;
         let name = self
             .symbol_table
-            .intern(format!("UNK{}", self.unnamed_var_counter));
+            .intern(format!("VAR{}", self.unnamed_var_counter));
         self.var_bindings.insert(heap_ptr, name);
         Term::Variable(name)
     }

@@ -6,7 +6,7 @@ horizontal(line(pt(X1, Y), pt(X2, Y))) | ?- horizontal(A)
 -----
 QUERY
 ----
-000	A	(HEAP[0]) =	<STR,2>	// line(pt(UNK1, UNK2), pt(UNK3, UNK2))
+000	A	(HEAP[0]) =	<STR,2>	// line(pt(VAR1, VAR2), pt(VAR3, VAR2))
 
 PROGRAM
 ____
