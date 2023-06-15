@@ -1,7 +1,7 @@
 use std::{collections::HashMap, iter::once};
 
 use asm::Assembly;
-use data::{Addr, CodePtr, RegPtr, StackDepth, StackPtr};
+use data::{Addr, CodePtr, FramePtr, RegPtr, StackDepth};
 use instr::Instruction;
 use lang::Functor;
 use symbol::{to_display, SymDisplay, Symbol, SymbolTable};
@@ -195,7 +195,7 @@ fn command_to_instr(
 
     let arg_to_reg = |arg| match arg {
         Arg::Reg(i) => Ok(Addr::Reg(RegPtr(i))),
-        Arg::Stack(i) => Ok(Addr::Stack(StackPtr(i))),
+        Arg::Stack(i) => Ok(Addr::Stack(FramePtr(i))),
         x => Err(format!(
             "Argument {} is not a register reference",
             to_display(&x, symbol_table)

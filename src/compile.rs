@@ -4,7 +4,7 @@ use std::hash::Hash;
 use std::iter::FromIterator;
 
 use asm::{Assembly, EntryPoint};
-use data::{CodePtr, Local, RegPtr, StackDepth, StackPtr};
+use data::{CodePtr, FramePtr, Local, RegPtr, StackDepth};
 use instr::Instruction;
 use lang::{var_name_is_not_ignorable, Functor, Sentence, Struct, Term, VarName};
 use symbol::{to_display, SymDisplay};
@@ -247,7 +247,7 @@ fn collect_variables<I: From<usize>>(
 fn get_permanent_variables(
     head: Option<&Struct>,
     goals: &[Struct],
-) -> (HashSet<VarName>, HashMap<VarName, StackPtr>) {
+) -> (HashSet<VarName>, HashMap<VarName, FramePtr>) {
     // assign a sequential number to each variable
     let mut var_counter = HashMap::<VarName, usize>::new();
 
@@ -303,7 +303,7 @@ fn get_permanent_variables(
 fn compile_goal(
     query: Struct,
     programs: &HashMap<Functor, CodePtr>,
-    stack_vars: &HashMap<VarName, StackPtr>,
+    stack_vars: &HashMap<VarName, FramePtr>,
     seen: &mut HashSet<Local>,
 ) -> Result<CompileInfo, CompileError> {
     let (registers_with_root, vars, root_functor) = flatten_struct(query);
@@ -431,7 +431,7 @@ pub fn compile_query(
 
 fn compile_head(
     goal: Struct,
-    stack_vars: &HashMap<VarName, StackPtr>,
+    stack_vars: &HashMap<VarName, FramePtr>,
     seen: &mut HashSet<Local>,
 ) -> CompileInfo {
     let (registers_with_root, vars, root_functor) = flatten_struct(goal);
@@ -776,8 +776,8 @@ fn test_compile_query() {
         CompileInfo {
             instructions,
             var_mapping: VarMapping::from_iter([
-                (StackPtr(1).into(), symbol_table.intern("Z")),
-                (StackPtr(2).into(), symbol_table.intern("W"))
+                (FramePtr(1).into(), symbol_table.intern("Z")),
+                (FramePtr(2).into(), symbol_table.intern("W"))
             ]),
             label_functor: None,
             warnings: vec![],
@@ -890,9 +890,9 @@ fn test_compile_query_line() {
         CompileInfo {
             instructions,
             var_mapping: VarMapping::from_iter([
-                (StackPtr(1).into(), symbol_table.intern("A")),
-                (StackPtr(2).into(), symbol_table.intern("Y")),
-                (StackPtr(3).into(), symbol_table.intern("B")),
+                (FramePtr(1).into(), symbol_table.intern("A")),
+                (FramePtr(2).into(), symbol_table.intern("Y")),
+                (FramePtr(3).into(), symbol_table.intern("B")),
             ]),
             label_functor: None,
             warnings: vec![],
@@ -947,7 +947,7 @@ fn test_collect_variables() {
 
     let mut symbol_table = SymbolTable::new();
     let sentence = parse_sentence("?- p(X, Y), q(X, Z), r(Z, Y).", &mut symbol_table).unwrap();
-    let mut result = HashMap::<VarName, StackPtr>::default();
+    let mut result = HashMap::<VarName, FramePtr>::default();
 
     for goal in sentence.goals {
         collect_variables(&goal, &mut result);
@@ -956,9 +956,9 @@ fn test_collect_variables() {
     assert_eq!(
         result,
         HashMap::from([
-            (symbol_table.intern("X"), StackPtr(1)),
-            (symbol_table.intern("Y"), StackPtr(2)),
-            (symbol_table.intern("Z"), StackPtr(3))
+            (symbol_table.intern("X"), FramePtr(1)),
+            (symbol_table.intern("Y"), FramePtr(2)),
+            (symbol_table.intern("Z"), FramePtr(3))
         ])
     );
 }
@@ -976,8 +976,8 @@ fn test_get_permanent_variables() {
         (
             HashSet::default(),
             HashMap::from([
-                (symbol_table.intern("Y"), StackPtr(1)),
-                (symbol_table.intern("Z"), StackPtr(2))
+                (symbol_table.intern("Y"), FramePtr(1)),
+                (symbol_table.intern("Z"), FramePtr(2))
             ])
         )
     );
@@ -988,7 +988,7 @@ fn test_get_permanent_variables() {
         items,
         (
             HashSet::default(),
-            HashMap::from([(symbol_table.intern("X"), StackPtr(1))])
+            HashMap::from([(symbol_table.intern("X"), FramePtr(1))])
         )
     );
 
@@ -998,7 +998,7 @@ fn test_get_permanent_variables() {
         items,
         (
             HashSet::from([symbol_table.intern("A")]),
-            HashMap::from([(symbol_table.intern("B"), StackPtr(1))])
+            HashMap::from([(symbol_table.intern("B"), FramePtr(1))])
         )
     )
 }
@@ -1040,7 +1040,7 @@ fn test_compile_rule() {
         compile_rule(rule.head.unwrap(), rule.goals, &label_map),
         Ok(CompileInfo {
             instructions: expected_assembly.instructions,
-            var_mapping: VarMapping::from_iter([(StackPtr(1).into(), y), (StackPtr(2).into(), z),]),
+            var_mapping: VarMapping::from_iter([(FramePtr(1).into(), y), (FramePtr(2).into(), z),]),
             label_functor: Some(p2),
             warnings: vec![],
         })
@@ -1083,9 +1083,9 @@ fn test_compile_multigoal_query() {
         Ok(CompileInfo {
             instructions: expected_assembly.instructions,
             var_mapping: VarMapping::from_iter([
-                (StackPtr(1).into(), x),
-                (StackPtr(2).into(), z),
-                (StackPtr(3).into(), y),
+                (FramePtr(1).into(), x),
+                (FramePtr(2).into(), z),
+                (FramePtr(3).into(), y),
             ]),
             label_functor: None,
             warnings: vec![],

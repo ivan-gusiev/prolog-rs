@@ -2,7 +2,7 @@ extern crate crossterm;
 extern crate tui;
 
 use prolog_rs::{
-    data::{CodePtr, Data, HeapPtr, RegPtr, StackPtr, Str},
+    data::{CodePtr, Data, FramePtr, HeapPtr, RegPtr, Str},
     symbol::{to_display, SymDisplay},
     util::collapse,
 };
@@ -146,7 +146,7 @@ impl<'a> App<'a> {
 
     fn stack(&'a self) -> Vec<String> {
         let st = &self.prolog.symbol_table;
-        let annotate = |stack: &StackPtr| -> String {
+        let annotate = |stack: &FramePtr| -> String {
             let mut annotations = Vec::<String>::new();
             if let Some(q) = self.prolog.query.as_ref() {
                 if let Some(x) = q.var_mapping.get(&stack.into()) {

@@ -26,7 +26,7 @@ pub struct Machine {
     s: HeapPtr,  // subterm to be matched
     p: CodePtr,  // instruction to be executed
     cp: CodePtr, // continuation instruction to proceed to
-    e: FramePtr, // current stack environment
+    e: StackPtr, // current stack environment
     mode: Mode,
     fail: bool,
     halt: bool,
@@ -45,7 +45,7 @@ impl Machine {
             s: HeapPtr(0),
             p: CodePtr(0),
             cp: CodePtr(0),
-            e: FramePtr(0),
+            e: StackPtr(0),
             mode: Mode::Read,
             fail: false,
             halt: false,
@@ -99,27 +99,42 @@ impl Machine {
             .map(|(idx, data)| (RegPtr(idx), data))
     }
 
-    pub fn get_stack(&self, ptr: StackPtr) -> MachineResult<Data> {
+    pub fn stack_global(&self, StackPtr(index): StackPtr) -> StackData {
+        if index < self.stack.len() {
+            self.stack[index]
+        } else {
+            StackData::Empty
+        }
+    }
+
+    pub fn stack_global_mut(&mut self, StackPtr(index): StackPtr) -> &mut StackData {
+        while index >= self.stack.len() {
+            self.stack.push(StackData::Empty)
+        }
+        &mut self.stack[index]
+    }
+
+    pub fn get_stack(&self, ptr: FramePtr) -> MachineResult<Data> {
         let frame = self
             .peek_stack_frame()
             .ok_or(MachineError::StackUnderflow)?;
         frame.get_var(ptr)
     }
 
-    pub fn set_stack(&mut self, ptr: StackPtr, value: Data) -> MResult {
+    pub fn set_stack(&mut self, ptr: FramePtr, value: Data) -> MResult {
         let mut frame = self
             .peek_stack_frame()
             .ok_or(MachineError::StackUnderflow)?;
         frame.write_through(self, ptr, value)
     }
 
-    fn stack_global(&self) -> StackSlice {
+    fn stack_global_deprecated(&self) -> StackSlice {
         StackSlice::from(&self.stack[..])
     }
 
     pub fn iter_stack(
         &self,
-    ) -> MachineResult<impl ExactSizeIterator<Item = (StackPtr, Data)> + '_> {
+    ) -> MachineResult<impl ExactSizeIterator<Item = (FramePtr, Data)> + '_> {
         let frame = self
             .peek_stack_frame()
             .ok_or(MachineError::StackUnderflow)?;
@@ -187,11 +202,11 @@ impl Machine {
         self.cp = value
     }
 
-    pub fn e(&self) -> FramePtr {
+    pub fn e(&self) -> StackPtr {
         self.e
     }
 
-    pub fn e_mut(&mut self) -> &mut FramePtr {
+    pub fn e_mut(&mut self) -> &mut StackPtr {
         &mut self.e
     }
 
@@ -249,8 +264,8 @@ impl Machine {
         self.pdl.pop()
     }
 
-    pub fn push_stack_frame(&mut self, frame: StackFrame) -> FramePtr {
-        let cur = FramePtr(self.stack.len());
+    pub fn push_stack_frame(&mut self, frame: StackFrame) -> StackPtr {
+        let cur = StackPtr(self.stack.len());
         self.stack.extend(frame.write_to_vec());
         cur
     }
@@ -267,7 +282,7 @@ impl Machine {
     }
 
     pub fn peek_stack_frame(&self) -> Option<StackFrame> {
-        let frame = StackFrame::read_from_slice(self.stack_global()[self.e()..].into());
+        let frame = StackFrame::read_from_slice(self.stack_global_deprecated()[self.e()..].into());
         frame.ok()
     }
 

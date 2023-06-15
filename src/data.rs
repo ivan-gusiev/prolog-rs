@@ -38,26 +38,11 @@ impl Display for RegPtr {
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash, PartialOrd, Ord)]
-pub struct StackPtr(pub usize);
-
-impl Display for StackPtr {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "Y{}", self.0)
-    }
-}
-
-impl From<usize> for StackPtr {
-    fn from(value: usize) -> Self {
-        Self(value)
-    }
-}
-
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub struct FramePtr(pub usize);
 
 impl Display for FramePtr {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "STACK[{}]", self.0)
+        write!(f, "Y{}", self.0)
     }
 }
 
@@ -67,10 +52,25 @@ impl From<usize> for FramePtr {
     }
 }
 
-impl ops::Add<usize> for FramePtr {
-    type Output = FramePtr;
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash, PartialOrd, Ord)]
+pub struct StackPtr(pub usize);
 
-    fn add(self, rhs: usize) -> FramePtr {
+impl Display for StackPtr {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "STACK[{}]", self.0)
+    }
+}
+
+impl From<usize> for StackPtr {
+    fn from(value: usize) -> Self {
+        Self(value)
+    }
+}
+
+impl ops::Add<usize> for StackPtr {
+    type Output = StackPtr;
+
+    fn add(self, rhs: usize) -> StackPtr {
         Self(self.0 + rhs)
     }
 }
@@ -211,7 +211,7 @@ impl Display for Mode {
 pub enum Addr {
     Heap(HeapPtr),
     Reg(RegPtr),
-    Stack(StackPtr),
+    Stack(FramePtr),
 }
 
 impl Display for Addr {
@@ -236,8 +236,8 @@ impl From<HeapPtr> for Addr {
     }
 }
 
-impl From<StackPtr> for Addr {
-    fn from(ptr: StackPtr) -> Self {
+impl From<FramePtr> for Addr {
+    fn from(ptr: FramePtr) -> Self {
         Addr::Stack(ptr)
     }
 }
@@ -257,11 +257,11 @@ impl Addr {
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub enum Local {
     Reg(RegPtr),
-    Stack(StackPtr),
+    Stack(FramePtr),
 }
 
 impl Local {
-    pub fn from_stack(stack: &StackPtr) -> Local {
+    pub fn from_stack(stack: &FramePtr) -> Local {
         Local::Stack(*stack)
     }
 
@@ -291,14 +291,14 @@ impl From<&RegPtr> for Local {
     }
 }
 
-impl From<StackPtr> for Local {
-    fn from(value: StackPtr) -> Self {
+impl From<FramePtr> for Local {
+    fn from(value: FramePtr) -> Self {
         Local::Stack(value)
     }
 }
 
-impl From<&StackPtr> for Local {
-    fn from(value: &StackPtr) -> Self {
+impl From<&FramePtr> for Local {
+    fn from(value: &FramePtr) -> Self {
         Local::Stack(*value)
     }
 }

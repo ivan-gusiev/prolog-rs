@@ -16,7 +16,7 @@ pub enum StackData {
     Ref(Ref),
     Str(Str),
     Functor(Functor),
-    Frame(FramePtr),
+    Frame(StackPtr),
     Code(CodePtr),
     Len(usize),
 }
@@ -55,20 +55,20 @@ impl<'a> From<&'a [StackData]> for StackSlice<'a> {
     }
 }
 
-impl<'a> Index<RangeFrom<FramePtr>> for StackSlice<'a> {
+impl<'a> Index<RangeFrom<StackPtr>> for StackSlice<'a> {
     type Output = [StackData];
 
-    fn index(&self, index: RangeFrom<FramePtr>) -> &Self::Output {
+    fn index(&self, index: RangeFrom<StackPtr>) -> &Self::Output {
         &self.0[RangeFrom {
             start: index.start.0,
         }]
     }
 }
 
-impl<'a> Index<Range<FramePtr>> for StackSlice<'a> {
+impl<'a> Index<Range<StackPtr>> for StackSlice<'a> {
     type Output = [StackData];
 
-    fn index(&self, index: Range<FramePtr>) -> &Self::Output {
+    fn index(&self, index: Range<StackPtr>) -> &Self::Output {
         &self.0[Range {
             start: index.start.0,
             end: index.end.0,
@@ -78,13 +78,13 @@ impl<'a> Index<Range<FramePtr>> for StackSlice<'a> {
 
 #[derive(Debug)]
 pub struct StackFrame {
-    pub ce: FramePtr,
+    pub ce: StackPtr,
     pub cp: CodePtr,
     pub(super) vars: Vec<Data>,
 }
 
 impl StackFrame {
-    pub fn new(ce: FramePtr, cp: CodePtr, depth: StackDepth) -> StackFrame {
+    pub fn new(ce: StackPtr, cp: CodePtr, depth: StackDepth) -> StackFrame {
         StackFrame {
             ce,
             cp,
@@ -96,14 +96,14 @@ impl StackFrame {
         3 + self.vars.len()
     }
 
-    pub fn get_var(&self, StackPtr(index): StackPtr) -> MachineResult<Data> {
+    pub fn get_var(&self, FramePtr(index): FramePtr) -> MachineResult<Data> {
         self.vars
             .get(index - 1)
             .copied()
             .ok_or(MachineError::StackSmash)
     }
 
-    pub fn set_var(&mut self, StackPtr(index): StackPtr, value: Data) -> MResult {
+    pub fn set_var(&mut self, FramePtr(index): FramePtr, value: Data) -> MResult {
         match self.vars.get_mut(index - 1) {
             Some(slot) => {
                 *slot = value;
@@ -113,11 +113,11 @@ impl StackFrame {
         }
     }
 
-    pub fn iter_var(&self) -> impl ExactSizeIterator<Item = (StackPtr, &Data)> + '_ {
+    pub fn iter_var(&self) -> impl ExactSizeIterator<Item = (FramePtr, &Data)> + '_ {
         self.vars
             .iter()
             .enumerate()
-            .map(|(idx, data)| (StackPtr(idx + 1), data))
+            .map(|(idx, data)| (FramePtr(idx + 1), data))
     }
 
     pub fn write_to_vec(&self) -> Vec<StackData> {
@@ -161,7 +161,7 @@ impl StackFrame {
         Ok(StackFrame { ce, cp, vars })
     }
 
-    pub fn write_through(&mut self, machine: &mut Machine, ptr: StackPtr, data: Data) -> MResult {
+    pub fn write_through(&mut self, machine: &mut Machine, ptr: FramePtr, data: Data) -> MResult {
         let var_index = ptr.0 - 1;
         if var_index >= self.vars.len() {
             return Err(MachineError::StackSmash);
@@ -182,8 +182,8 @@ impl StackFrame {
 
 pub struct StackWalk<'a> {
     machine: &'a Machine,
-    current: FramePtr,
-    prev: Option<FramePtr>,
+    current: StackPtr,
+    prev: Option<StackPtr>,
     is_error: bool,
 }
 
@@ -218,7 +218,7 @@ impl<'a> std::iter::Iterator for StackWalk<'a> {
 
         self.prev = Some(self.current);
 
-        let slice = &self.machine.stack_global()[self.current..];
+        let slice = &self.machine.stack_global_deprecated()[self.current..];
         if slice.is_empty() && self.current.0 == 0 {
             // special case: empty stack
             return None;
@@ -250,7 +250,7 @@ impl<'a> StackIterator<'a> {
 }
 
 impl<'a> Iterator for StackIterator<'a> {
-    type Item = (StackPtr, Data);
+    type Item = (FramePtr, Data);
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.current >= self.vars.len() {
@@ -259,7 +259,7 @@ impl<'a> Iterator for StackIterator<'a> {
 
         let result = Data::try_from(self.vars[self.current]).ok();
         self.current += 1;
-        result.map(|d| (StackPtr(self.current + 1), d))
+        result.map(|d| (FramePtr(self.current + 1), d))
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
