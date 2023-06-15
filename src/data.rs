@@ -52,6 +52,12 @@ impl From<usize> for FramePtr {
     }
 }
 
+impl From<FramePtr> for usize {
+    fn from(FramePtr(index): FramePtr) -> Self {
+        index
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub struct StackPtr(pub usize);
 
@@ -71,6 +77,14 @@ impl ops::Add<usize> for StackPtr {
     type Output = StackPtr;
 
     fn add(self, rhs: usize) -> StackPtr {
+        Self(self.0 + rhs)
+    }
+}
+
+impl ops::Add<FramePtr> for StackPtr {
+    type Output = StackPtr;
+
+    fn add(self, FramePtr(rhs): FramePtr) -> StackPtr {
         Self(self.0 + rhs)
     }
 }

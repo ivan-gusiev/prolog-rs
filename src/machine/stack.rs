@@ -16,9 +16,51 @@ pub enum StackData {
     Ref(Ref),
     Str(Str),
     Functor(Functor),
-    Frame(StackPtr),
+    Stack(StackPtr),
     Code(CodePtr),
     Len(usize),
+}
+
+impl StackData {
+    pub fn to_len(&self) -> MachineResult<usize> {
+        match self {
+            Self::Empty => Ok(0),
+            Self::Len(l) => Ok(*l),
+            _ => Err(MachineError::StackTypeError),
+        }
+    }
+
+    pub fn to_code(&self) -> MachineResult<CodePtr> {
+        match self {
+            Self::Code(code) => Ok(*code),
+            _ => Err(MachineError::StackTypeError),
+        }
+    }
+
+    pub fn to_stack(&self) -> MachineResult<StackPtr> {
+        match self {
+            Self::Stack(stack) => Ok(*stack),
+            _ => Err(MachineError::StackTypeError),
+        }
+    }
+}
+
+impl From<StackDepth> for StackData {
+    fn from(StackDepth(len): StackDepth) -> Self {
+        Self::Len(len)
+    }
+}
+
+impl From<StackPtr> for StackData {
+    fn from(value: StackPtr) -> Self {
+        Self::Stack(value)
+    }
+}
+
+impl From<CodePtr> for StackData {
+    fn from(value: CodePtr) -> Self {
+        Self::Code(value)
+    }
 }
 
 impl From<Data> for StackData {
@@ -122,7 +164,7 @@ impl StackFrame {
 
     pub fn write_to_vec(&self) -> Vec<StackData> {
         let mut result = vec![
-            StackData::Frame(self.ce),
+            StackData::Stack(self.ce),
             StackData::Code(self.cp),
             StackData::Len(self.vars.len()),
         ];
@@ -137,7 +179,7 @@ impl StackFrame {
         }
 
         let ce = match data[0] {
-            StackData::Frame(ce) => ce,
+            StackData::Stack(ce) => ce,
             _ => return Err(MachineError::StackTypeError),
         };
         let cp = match data[1] {
@@ -219,7 +261,7 @@ impl<'a> std::iter::Iterator for StackWalk<'a> {
         self.prev = Some(self.current);
 
         let slice = &self.machine.stack_global_deprecated()[self.current..];
-        if slice.is_empty() && self.current.0 == 0 {
+        if self.current.0 == 0 {
             // special case: empty stack
             return None;
         }
@@ -235,31 +277,38 @@ impl<'a> std::iter::Iterator for StackWalk<'a> {
 }
 
 pub struct StackIterator<'a> {
-    vars: &'a [StackData],
+    machine: &'a Machine,
+    start: usize,
     current: usize,
+    end: usize,
 }
 
 impl<'a> StackIterator<'a> {
-    pub fn new(vars: &'a [StackData]) -> Self {
-        Self { vars, current: 0 }
+    pub fn new(machine: &'a Machine, start: usize, end: usize) -> Self {
+        Self {
+            machine,
+            start,
+            current: start,
+            end,
+        }
     }
 
     fn remaining_count(&self) -> usize {
-        self.vars.len() - self.current
+        self.end - self.current
     }
 }
 
 impl<'a> Iterator for StackIterator<'a> {
-    type Item = (FramePtr, Data);
+    type Item = (FramePtr, MachineResult<Data>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.current >= self.vars.len() {
+        if self.current >= self.end {
             return None;
         }
 
-        let result = Data::try_from(self.vars[self.current]).ok();
+        let result = Data::try_from(self.machine.stack_global(self.current.into()));
         self.current += 1;
-        result.map(|d| (FramePtr(self.current + 1), d))
+        Some((FramePtr(self.current - self.start + 1), result))
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -268,3 +317,16 @@ impl<'a> Iterator for StackIterator<'a> {
 }
 
 impl<'a> ExactSizeIterator for StackIterator<'a> {}
+
+pub(super) fn stack_smash_check(
+    machine: &Machine,
+    frame_start: StackPtr,
+    FramePtr(index): FramePtr,
+) -> MResult {
+    let len = machine.stack_global(frame_start + 2).to_len()?;
+    if index <= len {
+        Ok(())
+    } else {
+        Err(MachineError::StackSmash)
+    }
+}

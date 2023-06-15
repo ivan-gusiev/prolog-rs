@@ -8,13 +8,16 @@ use data::{
 use instr::Instruction;
 use lang::{Functor, Term, VarName};
 use machine::stack::StackData;
-use std::fmt::{Display, Write};
+use std::{
+    convert::TryInto,
+    fmt::{Display, Write},
+};
 use symbol::SymbolTable;
 use var::{VarBindings, VarDescription, VarMapping};
 
 use util::{writeout, writeout_sym};
 
-use self::stack::{StackFrame, StackIterator, StackSlice, StackWalk};
+use self::stack::{stack_smash_check, StackIterator, StackSlice, StackWalk};
 
 #[derive(Debug)]
 pub struct Machine {
@@ -114,18 +117,18 @@ impl Machine {
         &mut self.stack[index]
     }
 
-    pub fn get_stack(&self, ptr: FramePtr) -> MachineResult<Data> {
-        let frame = self
-            .peek_stack_frame()
-            .ok_or(MachineError::StackUnderflow)?;
-        frame.get_var(ptr)
+    pub fn get_frame(&self, ptr: FramePtr) -> MachineResult<Data> {
+        let e = self.e();
+        stack_smash_check(self, e, ptr)?;
+        // FramePtr is 1-based, so the first possible variable is located at `e + 3`
+        self.stack_global(e + 2 + ptr).try_into()
     }
 
-    pub fn set_stack(&mut self, ptr: FramePtr, value: Data) -> MResult {
-        let mut frame = self
-            .peek_stack_frame()
-            .ok_or(MachineError::StackUnderflow)?;
-        frame.write_through(self, ptr, value)
+    pub fn set_frame(&mut self, ptr: FramePtr, value: Data) -> MResult {
+        let e = self.e();
+        stack_smash_check(self, e, ptr)?;
+        *self.stack_global_mut(e + 2 + ptr) = value.into();
+        Ok(())
     }
 
     fn stack_global_deprecated(&self) -> StackSlice {
@@ -134,13 +137,10 @@ impl Machine {
 
     pub fn iter_stack(
         &self,
-    ) -> MachineResult<impl ExactSizeIterator<Item = (FramePtr, Data)> + '_> {
-        let frame = self
-            .peek_stack_frame()
-            .ok_or(MachineError::StackUnderflow)?;
-        let len = frame.vars.len();
-        let e = self.e().0;
-        Ok(StackIterator::new(&self.stack[e + 3..e + 3 + len]))
+    ) -> MachineResult<impl ExactSizeIterator<Item = (FramePtr, MachineResult<Data>)> + '_> {
+        let e = self.e();
+        let len = self.stack_global(e + 2).to_len()?;
+        Ok(StackIterator::new(&self, e.0 + 3, e.0 + 3 + len))
     }
 
     pub fn walk_stack(&self) -> StackWalk {
@@ -238,7 +238,7 @@ impl Machine {
         match addr {
             Addr::Heap(heap_ptr) => Ok(self.get_heap(heap_ptr)),
             Addr::Reg(reg_ptr) => Ok(self.get_reg(reg_ptr)),
-            Addr::Stack(stack_ptr) => self.get_stack(stack_ptr),
+            Addr::Stack(stack_ptr) => self.get_frame(stack_ptr),
         }
     }
 
@@ -252,7 +252,7 @@ impl Machine {
                 self.set_reg(reg_ptr, value);
                 Ok(())
             }
-            Addr::Stack(stack_ptr) => self.set_stack(stack_ptr, value),
+            Addr::Stack(stack_ptr) => self.set_frame(stack_ptr, value),
         }
     }
 
@@ -262,28 +262,6 @@ impl Machine {
 
     pub fn pop_pdl(&mut self) -> Option<Addr> {
         self.pdl.pop()
-    }
-
-    pub fn push_stack_frame(&mut self, frame: StackFrame) -> StackPtr {
-        let cur = StackPtr(self.stack.len());
-        self.stack.extend(frame.write_to_vec());
-        cur
-    }
-
-    pub fn pop_stack_frame(&mut self) -> Option<StackFrame> {
-        if let Some(frame) = self.peek_stack_frame() {
-            self.e = frame.ce;
-            // this allows to clear the last frame where e=ce=0
-            self.stack.truncate(self.stack.len() - frame.size());
-            Some(frame)
-        } else {
-            None
-        }
-    }
-
-    pub fn peek_stack_frame(&self) -> Option<StackFrame> {
-        let frame = StackFrame::read_from_slice(self.stack_global_deprecated()[self.e()..].into());
-        frame.ok()
     }
 
     pub fn is_pdl_empty(&self) -> bool {
@@ -721,15 +699,21 @@ fn get_value(machine: &mut Machine, target: Addr, argument: Addr) -> IResult {
 }
 
 fn allocate(machine: &mut Machine, depth: StackDepth) -> IResult {
-    *machine.e_mut() = machine.push_stack_frame(StackFrame::new(machine.e, machine.cp, depth));
+    let e = machine.e();
+    let new_e = e + machine.stack_global(e + 2).to_len()? + 3;
+
+    *machine.stack_global_mut(new_e) = e.into();
+    *machine.stack_global_mut(new_e + 1) = machine.get_cp().into();
+    *machine.stack_global_mut(new_e + 2) = depth.into();
+    *machine.e_mut() = new_e;
+
     Ok(None)
 }
 
 fn deallocate(machine: &mut Machine) -> IResult {
-    let frame = machine
-        .pop_stack_frame()
-        .ok_or(MachineError::StackUnderflow)?;
-    Ok(Some(frame.cp))
+    let new_p = machine.stack_global(machine.e + 1).to_code()?;
+    *machine.e_mut() = machine.stack_global(machine.e).to_stack()?;
+    Ok(Some(new_p))
 }
 
 fn publish(machine: &mut Machine) -> IResult {
