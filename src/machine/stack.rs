@@ -1,7 +1,4 @@
-use std::{
-    convert::TryFrom,
-    ops::{Index, Range, RangeFrom},
-};
+use std::convert::TryFrom;
 
 use crate::{
     data::{CodePtr, Data, FramePtr, Ref, StackDepth, StackPtr, Str},
@@ -88,46 +85,18 @@ impl TryFrom<StackData> for Data {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
-pub struct StackSlice<'a>(&'a [StackData]);
-
-impl<'a> From<&'a [StackData]> for StackSlice<'a> {
-    fn from(value: &'a [StackData]) -> Self {
-        Self(value)
-    }
-}
-
-impl<'a> Index<RangeFrom<StackPtr>> for StackSlice<'a> {
-    type Output = [StackData];
-
-    fn index(&self, index: RangeFrom<StackPtr>) -> &Self::Output {
-        &self.0[RangeFrom {
-            start: index.start.0,
-        }]
-    }
-}
-
-impl<'a> Index<Range<StackPtr>> for StackSlice<'a> {
-    type Output = [StackData];
-
-    fn index(&self, index: Range<StackPtr>) -> &Self::Output {
-        &self.0[Range {
-            start: index.start.0,
-            end: index.end.0,
-        }]
-    }
-}
-
+// represents a valid stack frame and all its data
+// used for external representation independent of the machine
 #[derive(Debug)]
 pub struct StackFrame {
     pub ce: StackPtr,
     pub cp: CodePtr,
-    pub(super) vars: Vec<Data>,
+    pub vars: Vec<Data>,
 }
 
 impl StackFrame {
-    pub fn new(ce: StackPtr, cp: CodePtr, depth: StackDepth) -> StackFrame {
-        StackFrame {
+    pub fn new(ce: StackPtr, cp: CodePtr, depth: StackDepth) -> Self {
+        Self {
             ce,
             cp,
             vars: std::iter::repeat(Data::Empty).take(depth.0).collect(),
@@ -162,39 +131,17 @@ impl StackFrame {
             .map(|(idx, data)| (FramePtr(idx + 1), data))
     }
 
-    pub fn write_to_vec(&self) -> Vec<StackData> {
-        let mut result = vec![
-            StackData::Stack(self.ce),
-            StackData::Code(self.cp),
-            StackData::Len(self.vars.len()),
-        ];
-
-        result.extend(self.vars.iter().copied().map(StackData::from));
-        result
-    }
-
-    pub fn read_from_slice(data: &[StackData]) -> MachineResult<StackFrame> {
-        if data.len() < 3 {
+    pub fn read_from_slice(machine: &Machine, e: StackPtr) -> MachineResult<StackFrame> {
+        let StackPtr(index) = e;
+        if index < 3 {
             return Err(MachineError::StackUnderflow);
         }
 
-        let ce = match data[0] {
-            StackData::Stack(ce) => ce,
-            _ => return Err(MachineError::StackTypeError),
-        };
-        let cp = match data[1] {
-            StackData::Code(cp) => cp,
-            _ => return Err(MachineError::StackTypeError),
-        };
-        let len = match data[2] {
-            StackData::Len(len) => len,
-            _ => return Err(MachineError::StackTypeError),
-        };
-        let vars = data[3..]
-            .iter()
-            .take(len)
-            .copied()
-            .map(Data::try_from)
+        let ce = machine.stack_global(e).to_stack()?;
+        let cp = machine.stack_global(e + 1).to_code()?;
+        let len = machine.stack_global(e + 2).to_len()?;
+        let vars = ((e + 3).0..(e + 3 + len).0)
+            .map(|y| Data::try_from(machine.stack_global(y.into())))
             .collect::<Result<Vec<_>, _>>()?;
         if vars.len() < len {
             return Err(MachineError::StackSmash);
@@ -202,30 +149,12 @@ impl StackFrame {
 
         Ok(StackFrame { ce, cp, vars })
     }
-
-    pub fn write_through(&mut self, machine: &mut Machine, ptr: FramePtr, data: Data) -> MResult {
-        let var_index = ptr.0 - 1;
-        if var_index >= self.vars.len() {
-            return Err(MachineError::StackSmash);
-        }
-
-        self.vars[var_index] = data;
-
-        let global_index = machine.e() + 3 + var_index;
-        let stack_cell = machine
-            .stack
-            .get_mut(global_index.0)
-            .ok_or(MachineError::StackUnderflow)?;
-        *stack_cell = data.into();
-
-        Ok(())
-    }
 }
 
+// TODO: write a bunch of tests for stack walk
 pub struct StackWalk<'a> {
     machine: &'a Machine,
     current: StackPtr,
-    prev: Option<StackPtr>,
     is_error: bool,
 }
 
@@ -234,8 +163,26 @@ impl<'a> StackWalk<'a> {
         Self {
             machine,
             current: machine.e(),
-            prev: None,
             is_error: false,
+        }
+    }
+
+    // naive implementation, does not care about looping
+    fn next_raw(&mut self) -> Option<MachineResult<StackFrame>> {
+        if self.current == 0.into() {
+            // special case: empty stack
+            return None;
+        }
+
+        match StackFrame::read_from_slice(self.machine, self.current) {
+            Ok(frame) => {
+                if frame.ce >= self.current {
+                    return Some(Err(MachineError::StackTypeError));
+                }
+                self.current = frame.ce;
+                Some(Ok(frame))
+            }
+            Err(e) => Some(Err(e)),
         }
     }
 }
@@ -245,33 +192,16 @@ impl<'a> std::iter::Iterator for StackWalk<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.is_error {
-            // we returned error last time,
-            // stop the iteration
+            // returned failure: stop iterating
             return None;
         }
 
-        if let Some(prev_frame) = self.prev {
-            if self.current == prev_frame {
-                // when current == prev == 0
-                // we have reached the end of the stack
-                return None;
+        match self.next_raw() {
+            error @ Some(Err(_)) => {
+                self.is_error = true;
+                error
             }
-        }
-
-        self.prev = Some(self.current);
-
-        let slice = &self.machine.stack_global_deprecated()[self.current..];
-        if self.current.0 == 0 {
-            // special case: empty stack
-            return None;
-        }
-
-        match StackFrame::read_from_slice(slice) {
-            Ok(frame) => {
-                self.current = frame.ce;
-                Some(Ok(frame))
-            }
-            Err(e) => Some(Err(e)),
+            other => other,
         }
     }
 }

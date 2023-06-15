@@ -17,7 +17,7 @@ use var::{VarBindings, VarDescription, VarMapping};
 
 use util::{writeout, writeout_sym};
 
-use self::stack::{stack_smash_check, StackIterator, StackSlice, StackWalk};
+use self::stack::{stack_smash_check, StackIterator, StackWalk};
 
 #[derive(Debug)]
 pub struct Machine {
@@ -131,16 +131,12 @@ impl Machine {
         Ok(())
     }
 
-    fn stack_global_deprecated(&self) -> StackSlice {
-        StackSlice::from(&self.stack[..])
-    }
-
     pub fn iter_stack(
         &self,
     ) -> MachineResult<impl ExactSizeIterator<Item = (FramePtr, MachineResult<Data>)> + '_> {
         let e = self.e();
         let len = self.stack_global(e + 2).to_len()?;
-        Ok(StackIterator::new(&self, e.0 + 3, e.0 + 3 + len))
+        Ok(StackIterator::new(self, e.0 + 3, e.0 + 3 + len))
     }
 
     pub fn walk_stack(&self) -> StackWalk {
@@ -440,9 +436,7 @@ impl MachineError {
             Self::OutOfBoundsP => "Instruction pointer P is out of code bounds",
             Self::StackUnderflow => "Attempt to access a stack frame which was not allocated",
             Self::StackSmash => "Attempt to access stack variable past the frame length",
-            Self::StackTypeError => {
-                "Attempt to access a non-variable stack record as a stack variable"
-            }
+            Self::StackTypeError => "Stack data invalid for current context",
         }
     }
 }
