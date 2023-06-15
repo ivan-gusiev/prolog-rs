@@ -103,27 +103,6 @@ impl StackFrame {
         }
     }
 
-    pub fn size(&self) -> usize {
-        3 + self.vars.len()
-    }
-
-    pub fn get_var(&self, FramePtr(index): FramePtr) -> MachineResult<Data> {
-        self.vars
-            .get(index - 1)
-            .copied()
-            .ok_or(MachineError::StackSmash)
-    }
-
-    pub fn set_var(&mut self, FramePtr(index): FramePtr, value: Data) -> MResult {
-        match self.vars.get_mut(index - 1) {
-            Some(slot) => {
-                *slot = value;
-                Ok(())
-            }
-            None => Err(MachineError::StackSmash),
-        }
-    }
-
     pub fn iter_var(&self) -> impl ExactSizeIterator<Item = (FramePtr, &Data)> + '_ {
         self.vars
             .iter()
@@ -143,9 +122,6 @@ impl StackFrame {
         let vars = ((e + 3).0..(e + 3 + len).0)
             .map(|y| Data::try_from(machine.stack_global(y.into())))
             .collect::<Result<Vec<_>, _>>()?;
-        if vars.len() < len {
-            return Err(MachineError::StackSmash);
-        }
 
         Ok(StackFrame { ce, cp, vars })
     }
