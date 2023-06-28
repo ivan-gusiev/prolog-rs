@@ -23,8 +23,7 @@
     * this will result in `A->X1, B->Y1, C->X3, D->Y2, E->X5`
     * we want `A->X1, B->Y1, C->X2, D->Y2, E->X3`
 - [ ] tests: file-based test cases
-- [ ] stack: remove StackFrame, have something like StackView
-    * maybe solve the `e==0 && stack.len==0` problem somehow
+- [ ] data: remove Str and Ref types, they are not as useful as once thought
 
 ### Bugs
 - [x] Type `?- X` then `X`. It cannot figure out the unification. 
@@ -88,3 +87,6 @@
     * thread the warnings through the system to assembly
 - [x] transform stack frame into the real thing
     * it should be a linked list of words
+- [x] stack: remove StackFrame, have something like StackView
+    * maybe solve the `e==0 && stack.len==0` problem somehow
+    * half done, keeping StackFrame only for introspection purposes
