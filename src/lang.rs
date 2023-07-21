@@ -48,14 +48,27 @@ impl SymDisplay for Functor {
 pub struct Struct(Functor, Vec<Term>);
 
 impl Struct {
-    pub fn new(functor: Functor, terms: &[Term]) -> Result<Struct, String> {
+    fn check_arity(functor: Functor, terms: &[Term]) -> Result<(), String> {
         if terms.len() != functor.arity() as usize {
-            return Err(format!(
+            Err(format!(
                 "functor {functor} arity does not correspond to the terms count"
-            ));
+            ))
+        } else {
+            Ok(())
         }
+    }
+
+    // TODO: remove (the caller can clone things themselves)
+    pub fn new(functor: Functor, terms: &[Term]) -> Result<Struct, String> {
+        Self::check_arity(functor, terms)?;
 
         Ok(Struct(functor, terms.to_vec()))
+    }
+
+    pub fn new_from(functor: Functor, terms: Vec<Term>) -> Result<Struct, String> {
+        Self::check_arity(functor, &terms)?;
+
+        Ok(Struct(functor, terms))
     }
 
     pub fn from_name(name: FunctorName, terms: &[Term]) -> Struct {
