@@ -2,7 +2,7 @@ extern crate crossterm;
 extern crate tui;
 
 use prolog_rs::{
-    data::{CodePtr, Data, FramePtr, HeapPtr, RegPtr, Str},
+    data::{CodePtr, Data, FramePtr, HeapPtr, RegPtr},
     symbol::{to_display, SymDisplay},
     util::collapse,
 };
@@ -126,7 +126,7 @@ impl<'a> App<'a> {
                     Data::Functor(f) => {
                         annotations.push(format!("{}", to_display(&f, st)));
                     }
-                    Data::Str(Str(f_ptr)) => {
+                    Data::Str(f_ptr) => {
                         if let Data::Functor(f) = self.prolog.machine.get_heap(f_ptr) {
                             annotations.push(format!("{}", to_display(&f, st)));
                         }

@@ -10,7 +10,7 @@ mod tests {
         asm::Assembly,
         assembler::{compile_asm, compile_asm_to_assembly},
         compile::{compile_query, compile_rule, compile_sentences, CompileInfo},
-        data::{CodePtr, Data, HeapPtr, Ref, RegPtr, Str},
+        data::{CodePtr, Data, HeapPtr, RegPtr},
         instr::Instruction,
         lang::{parse_program, parse_sentence, Functor, Struct, Term},
         machine::Machine,
@@ -101,7 +101,7 @@ mod tests {
         machine.execute().run().expect("machine failure");
 
         fn str(heap: usize) -> Data {
-            Data::Str(Str(HeapPtr(heap)))
+            Data::Str(HeapPtr(heap))
         }
 
         fn func(f: Functor) -> Data {
@@ -109,7 +109,7 @@ mod tests {
         }
 
         fn refr(heap: usize) -> Data {
-            Data::Ref(Ref(HeapPtr(heap)))
+            Data::Ref(HeapPtr(heap))
         }
 
         let expected_heap = vec![

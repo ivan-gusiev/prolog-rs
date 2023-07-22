@@ -129,28 +129,10 @@ impl Display for StackDepth {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Ref(pub HeapPtr);
-
-impl Display for Ref {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "<REF,{}>", self.0 .0)
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Str(pub HeapPtr);
-
-impl Display for Str {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "<STR,{}>", self.0 .0)
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Data {
     Empty,
-    Ref(Ref),
-    Str(Str),
+    Ref(HeapPtr),
+    Str(HeapPtr),
     Functor(Functor),
 }
 
@@ -158,8 +140,8 @@ impl Display for Data {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         match self {
             Data::Empty => write!(f, "<EMPTY>"),
-            Data::Ref(r) => write!(f, "{r}"),
-            Data::Str(s) => write!(f, "{s}"),
+            Data::Str(ptr) => write!(f, "<STR,{}>", ptr.0),
+            Data::Ref(ptr) => write!(f, "<REF,{}>", ptr.0),
             Data::Functor(functor) => write!(f, "{functor}"),
         }
     }
@@ -178,18 +160,6 @@ impl SymDisplay for Data {
     }
 }
 
-impl From<Ref> for Data {
-    fn from(value: Ref) -> Self {
-        Data::Ref(value)
-    }
-}
-
-impl From<Str> for Data {
-    fn from(value: Str) -> Self {
-        Data::Str(value)
-    }
-}
-
 impl From<Functor> for Data {
     fn from(value: Functor) -> Self {
         Data::Functor(value)
@@ -202,6 +172,14 @@ impl Data {
             &Data::Functor(functor) => Some(functor),
             _ => None,
         }
+    }
+
+    pub fn mkref(heap_ptr: HeapPtr) -> Data {
+        Data::Ref(heap_ptr)
+    }
+
+    pub fn mkstr(heap_ptr: HeapPtr) -> Data {
+        Data::Str(heap_ptr)
     }
 }
 

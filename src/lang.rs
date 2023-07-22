@@ -52,8 +52,8 @@ impl Struct {
         if terms.len() != functor.arity() as usize {
             return Err(format!(
                 "functor {functor} arity does not correspond to the terms count"
-            ))
-        } 
+            ));
+        }
 
         Ok(Struct(functor, terms))
     }

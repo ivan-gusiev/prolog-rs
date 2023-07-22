@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 
 use crate::{
-    data::{CodePtr, Data, FramePtr, Ref, StackDepth, StackPtr, Str},
+    data::{CodePtr, Data, FramePtr, HeapPtr, StackDepth, StackPtr},
     lang::Functor,
 };
 
@@ -10,8 +10,8 @@ use super::{MResult, Machine, MachineError, MachineResult};
 #[derive(Debug, Clone, Copy)]
 pub enum StackData {
     Empty,
-    Ref(Ref),
-    Str(Str),
+    Ref(HeapPtr),
+    Str(HeapPtr),
     Functor(Functor),
     Stack(StackPtr),
     Code(CodePtr),

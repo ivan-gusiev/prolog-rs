@@ -1,7 +1,7 @@
 use std::{collections::HashSet, fmt::Display};
 
 use crate::{
-    data::{Data, HeapPtr, Ref, Str},
+    data::{Data, HeapPtr},
     lang::{Functor, Struct, Term, VarName},
     machine::MachineError,
     symbol::SymbolTable,
@@ -148,7 +148,7 @@ pub fn construct(
                     // a STR cell must always point to a functor, so we just read the pointee;
                     // this invariant is not checked here, making STR identical to a REF cell
                     // for the purposes of term construction
-                    Data::Str(Str(x)) => targets.push(Target::Read(x)),
+                    Data::Str(x) => targets.push(Target::Read(x)),
                     Data::Ref(_) => {
                         // a simple implementation would be just to set the ref as a target,
                         // or if cur_ptr==target, to emit a new variable term;
@@ -176,7 +176,7 @@ pub fn construct(
                             }
 
                             match *at(cur_ref) {
-                                Data::Ref(Ref(x)) if x == cur_ref => {
+                                Data::Ref(x) if x == cur_ref => {
                                     // a REF that points to itself is an unbound variable
                                     if let Some(name) = last_name {
                                         terms.push(Term::Variable(name));
@@ -186,7 +186,7 @@ pub fn construct(
                                     }
                                     break;
                                 }
-                                Data::Ref(Ref(x)) => cur_ref = x, // follow the ref chain
+                                Data::Ref(x) => cur_ref = x, // follow the ref chain
                                 _ => {
                                     targets.push(Target::Read(cur_ref));
                                     break;
@@ -243,7 +243,7 @@ mod unittests {
 
     use crate::{
         construct::ConstructError,
-        data::{Data, HeapPtr, Ref, Str},
+        data::{Data, HeapPtr},
         lang::Functor,
         symbol::{to_display, SymbolTable},
         var::VarBindings,
@@ -261,18 +261,18 @@ mod unittests {
         let w = symbol_table.intern("W");
 
         let heap = vec![
-            Data::Str(Str(HeapPtr(1))),
+            Data::Str(HeapPtr(1)),
             Data::Functor(Functor(h, 2)),
-            Data::Ref(Ref(HeapPtr(2))),
-            Data::Ref(Ref(HeapPtr(3))),
-            Data::Str(Str(HeapPtr(5))),
+            Data::Ref(HeapPtr(2)),
+            Data::Ref(HeapPtr(3)),
+            Data::Str(HeapPtr(5)),
             Data::Functor(Functor(f, 1)),
-            Data::Ref(Ref(HeapPtr(3))),
-            Data::Str(Str(HeapPtr(8))),
+            Data::Ref(HeapPtr(3)),
+            Data::Str(HeapPtr(8)),
             Data::Functor(Functor(p, 3)),
-            Data::Ref(Ref(HeapPtr(2))),
-            Data::Str(Str(HeapPtr(1))),
-            Data::Str(Str(HeapPtr(5))),
+            Data::Ref(HeapPtr(2)),
+            Data::Str(HeapPtr(1)),
+            Data::Str(HeapPtr(5)),
         ];
 
         let var_bindings = VarBindings::from_iter([(HeapPtr(2), z), (HeapPtr(3), w)]);
@@ -288,7 +288,7 @@ mod unittests {
         let z = symbol_table.intern("Z");
         let w = symbol_table.intern("W");
 
-        let heap = vec![Data::Ref(Ref(HeapPtr(1))), Data::Ref(Ref(HeapPtr(0)))];
+        let heap = vec![Data::Ref(HeapPtr(1)), Data::Ref(HeapPtr(0))];
 
         let var_bindings = VarBindings::from_iter([(HeapPtr(0), z), (HeapPtr(1), w)]);
 
@@ -305,8 +305,8 @@ mod unittests {
         let heap = vec![
             // f(f(...), W)
             Data::Functor(Functor(f, 2)),
-            Data::Str(Str(HeapPtr(0))),
-            Data::Ref(Ref(HeapPtr(2))),
+            Data::Str(HeapPtr(0)),
+            Data::Ref(HeapPtr(2)),
         ];
 
         let var_bindings = VarBindings::from_iter([(HeapPtr(2), w)]);

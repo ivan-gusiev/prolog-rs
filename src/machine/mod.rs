@@ -3,9 +3,7 @@ pub mod stack;
 use self::stack::{stack_smash_check, StackData, StackIterator, StackWalk};
 use asm::Assembly;
 use construct::{construct, ConstructResult};
-use data::{
-    Addr, CodePtr, Data, FramePtr, HeapPtr, Mode, Ref, RegPtr, StackDepth, StackPtr, Str, VarRecord,
-};
+use data::{Addr, CodePtr, Data, FramePtr, HeapPtr, Mode, RegPtr, StackDepth, StackPtr, VarRecord};
 use instr::Instruction;
 use lang::{Functor, Term, VarName};
 use std::{
@@ -323,7 +321,7 @@ impl Machine {
 
     pub fn trace_heap(&self, reg: Addr) -> MachineResult<HeapPtr> {
         match self.get_store(reg)? {
-            Data::Ref(Ref(ptr)) | Data::Str(Str(ptr)) => Ok(ptr),
+            Data::Ref(ptr) | Data::Str(ptr) => Ok(ptr),
             _ => Err(MachineError::NonVarBind),
         }
     }
@@ -520,7 +518,7 @@ impl<'a> ExecutionEnvironment<'a> {
 fn deref(machine: &Machine, mut addr: Addr) -> MachineResult<Addr> {
     loop {
         match machine.get_store(addr)? {
-            Data::Ref(Ref(new_addr)) if addr != new_addr.into() => addr = new_addr.into(),
+            Data::Ref(new_addr) if addr != new_addr.into() => addr = new_addr.into(),
             _ => break,
         }
     }
@@ -557,7 +555,7 @@ fn unify(machine: &mut Machine, a1: Addr, a2: Addr) -> MResult {
         match (machine.get_store(d1)?, machine.get_store(d2)?) {
             (Data::Ref(_), _) => bind(machine, d1, d2)?,
             (_, Data::Ref(_)) => bind(machine, d1, d2)?,
-            (Data::Str(Str(v1)), Data::Str(Str(v2))) => {
+            (Data::Str(v1), Data::Str(v2)) => {
                 let f1 = machine
                     .get_heap(v1)
                     .get_functor()
@@ -583,7 +581,7 @@ fn unify(machine: &mut Machine, a1: Addr, a2: Addr) -> MResult {
 
 fn put_structure(machine: &mut Machine, functor: Functor, target: Addr) -> IResult {
     let h = machine.get_h();
-    machine.set_heap(h, Str(h + 1).into());
+    machine.set_heap(h, Data::mkstr(h + 1));
     machine.set_heap(h + 1, functor.into());
     machine.set_store(target, machine.get_heap(h))?;
     machine.set_h(h + 2);
@@ -592,7 +590,7 @@ fn put_structure(machine: &mut Machine, functor: Functor, target: Addr) -> IResu
 
 fn set_variable(machine: &mut Machine, target: Addr) -> IResult {
     let h = machine.get_h();
-    machine.set_heap(h, Data::Ref(Ref(h)));
+    machine.set_heap(h, Data::Ref(h));
     machine.set_store(target, machine.get_heap(h))?;
     machine.set_h(h + 1);
     Ok(None)
@@ -608,15 +606,15 @@ fn set_value(machine: &mut Machine, target: Addr) -> IResult {
 fn get_structure(machine: &mut Machine, functor: Functor, target: Addr) -> IResult {
     let addr = deref(machine, target)?;
     match machine.get_store(addr)? {
-        Data::Ref(Ref(_)) => {
+        Data::Ref(_) => {
             let h = machine.get_h();
-            machine.set_heap(h, Str(h + 1).into());
+            machine.set_heap(h, Data::mkstr(h + 1));
             machine.set_heap(h + 1, functor.into());
             bind(machine, addr, h.into())?;
             machine.set_h(h + 2);
             machine.set_mode(Mode::Write);
         }
-        Data::Str(Str(a)) => {
+        Data::Str(a) => {
             if machine.get_heap(a) == functor.into() {
                 machine.set_s(a + 1);
                 machine.set_mode(Mode::Read);
@@ -635,7 +633,7 @@ fn unify_variable(machine: &mut Machine, target: Addr) -> IResult {
     match machine.mode {
         Mode::Read => machine.set_store(target, machine.get_heap(s))?,
         Mode::Write => {
-            machine.set_heap(h, Ref(h).into());
+            machine.set_heap(h, Data::mkref(h));
             machine.set_store(target, machine.get_heap(h))?;
             machine.set_h(h + 1);
         }
@@ -669,7 +667,7 @@ fn proceed(machine: &mut Machine) -> IResult {
 
 fn put_variable(machine: &mut Machine, source: Addr, argument: Addr) -> IResult {
     let h = machine.get_h();
-    let data = Ref(h).into();
+    let data = Data::mkref(h);
     machine.set_heap(h, data);
     machine.set_store(source, data)?;
     machine.set_store(argument, data)?;
