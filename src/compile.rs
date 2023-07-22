@@ -702,8 +702,8 @@ fn test_flatten_struct() {
     let x = symbol_table.intern("X");
     let y = symbol_table.intern("Y");
     let z = symbol_table.intern("Z");
-    let rzy = Term::Struct(Struct::new(r2, &[Term::Variable(z), Term::Variable(y)]).unwrap());
-    let root = Struct::new(p2, &[Term::Variable(x), rzy]).unwrap();
+    let rzy = Term::Struct(Struct::new(r2, vec![Term::Variable(z), Term::Variable(y)]).unwrap());
+    let root = Struct::new(p2, vec![Term::Variable(x), rzy]).unwrap();
     let (regs, vars, f) = flatten_struct(root);
     let regs_strings = regs.iter().map(|x| format!("{x:?}")).collect::<Vec<_>>();
     assert_eq!(

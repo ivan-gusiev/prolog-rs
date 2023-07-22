@@ -225,7 +225,7 @@ pub fn construct(
                 // push the constructed term onto `terms` stack
                 // throw BAD_ARITY if there are not enough subterms
                 terms.push(Term::Struct(
-                    Struct::new_from(functor, args).map_err(|_| BAD_ARITY)?,
+                    Struct::new(functor, args).map_err(|_| BAD_ARITY)?,
                 ))
             }
             // done with all the targets: terms[0] contains the target term

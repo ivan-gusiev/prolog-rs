@@ -48,36 +48,23 @@ impl SymDisplay for Functor {
 pub struct Struct(Functor, Vec<Term>);
 
 impl Struct {
-    fn check_arity(functor: Functor, terms: &[Term]) -> Result<(), String> {
+    pub fn new(functor: Functor, terms: Vec<Term>) -> Result<Struct, String> {
         if terms.len() != functor.arity() as usize {
-            Err(format!(
+            return Err(format!(
                 "functor {functor} arity does not correspond to the terms count"
             ))
-        } else {
-            Ok(())
-        }
-    }
-
-    // TODO: remove (the caller can clone things themselves)
-    pub fn new(functor: Functor, terms: &[Term]) -> Result<Struct, String> {
-        Self::check_arity(functor, terms)?;
-
-        Ok(Struct(functor, terms.to_vec()))
-    }
-
-    pub fn new_from(functor: Functor, terms: Vec<Term>) -> Result<Struct, String> {
-        Self::check_arity(functor, &terms)?;
+        } 
 
         Ok(Struct(functor, terms))
     }
 
-    pub fn from_name(name: FunctorName, terms: &[Term]) -> Struct {
+    pub fn from_name(name: FunctorName, terms: Vec<Term>) -> Struct {
         // unwrap is fine because we 100% know that the number of terms and arity matches
         Self::new(Functor(name, terms.len() as u32), terms).unwrap()
     }
 
     pub fn constant(name: FunctorName) -> Struct {
-        Self::new(Functor(name, 0), &[]).unwrap()
+        Self::new(Functor(name, 0), vec![]).unwrap()
     }
 
     pub fn functor(&self) -> Functor {
@@ -280,7 +267,7 @@ peg::parser!(
             = n:varname() { Term::Variable(mk_variable(n, symbols)) }
 
         rule structure(symbols: &mut SymbolTable) -> Struct
-            = n:structname() "(" ts:(term(symbols) ** ",") ")" { Struct::from_name(symbols.intern_chars(n), ts.as_slice()) }
+            = n:structname() "(" ts:(term(symbols) ** ",") ")" { Struct::from_name(symbols.intern_chars(n), ts) }
 
         rule constant(symbols: &mut SymbolTable) -> Struct
             = n:structname() { Struct::constant(symbols.intern_chars(n)) }
@@ -346,7 +333,7 @@ mod unittests {
         assert!(matches!(
             Struct::new(
                 Functor(dirty('f'), 1),
-                &[Term::Struct(Struct::constant(dirty('h')))]
+                vec![Term::Struct(Struct::constant(dirty('h')))]
             ),
             Ok(_)
         ))
@@ -357,7 +344,7 @@ mod unittests {
         assert!(matches!(
             Struct::new(
                 Functor(dirty('f'), 2),
-                &[Term::Struct(Struct::constant(dirty('h')))]
+                vec![Term::Struct(Struct::constant(dirty('h')))]
             ),
             Err(_)
         ))
