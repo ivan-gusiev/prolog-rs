@@ -21,6 +21,7 @@ pub fn collapse<T>(result: Result<T, T>) -> T {
     }
 }
 
+#[must_use]
 pub fn writeout<T: Display, I: IntoIterator<Item = T>>(items: I) -> String {
     fn writeout_impl<T: Display, I: IntoIterator<Item = T>>(items: I) -> Result<String, Error> {
         let mut out = String::new();
@@ -88,6 +89,8 @@ pub fn write_program_result(
         maybe_program_bindings: Option<&VarBindings>,
     ) -> Result<String, Error> {
         let mut out = String::new();
+        writeln!(out, "HEAP ({})\n___", machine.heap_len())?;
+        writeln!(out, "{}", writeout(machine.iter_heap().collect::<Vec<_>>()))?;
         writeln!(out, "QUERY\n----")?;
         writeln!(
             out,

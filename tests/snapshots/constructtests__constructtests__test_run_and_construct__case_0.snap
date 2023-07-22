@@ -4,6 +4,21 @@ expression: "case(program_str.to_owned() + \" | ?- \" + query_str, result)"
 ---
 p(Z, h(Z,W), f(W)) | ?- p(f(X), h(Y, f(a)), Y)
 -----
+HEAP (12)
+___
+000	<STR,1>
+001	a/0
+002	<STR,3>
+003	f/1
+004	<STR,1>
+005	<STR,6>
+006	f/1
+007	<STR,3>
+008	<STR,9>
+009	h/2
+010	<STR,6>
+011	<STR,3>
+
 QUERY
 ----
 000	X	(HEAP[7]) =	<STR,3>	// f(a)

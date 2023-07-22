@@ -4,6 +4,22 @@ expression: "case(program_str.to_owned() + \" | ?- \" + query_str, result)"
 ---
 horizontal(line(pt(X1, Y), pt(X2, Y))) | ?- horizontal(A)
 -----
+HEAP (13)
+___
+000	<STR,2>
+001	<STR,2>
+002	#0x1/2
+003	<STR,6>
+004	<STR,10>
+005	<STR,6>
+006	pt/2
+007	<REF,7>
+008	<REF,8>
+009	<STR,10>
+010	pt/2
+011	<REF,11>
+012	<REF,8>
+
 QUERY
 ----
 000	A	(HEAP[0]) =	<STR,2>	// line(pt(VAR1, VAR2), pt(VAR3, VAR2))

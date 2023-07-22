@@ -1,23 +1,20 @@
 pub mod stack;
 
+use self::stack::{stack_smash_check, StackData, StackIterator, StackWalk};
 use asm::Assembly;
-use construct::{ConstructEnvironment, ConstructResult};
+use construct::{construct, ConstructResult};
 use data::{
     Addr, CodePtr, Data, FramePtr, HeapPtr, Mode, Ref, RegPtr, StackDepth, StackPtr, Str, VarRecord,
 };
 use instr::Instruction;
 use lang::{Functor, Term, VarName};
-use machine::stack::StackData;
 use std::{
     convert::TryInto,
     fmt::{Display, Write},
 };
 use symbol::SymbolTable;
-use var::{VarBindings, VarDescription, VarMapping};
-
 use util::{writeout, writeout_sym};
-
-use self::stack::{stack_smash_check, StackIterator, StackWalk};
+use var::{VarBindings, VarDescription, VarMapping};
 
 #[derive(Debug)]
 pub struct Machine {
@@ -349,7 +346,11 @@ impl Machine {
         var_bindings: &VarBindings,
         symbol_table: &mut SymbolTable,
     ) -> ConstructResult<Term> {
-        ConstructEnvironment::new(self, var_bindings, symbol_table).run(addr)
+        let heap_root = match addr {
+            Addr::Heap(ptr) => ptr,
+            other => self.trace_heap(other)?,
+        };
+        construct(&self.heap, heap_root, symbol_table, var_bindings.clone())
     }
 
     pub fn describe_vars(
@@ -357,7 +358,6 @@ impl Machine {
         var_bindings: &VarBindings,
         symbol_table: &mut SymbolTable,
     ) -> ConstructResult<Vec<VarDescription>> {
-        let mut env = ConstructEnvironment::new(self, var_bindings, symbol_table);
         let mut mappings = var_bindings
             .iter()
             .map(|(&r, &n)| (n, r))
@@ -366,7 +366,7 @@ impl Machine {
         mappings
             .into_iter()
             .map(|(name, ptr)| {
-                env.run(ptr.into())
+                self.construct_term(ptr.into(), var_bindings, symbol_table)
                     .map(|term| VarDescription::new(name, ptr.into(), self.get_heap(ptr), term))
             })
             .collect()

@@ -2,7 +2,6 @@
 - [ ] more compiler tests (e.g. from the brown book)
 - [ ] static type system?
 - [ ] byte-address `call p/n` instead of index-address into array
-- [ ] construct: is it possible for `ConstructEnvironment::run_impl` to be non-recursive?
 - [ ] update `[A-Z]+\.md` files
 - [ ] write more docs
     * explain horizontal line
@@ -90,3 +89,5 @@
 - [x] stack: remove StackFrame, have something like StackView
     * maybe solve the `e==0 && stack.len==0` problem somehow
     * half done, keeping StackFrame only for introspection purposes
+- [x] construct: is it possible for `ConstructEnvironment::run_impl` to be non-recursive?
+    * built a completely new algorithm, stored in one 87-line function

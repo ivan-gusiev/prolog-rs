@@ -1,9 +1,9 @@
 use std::{collections::HashSet, fmt::Display};
 
 use crate::{
-    data::{Addr, Data, HeapPtr, Ref, Str},
+    data::{Data, HeapPtr, Ref, Str},
     lang::{Functor, Struct, Term, VarName},
-    machine::{Machine, MachineError},
+    machine::MachineError,
     symbol::SymbolTable,
     var::VarBindings,
 };
@@ -41,107 +41,10 @@ impl From<MachineError> for ConstructError {
     }
 }
 
+const BAD_ARITY: ConstructError = ConstructError::Machine(MachineError::BadArity);
+const EMPTY_REF: ConstructError = ConstructError::Machine(MachineError::EmptyRef);
+
 pub type ConstructResult<T> = Result<T, ConstructError>;
-
-pub struct ConstructEnvironment<'a> {
-    machine: &'a Machine,
-    symbol_table: &'a mut SymbolTable,
-    var_bindings: VarBindings,
-    seen: HashSet<HeapPtr>,
-    unnamed_var_counter: usize,
-}
-
-impl<'a> ConstructEnvironment<'a> {
-    pub fn new(
-        machine: &'a Machine,
-        query_bindings: &'a VarBindings,
-        symbol_table: &'a mut SymbolTable,
-    ) -> Self {
-        Self {
-            machine,
-            symbol_table,
-            var_bindings: query_bindings.clone(),
-            seen: Default::default(),
-            unnamed_var_counter: 0,
-        }
-    }
-
-    pub fn run(&mut self, addr: Addr) -> ConstructResult<Term> {
-        let heap_root = match addr {
-            Addr::Heap(ptr) => ptr,
-            other => self.machine.trace_heap(other)?,
-        };
-        let result = self.run_impl(heap_root);
-        self.seen.clear();
-        result
-    }
-
-    fn construct_str(&mut self, Str(ptr): Str) -> ConstructResult<Term> {
-        match self.machine.get_heap(ptr) {
-            Data::Functor(f) => self.construct_functor(ptr, f),
-            _ => Err(MachineError::NoStrFunctor.into()),
-        }
-    }
-
-    fn construct_functor(&mut self, ptr: HeapPtr, f: Functor) -> ConstructResult<Term> {
-        let mut subterms = Vec::<Term>::new();
-        for i in 1..=f.arity() {
-            subterms.push(self.run_impl(ptr + i as usize)?)
-        }
-        Struct::new_from(f, subterms)
-            .map(Term::Struct)
-            .map_err(|_| ConstructError::from(MachineError::BadArity))
-    }
-
-    fn construct_ref(&mut self, Ref(mut ptr): Ref) -> ConstructResult<Term> {
-        let mut last_name: Option<VarName> = None;
-        loop {
-            if let Some(new_name) = self.var_bindings.get(&ptr) {
-                last_name = Some(new_name)
-            }
-
-            match self.machine.get_heap(ptr) {
-                Data::Ref(Ref(next_ptr)) => {
-                    if ptr != next_ptr {
-                        ptr = next_ptr
-                    } else if let Some(name) = last_name {
-                        break Ok(Term::Variable(name));
-                    } else {
-                        break Ok(self.new_variable(ptr));
-                    }
-                }
-                Data::Str(str) => break self.construct_str(str),
-                Data::Functor(f) => break self.construct_functor(ptr, f),
-                Data::Empty => break Err(ConstructError::from(MachineError::EmptyRef)),
-            }
-        }
-    }
-
-    fn new_variable(&mut self, heap_ptr: HeapPtr) -> Term {
-        self.unnamed_var_counter += 1;
-        let name = self
-            .symbol_table
-            .intern(format!("VAR{}", self.unnamed_var_counter));
-        self.var_bindings.insert(heap_ptr, name);
-        Term::Variable(name)
-    }
-
-    fn run_impl(&mut self, addr: HeapPtr) -> ConstructResult<Term> {
-        if self.seen.contains(&addr) {
-            // circular reference
-            return Err(ConstructError::CircularRef);
-        } else {
-            self.seen.insert(addr);
-        }
-
-        match self.machine.get_heap(addr) {
-            Data::Ref(r) => self.construct_ref(r),
-            Data::Str(str) => self.construct_str(str),
-            Data::Functor(f) => self.construct_functor(addr, f),
-            Data::Empty => Err(MachineError::EmptyRef.into()),
-        }
-    }
-}
 
 /// Constructs a term from its heap representation.
 ///
@@ -182,7 +85,7 @@ pub fn construct(
     heap: &[Data],
     target: HeapPtr,
     symbol_table: &mut SymbolTable,
-    mut var_bindings: VarBindings,
+    mut var_bindings: VarBindings, // TODO: optimize so that we can take reference instead of cloning the whole bindings
 ) -> ConstructResult<Term> {
     // a stack of partially constructed subterms
     // to be collected in a single final term
@@ -224,47 +127,88 @@ pub fn construct(
     // Otherwise, an new variable will be created.
     let mut last_name: Option<VarName> = None;
 
+    // In case if a term references itself (either directly or through a subterm),
+    // the heap is invalid and we cannot construct that term. This list will track
+    // all the subterms, so we don't fall into an infinite loop.
+    let mut seen_terms: HashSet<HeapPtr> = HashSet::default();
+
+    // This keeps track of all the refs that occur in the chain. It is local to every
+    // REF object, but is maintained as a single object to optimize away extra allocations.
+    let mut seen_refs: HashSet<HeapPtr> = HashSet::default();
+
+    let at = |ptr: HeapPtr| heap.get(ptr.0).unwrap_or(&Data::Empty);
+
     // start with reading the target heap cell
     targets.push(Target::Read(target));
     loop {
         match targets.pop() {
             Some(Target::Read(cur_ptr)) => {
-                match *heap.get(cur_ptr.0).unwrap_or(&Data::Empty) {
+                match *at(cur_ptr) {
                     Data::Empty => return Err(EMPTY_REF),
                     // a STR cell must always point to a functor, so we just read the pointee;
                     // this invariant is not checked here, making STR identical to a REF cell
                     // for the purposes of term construction
                     Data::Str(Str(x)) => targets.push(Target::Read(x)),
-                    Data::Ref(Ref(x)) => {
-                        // consider the following reference chain:
-                        //  9:REF|7 -> 7:REF|5 -> 5:REF|3 -> 3:REF|1 -> 1:REF|1
-                        // with the following bindings: 5 -> X
-                        // the whole reference chain refers therefore to the variable X
-                        // we track this by checking the bindings at each ref
-                        // and selecting the closest binding to the end of the chain
-                        if let Some(new_name) = var_bindings.get(&cur_ptr) {
-                            last_name = Some(new_name)
-                        }
+                    Data::Ref(_) => {
+                        // a simple implementation would be just to set the ref as a target,
+                        // or if cur_ptr==target, to emit a new variable term;
+                        // however, for the proper circular reference check, we need to
+                        // consider the whole reference chain as a single whole heap object
 
-                        if x == cur_ptr {
-                            // a REF that points to itself is an unbound variable
-                            if let Some(name) = last_name {
-                                terms.push(Term::Variable(name));
-                                last_name = None // clean up before the next REF chain starts
-                            } else {
-                                terms.push(new_variable(cur_ptr, &mut var_bindings));
+                        // a reference chain can be a part of multiple sub-terms, so we clean
+                        // it up every time
+                        seen_refs.clear();
+                        let mut cur_ref = cur_ptr;
+
+                        loop {
+                            if !seen_refs.insert(cur_ref) {
+                                return Err(ConstructError::CircularRef);
                             }
-                        } else {
-                            // follow the REF chain deeper
-                            targets.push(Target::Read(x));
+
+                            // consider the following reference chain:
+                            //  9:REF|7 -> 7:REF|5 -> 5:REF|3 -> 3:REF|1 -> 1:REF|1
+                            // with the following bindings: 5 -> X
+                            // the whole reference chain refers therefore to the variable X
+                            // we track this by checking the bindings at each ref
+                            // and selecting the closest binding to the end of the chain
+                            if let Some(new_name) = var_bindings.get(&cur_ref) {
+                                last_name = Some(new_name)
+                            }
+
+                            match *at(cur_ref) {
+                                Data::Ref(Ref(x)) if x == cur_ref => {
+                                    // a REF that points to itself is an unbound variable
+                                    if let Some(name) = last_name {
+                                        terms.push(Term::Variable(name));
+                                        last_name = None // clean up before the next REF chain starts
+                                    } else {
+                                        terms.push(new_variable(cur_ptr, &mut var_bindings));
+                                    }
+                                    break;
+                                }
+                                Data::Ref(Ref(x)) => cur_ref = x, // follow the ref chain
+                                _ => {
+                                    targets.push(Target::Read(cur_ref));
+                                    break;
+                                }
+                            }
                         }
                     }
                     Data::Functor(f) => {
-                        // TODO: optimize for f/0, just push on the terms stack
+                        if !seen_terms.insert(cur_ptr) {
+                            // self-referencing term check
+                            return Err(ConstructError::CircularRef);
+                        }
+
+                        // optimization for constants: just write out the term, no need to grow stack
+                        if f.arity() == 0 {
+                            terms.push(Term::Struct(Struct::constant(f.name())));
+                            continue;
+                        }
+
                         targets.push(Target::Write(f));
-                        // read subterms in the reverse order, so when popping them from stack,
-                        // they are on their correct places; this is important if they themselves
-                        // have subterms
+                        // read subterms in the reverse order, so they are processed in the right order;
+                        // remember to reverse them back when collecting the parent term
                         for arg in (0..f.arity()).rev() {
                             targets.push(Target::Read(cur_ptr + 1 + arg as usize))
                         }
@@ -272,14 +216,14 @@ pub fn construct(
                 }
             }
             Some(Target::Write(functor)) => {
-                let mut args = Vec::<Term>::with_capacity(functor.arity() as usize);
-                // pop subterms into the args list
-                // throw BAD_ARITY if there are not enough subterms
-                for _ in 0..functor.arity() {
-                    args.push(terms.pop().ok_or(BAD_ARITY)?);
-                }
+                let arg_count = functor.arity() as usize;
+                assert!(terms.len() >= arg_count);
+
+                // take last `arg_count` terms from the subterm stack
+                let args: Vec<_> = terms.drain((terms.len() - arg_count)..).collect();
+
                 // push the constructed term onto `terms` stack
-                // throw BAD_ARITY if there are too much subterms
+                // throw BAD_ARITY if there are not enough subterms
                 terms.push(Term::Struct(
                     Struct::new_from(functor, args).map_err(|_| BAD_ARITY)?,
                 ))
@@ -289,19 +233,16 @@ pub fn construct(
         }
     }
 
-    // TODO: decide if we want our code to contain asserts
     assert!(terms.len() == 1);
     Ok(terms.remove(0))
 }
-
-const BAD_ARITY: ConstructError = ConstructError::Machine(MachineError::BadArity);
-const EMPTY_REF: ConstructError = ConstructError::Machine(MachineError::EmptyRef);
 
 #[cfg(test)]
 mod unittests {
     use std::iter::FromIterator;
 
     use crate::{
+        construct::ConstructError,
         data::{Data, HeapPtr, Ref, Str},
         lang::Functor,
         symbol::{to_display, SymbolTable},
@@ -311,7 +252,7 @@ mod unittests {
     use super::construct;
 
     #[test]
-    fn simple_construct_test() {
+    fn construct_simple_test() {
         let mut symbol_table = SymbolTable::new();
         let h = symbol_table.intern("h");
         let f = symbol_table.intern("f");
@@ -338,6 +279,39 @@ mod unittests {
 
         let result = construct(&heap, HeapPtr(7), &mut symbol_table, var_bindings).unwrap();
         let result_str = format!("{}", to_display(&result, &symbol_table));
-        assert_eq!(result_str, "p(f(W), h(W, Z), Z)");
+        assert_eq!(result_str, "p(Z, h(Z, W), f(W))");
+    }
+
+    #[test]
+    fn construct_circular_reference_test() {
+        let mut symbol_table = SymbolTable::new();
+        let z = symbol_table.intern("Z");
+        let w = symbol_table.intern("W");
+
+        let heap = vec![Data::Ref(Ref(HeapPtr(1))), Data::Ref(Ref(HeapPtr(0)))];
+
+        let var_bindings = VarBindings::from_iter([(HeapPtr(0), z), (HeapPtr(1), w)]);
+
+        let result = construct(&heap, HeapPtr(0), &mut symbol_table, var_bindings);
+        assert!(matches!(result, Err(ConstructError::CircularRef)));
+    }
+
+    #[test]
+    fn construct_circular_struct_test() {
+        let mut symbol_table = SymbolTable::new();
+        let w = symbol_table.intern("W");
+        let f = symbol_table.intern("f");
+
+        let heap = vec![
+            // f(f(...), W)
+            Data::Functor(Functor(f, 2)),
+            Data::Str(Str(HeapPtr(0))),
+            Data::Ref(Ref(HeapPtr(2))),
+        ];
+
+        let var_bindings = VarBindings::from_iter([(HeapPtr(2), w)]);
+
+        let result = construct(&heap, HeapPtr(0), &mut symbol_table, var_bindings);
+        assert!(matches!(result, Err(ConstructError::CircularRef)));
     }
 }

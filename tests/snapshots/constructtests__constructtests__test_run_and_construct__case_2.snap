@@ -4,6 +4,18 @@ expression: "case(program_str.to_owned() + \" | ?- \" + query_str, result)"
 ---
 f(b, Y) | ?- f(X, g(X,a))
 -----
+HEAP (9)
+___
+000	<STR,1>
+001	a/0
+002	<STR,8>
+003	<STR,4>
+004	g/2
+005	<REF,2>
+006	<STR,1>
+007	<STR,8>
+008	b/0
+
 QUERY
 ----
 000	X	(HEAP[2]) =	<STR,8>	// b
