@@ -22,7 +22,6 @@
     * this will result in `A->X1, B->Y1, C->X3, D->Y2, E->X5`
     * we want `A->X1, B->Y1, C->X2, D->Y2, E->X3`
 - [ ] tests: file-based test cases
-- [ ] data: remove Str and Ref types, they are not as useful as once thought
 
 ### Bugs
 - [x] Type `?- X` then `X`. It cannot figure out the unification. 
@@ -91,3 +90,4 @@
     * half done, keeping StackFrame only for introspection purposes
 - [x] construct: is it possible for `ConstructEnvironment::run_impl` to be non-recursive?
     * built a completely new algorithm, stored in one 87-line function
+- [x] data: remove Str and Ref types, they are not as useful as once thought
