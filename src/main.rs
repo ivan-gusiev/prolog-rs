@@ -127,7 +127,7 @@ fn parse_and_compile_sentence(input: &str, context: &mut PrologApp) -> Result<Co
     let program = parse_sentence(input, &mut context.symbol_table)?;
     let result = compile_sentence(
         program,
-        &Resolution::map_or_unknown(&context.assembly.label_map),
+        &Resolution::map_or_fail(&context.assembly.label_map),
     )
     .map_err(|err| err.sym_to_str(&context.symbol_table))?;
 

@@ -44,6 +44,9 @@
     * assert `q(a, b)` and `r(b, c)`
     * now query `?- p(a, V)` returns `V = a`, but is expected to return `V = c`
     * ~~possibly the `call_hook` needs fixing?~~ yes it was
+- [ ] Consider the following program. `cat :- meow, legs(four). meow. legs(four).`
+    * the query `?- cat.` will run forever
+    * seems to be related to how call/proceed works with multiple leaf calls
 
 ### Done ✓
 - [x] WAM assembly parser

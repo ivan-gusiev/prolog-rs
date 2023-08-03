@@ -81,6 +81,7 @@ mod executetests {
         ("?- f(b, Y).", "f(X, g(X,a))."),
         ("?- p(X, Y), q(X, Z).", "p(a, b). q(a, d)."),
         ("?- cat(X).", "legs(joe, four). says(joe, meow). cat(X) :- legs(X, four), says(X, meow)."),
+        ("?- cat.", "legs(four). meow. cat :- legs(four), meow."),
     })]
     fn test_program_execute_l2(input: (&str, &str)) {
         let (query_text, program_text) = input;

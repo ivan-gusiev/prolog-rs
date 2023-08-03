@@ -317,9 +317,14 @@ fn compile_goal(
     };
     let program_code_ptr = match programs(&root_functor) {
         Resolution::Ref(ptr) => Ok(ptr),
-        // Resolution::Fail => {
-        //     return Ok(CompileInfo { instructions: vec![Instruction::Fail], var_mapping: (), label_functor: (), warnings: () })
-        // }
+        Resolution::Fail => {
+            return Ok(CompileInfo {
+                instructions: vec![Instruction::Fail],
+                var_mapping: VarMapping::default(),
+                label_functor: None,
+                warnings: vec![CompileWarning::UnknownFunctor(root_functor)],
+            })
+        }
         Resolution::Unknown => Err(CompileError::UnknownFunctor(root_functor)),
     }?;
     //programs(&root_functor).ok_or(CompileError::UnknownFunctor(root_functor))?;
@@ -395,6 +400,7 @@ pub fn compile_query(
     goals: Vec<Struct>,
     programs: impl Fn(&Functor) -> Resolution,
 ) -> Result<CompileInfo, CompileError> {
+    let mut warnings = vec![];
     let stack_vars = {
         let mut vars = HashMap::default();
         for goal in goals.iter() {
@@ -417,6 +423,7 @@ pub fn compile_query(
         instructions.append(&mut goal_result.instructions);
         seen.retain(Local::is_stack); // "remember" only the permanent variables
         var_mapping.append(goal_result.var_mapping);
+        warnings.extend(goal_result.warnings);
     }
 
     // epilogue
@@ -430,7 +437,7 @@ pub fn compile_query(
         instructions,
         var_mapping,
         label_functor: None,
-        warnings: vec![],
+        warnings,
     })
 }
 
@@ -544,6 +551,7 @@ pub fn compile_rule(
 
     let mut seen = HashSet::<Local>::new();
     let mut head_result = compile_head(head, &permanent_vars, &mut seen);
+    warnings.extend(head_result.warnings);
     let mut var_mapping = head_result.var_mapping;
     instructions.append(&mut head_result.instructions);
     for goal in goals {
@@ -551,10 +559,13 @@ pub fn compile_rule(
         instructions.append(&mut goal_result.instructions);
         var_mapping.append(goal_result.var_mapping);
         seen.retain(Local::is_stack); // "remember" only the permanent variables
+        warnings.extend(goal_result.warnings);
     }
 
     // epilogue
-    if !permanent_vars.is_empty() {
+    if permanent_vars.is_empty() {
+        instructions.push(Instruction::Proceed);
+    } else {
         instructions.push(Instruction::Deallocate);
         var_mapping.retain_keys(Local::is_stack);
     }
@@ -580,7 +591,7 @@ pub enum Resolution {
     /// Issue a `call` instruction to this code pointer
     Ref(CodePtr),
     /// Issue a fail instruction
-    //Fail,
+    Fail,
     /// Terminate compilation with the "unknown functor" error.
     /// Default for non-interactive compilation.
     Unknown,
@@ -599,17 +610,17 @@ impl Resolution {
         }
     }
 
-    // pub fn map_or_fail(
-    //     programs: &HashMap<Functor, CodePtr>,
-    // ) -> impl (Fn(&Functor) -> Resolution) + '_ {
-    //     move |functor| {
-    //         programs
-    //             .get(functor)
-    //             .copied()
-    //             .map(Resolution::Ref)
-    //             .unwrap_or(Resolution::Fail)
-    //     }
-    // }
+    pub fn map_or_fail(
+        programs: &HashMap<Functor, CodePtr>,
+    ) -> impl (Fn(&Functor) -> Resolution) + '_ {
+        move |functor| {
+            programs
+                .get(functor)
+                .copied()
+                .map(Resolution::Ref)
+                .unwrap_or(Resolution::Fail)
+        }
+    }
 }
 
 impl CompileInfo {
@@ -666,6 +677,7 @@ impl SymDisplay for CompileError {
 pub enum CompileWarning {
     IgnoredEntryPoint(CodePtr),
     UnusedVariables(Vec<VarName>),
+    UnknownFunctor(Functor),
 }
 
 impl SymDisplay for CompileWarning {
@@ -683,6 +695,11 @@ impl SymDisplay for CompileWarning {
                 f,
                 "Rule contains variables [{}] that are not bound to any goals.",
                 to_display(&WriteVec::new(vars), symbol_table),
+            ),
+            Self::UnknownFunctor(fun) => write!(
+                f,
+                "Goal [{}] refers to an unknown functor and therefore cannot be satisfied.",
+                to_display(fun, symbol_table),
             ),
         }
     }
@@ -1091,6 +1108,45 @@ fn test_compile_rule() {
             var_mapping: VarMapping::from_iter([(FramePtr(1).into(), y), (FramePtr(2).into(), z),]),
             label_functor: Some(p2),
             warnings: vec![],
+        })
+    )
+}
+
+#[test]
+fn test_compile_multigoal_query_with_fail() {
+    use assembler::compile_asm;
+    use lang::parse_sentence;
+    use symbol::SymbolTable;
+    let mut symbol_table = SymbolTable::new();
+
+    let rule = parse_sentence("?- q(X, Z), r(Z, Y).", &mut symbol_table).unwrap();
+    let expected_assembly = compile_asm(
+        r#"
+        allocate 3
+        put_variable Y1, A1
+        put_variable Y2, A2
+        call @100 ; q/2
+        fail
+        publish
+        deallocate
+        "#,
+        &mut symbol_table,
+    )
+    .unwrap();
+    let q = symbol_table.intern("q");
+    let q2 = Functor(q, 2);
+    let r = symbol_table.intern("r");
+    let r2 = Functor(r, 2);
+    let x = symbol_table.intern("X");
+    let z = symbol_table.intern("Z");
+    let label_map = HashMap::from_iter([(q2, CodePtr(100))]);
+    assert_eq!(
+        compile_query(rule.goals, Resolution::map_or_fail(&label_map)),
+        Ok(CompileInfo {
+            instructions: expected_assembly.instructions,
+            var_mapping: VarMapping::from_iter([(FramePtr(1).into(), x), (FramePtr(2).into(), z),]),
+            label_functor: None,
+            warnings: vec![CompileWarning::UnknownFunctor(r2)],
         })
     )
 }
