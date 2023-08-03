@@ -7,7 +7,7 @@ mod executetests {
     use insta::assert_display_snapshot;
     use parameterized::parameterized;
     use prolog_rs::{
-        compile::compile_query,
+        compile::{compile_query, Resolution},
         l1_solve, l2_solve,
         lang::{parse_program, parse_sentence, parse_struct},
         machine::Machine,
@@ -26,7 +26,7 @@ mod executetests {
         let query = parse_sentence(input, &mut symbol_table).unwrap();
 
         let labels = lbl_for(&query.goals);
-        let query_result = compile_query(query.goals, &labels).unwrap();
+        let query_result = compile_query(query.goals, Resolution::map_or_unknown(&labels)).unwrap();
         let mut machine = Machine::new();
         run_just_query(&mut machine, &query_result.instructions).expect("machine failure");
 

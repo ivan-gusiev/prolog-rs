@@ -9,7 +9,7 @@ mod tests {
     use prolog_rs::{
         asm::Assembly,
         assembler::{compile_asm, compile_asm_to_assembly},
-        compile::{compile_query, compile_rule, compile_sentences, CompileInfo},
+        compile::{compile_query, compile_rule, compile_sentences, CompileInfo, Resolution},
         data::{CodePtr, Data, HeapPtr, RegPtr},
         instr::Instruction,
         lang::{parse_program, parse_sentence, Functor, Struct, Term},
@@ -64,7 +64,7 @@ mod tests {
             var_mapping: _,
             label_functor: _,
             warnings: _,
-        } = compile_query(query.goals, &labels).unwrap();
+        } = compile_query(query.goals, Resolution::map_or_unknown(&labels)).unwrap();
         let expected = compile_asm(QUERY_ASM_L2, &mut symbol_table)
             .unwrap()
             .instructions;
@@ -260,7 +260,12 @@ mod tests {
         let rule = parse_sentence("a(X) :- b(X).", &mut symbol_table).unwrap();
         let label_map = HashMap::from_iter([(Functor(symbol_table.intern("b"), 1), CodePtr(100))]);
 
-        let result = compile_rule(rule.head.unwrap(), rule.goals, &label_map).unwrap();
+        let result = compile_rule(
+            rule.head.unwrap(),
+            rule.goals,
+            Resolution::map_or_unknown(&label_map),
+        )
+        .unwrap();
         let allocates = result
             .instructions
             .iter()

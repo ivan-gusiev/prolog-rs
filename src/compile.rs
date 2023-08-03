@@ -302,7 +302,7 @@ fn get_permanent_variables(
 // compiles goals for queries or rules
 fn compile_goal(
     query: Struct,
-    programs: &HashMap<Functor, CodePtr>,
+    programs: &impl (Fn(&Functor) -> Resolution),
     stack_vars: &HashMap<VarName, FramePtr>,
     seen: &mut HashSet<Local>,
 ) -> Result<CompileInfo, CompileError> {
@@ -315,9 +315,14 @@ fn compile_goal(
             .map(Local::from)
             .unwrap_or_else(|| Local::from(regptr))
     };
-    let program_code_ptr = programs
-        .get(&root_functor)
-        .ok_or(CompileError::UnknownFunctor(root_functor))?;
+    let program_code_ptr = match programs(&root_functor) {
+        Resolution::Ref(ptr) => Ok(ptr),
+        // Resolution::Fail => {
+        //     return Ok(CompileInfo { instructions: vec![Instruction::Fail], var_mapping: (), label_functor: (), warnings: () })
+        // }
+        Resolution::Unknown => Err(CompileError::UnknownFunctor(root_functor)),
+    }?;
+    //programs(&root_functor).ok_or(CompileError::UnknownFunctor(root_functor))?;
 
     let registers = &registers_with_root[1..];
     let reg_map = HashMap::from_iter(registers.iter().map(FlattenedReg::to_tuple));
@@ -374,7 +379,7 @@ fn compile_goal(
         }
     }
     // call the corresponding program
-    instructions.push(Instruction::Call(*program_code_ptr));
+    instructions.push(Instruction::Call(program_code_ptr));
 
     let var_mapping = VarMapping::from_iter(var_regs.iter().map(|(r, &name)| (get_local(r), name)));
 
@@ -388,7 +393,7 @@ fn compile_goal(
 
 pub fn compile_query(
     goals: Vec<Struct>,
-    programs: &HashMap<Functor, CodePtr>,
+    programs: impl Fn(&Functor) -> Resolution,
 ) -> Result<CompileInfo, CompileError> {
     let stack_vars = {
         let mut vars = HashMap::default();
@@ -408,7 +413,7 @@ pub fn compile_query(
     let mut var_mapping = VarMapping::default();
 
     for goal in goals {
-        let mut goal_result = compile_goal(goal, programs, &stack_vars, &mut seen)?;
+        let mut goal_result = compile_goal(goal, &programs, &stack_vars, &mut seen)?;
         instructions.append(&mut goal_result.instructions);
         seen.retain(Local::is_stack); // "remember" only the permanent variables
         var_mapping.append(goal_result.var_mapping);
@@ -518,7 +523,7 @@ pub fn compile_fact(program: Struct) -> CompileInfo {
 pub fn compile_rule(
     head: Struct,
     goals: Vec<Struct>,
-    programs: &HashMap<Functor, CodePtr>,
+    programs: impl (Fn(&Functor) -> Resolution),
 ) -> Result<CompileInfo, CompileError> {
     let (mut singleton_vars, permanent_vars) = get_permanent_variables(Option::Some(&head), &goals);
     let mut instructions = vec![];
@@ -542,7 +547,7 @@ pub fn compile_rule(
     let mut var_mapping = head_result.var_mapping;
     instructions.append(&mut head_result.instructions);
     for goal in goals {
-        let mut goal_result = compile_goal(goal, programs, &permanent_vars, &mut seen)?;
+        let mut goal_result = compile_goal(goal, &programs, &permanent_vars, &mut seen)?;
         instructions.append(&mut goal_result.instructions);
         var_mapping.append(goal_result.var_mapping);
         seen.retain(Local::is_stack); // "remember" only the permanent variables
@@ -568,6 +573,43 @@ pub struct CompileInfo {
     pub var_mapping: VarMapping,
     pub label_functor: Option<Functor>,
     pub warnings: Vec<CompileWarning>,
+}
+
+/// Describes how to handle a reference to another functor in a goal
+pub enum Resolution {
+    /// Issue a `call` instruction to this code pointer
+    Ref(CodePtr),
+    /// Issue a fail instruction
+    //Fail,
+    /// Terminate compilation with the "unknown functor" error.
+    /// Default for non-interactive compilation.
+    Unknown,
+}
+
+impl Resolution {
+    pub fn map_or_unknown(
+        programs: &HashMap<Functor, CodePtr>,
+    ) -> impl (Fn(&Functor) -> Resolution) + '_ {
+        move |functor| {
+            programs
+                .get(functor)
+                .copied()
+                .map(Resolution::Ref)
+                .unwrap_or(Resolution::Unknown)
+        }
+    }
+
+    // pub fn map_or_fail(
+    //     programs: &HashMap<Functor, CodePtr>,
+    // ) -> impl (Fn(&Functor) -> Resolution) + '_ {
+    //     move |functor| {
+    //         programs
+    //             .get(functor)
+    //             .copied()
+    //             .map(Resolution::Ref)
+    //             .unwrap_or(Resolution::Fail)
+    //     }
+    // }
 }
 
 impl CompileInfo {
@@ -648,7 +690,7 @@ impl SymDisplay for CompileWarning {
 
 pub fn compile_sentence(
     sentence: Sentence,
-    label_map: &HashMap<Functor, CodePtr>,
+    label_map: &impl (Fn(&Functor) -> Resolution),
 ) -> Result<CompileInfo, CompileError> {
     if sentence.is_fact() {
         let fact = sentence.unwrap_fact();
@@ -676,12 +718,14 @@ pub fn compile_sentences(
             fact_info.append_to_assembly(assembly);
         } else if sentence.is_rule() {
             let (head, goals) = sentence.unwrap_rule();
-            let mut rule_info = compile_rule(head, goals, &assembly.label_map)?;
+            let mut rule_info =
+                compile_rule(head, goals, Resolution::map_or_unknown(&assembly.label_map))?;
             warnings.append(&mut rule_info.warnings);
             rule_info.append_to_assembly(assembly);
         } else if sentence.is_query() {
             let goals = sentence.unwrap_query();
-            let mut query_info = compile_query(goals, &assembly.label_map)?;
+            let mut query_info =
+                compile_query(goals, Resolution::map_or_unknown(&assembly.label_map))?;
             warnings.append(&mut query_info.warnings);
             let entry_point = query_info.append_to_assembly(assembly);
             if let Some(old_entry_point) = assembly.entry_point.take() {
@@ -772,7 +816,7 @@ fn test_compile_query() {
     .unwrap()
     .instructions;
     assert_eq!(
-        compile_query(query.goals, &labels).unwrap(),
+        compile_query(query.goals, Resolution::map_or_unknown(&labels)).unwrap(),
         CompileInfo {
             instructions,
             var_mapping: VarMapping::from_iter([
@@ -806,7 +850,7 @@ fn test_compile_query_no_allocate() {
     .unwrap()
     .instructions;
     assert_eq!(
-        compile_query(query.goals, &labels).unwrap(),
+        compile_query(query.goals, Resolution::map_or_unknown(&labels)).unwrap(),
         CompileInfo {
             instructions,
             var_mapping: VarMapping::default(),
@@ -886,7 +930,7 @@ fn test_compile_query_line() {
     .unwrap()
     .instructions;
     assert_eq!(
-        compile_query(query.goals, &labels).unwrap(),
+        compile_query(query.goals, Resolution::map_or_unknown(&labels)).unwrap(),
         CompileInfo {
             instructions,
             var_mapping: VarMapping::from_iter([
@@ -1037,7 +1081,11 @@ fn test_compile_rule() {
     let z = symbol_table.intern("Z");
     let label_map = HashMap::from_iter([(q2, CodePtr(100)), (r2, CodePtr(110))]);
     assert_eq!(
-        compile_rule(rule.head.unwrap(), rule.goals, &label_map),
+        compile_rule(
+            rule.head.unwrap(),
+            rule.goals,
+            Resolution::map_or_unknown(&label_map)
+        ),
         Ok(CompileInfo {
             instructions: expected_assembly.instructions,
             var_mapping: VarMapping::from_iter([(FramePtr(1).into(), y), (FramePtr(2).into(), z),]),
@@ -1079,7 +1127,7 @@ fn test_compile_multigoal_query() {
     let z = symbol_table.intern("Z");
     let label_map = HashMap::from_iter([(q2, CodePtr(100)), (r2, CodePtr(110))]);
     assert_eq!(
-        compile_query(rule.goals, &label_map),
+        compile_query(rule.goals, Resolution::map_or_unknown(&label_map)),
         Ok(CompileInfo {
             instructions: expected_assembly.instructions,
             var_mapping: VarMapping::from_iter([
@@ -1096,7 +1144,7 @@ fn test_compile_multigoal_query() {
 #[test]
 fn test_compile_empty_query() {
     assert_eq!(
-        compile_query(vec![], &HashMap::default()),
+        compile_query(vec![], Resolution::map_or_unknown(&HashMap::default())),
         Ok(CompileInfo {
             instructions: vec![Instruction::Publish],
             var_mapping: VarMapping::default(),

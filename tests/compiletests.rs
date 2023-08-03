@@ -11,7 +11,7 @@ mod compiletests {
     use parameterized::parameterized;
     use prolog_rs::{
         asm::Assembly,
-        compile::{compile_fact, compile_query, compile_rule},
+        compile::{compile_fact, compile_query, compile_rule, Resolution},
         data::CodePtr,
         lang::{parse_sentence, parse_struct, Functor},
         symbol::{to_display, SymbolTable},
@@ -33,7 +33,7 @@ mod compiletests {
         let mut symbol_table = SymbolTable::new();
         let query = parse_sentence(input, &mut symbol_table).unwrap();
         let labels = lbl_for(&query.goals);
-        let result = compile_query(query.goals, &labels).unwrap();
+        let result = compile_query(query.goals, Resolution::map_or_unknown(&labels)).unwrap();
 
         assert_display_snapshot!(case(input, writeout_compile_result(&result, &symbol_table)));
     }
@@ -71,7 +71,7 @@ mod compiletests {
 
         let result = compile_query(
             parse_sentence(input, &mut symbol_table).unwrap().goals,
-            &assembly.label_map,
+            Resolution::map_or_unknown(&assembly.label_map),
         )
         .map(|compile_result| writeout_compile_result(&compile_result, &symbol_table))
         .map_err(|err| format!("{}", to_display(&err, &symbol_table)));
@@ -97,9 +97,13 @@ mod compiletests {
             mklabel("h", 1, 130),
         ]);
 
-        let result = compile_rule(rule.head.unwrap(), rule.goals, &label_map)
-            .map(|compile_result| writeout_compile_result(&compile_result, &symbol_table))
-            .map_err(|err| format!("{}", to_display(&err, &symbol_table)));
+        let result = compile_rule(
+            rule.head.unwrap(),
+            rule.goals,
+            Resolution::map_or_unknown(&label_map),
+        )
+        .map(|compile_result| writeout_compile_result(&compile_result, &symbol_table))
+        .map_err(|err| format!("{}", to_display(&err, &symbol_table)));
         assert_display_snapshot!(case(input, collapse(result)));
     }
 }

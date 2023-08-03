@@ -3,7 +3,7 @@ use app::debugmode::start_debugmode;
 use prolog_rs::{
     asm::Assembly,
     assembler::compile_asm,
-    compile::{compile_sentence, compile_sentences, CompileInfo, CompileWarning},
+    compile::{compile_sentence, compile_sentences, CompileInfo, CompileWarning, Resolution},
     lang::{parse_program, parse_sentence},
     symbol::{to_display, SymDisplay},
     util::write_program_result,
@@ -125,8 +125,11 @@ fn load_pro(path: &str, prolog: &mut PrologApp) -> Result<(), String> {
 
 fn parse_and_compile_sentence(input: &str, context: &mut PrologApp) -> Result<CompileInfo, String> {
     let program = parse_sentence(input, &mut context.symbol_table)?;
-    let result = compile_sentence(program, &context.assembly.label_map)
-        .map_err(|err| err.sym_to_str(&context.symbol_table))?;
+    let result = compile_sentence(
+        program,
+        &Resolution::map_or_unknown(&context.assembly.label_map),
+    )
+    .map_err(|err| err.sym_to_str(&context.symbol_table))?;
 
     print_warnings(&result.warnings, context);
 

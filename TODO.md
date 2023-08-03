@@ -2,6 +2,8 @@
 - [ ] more compiler tests (e.g. from the brown book)
 - [ ] static type system?
 - [ ] byte-address `call p/n` instead of index-address into array
+    * this means variable-length instructions in general
+    * the code should be `[u8]`, and the Instruction stream should be an iterator
 - [ ] update `[A-Z]+\.md` files
 - [ ] write more docs
     * explain horizontal line
