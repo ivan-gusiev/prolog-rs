@@ -713,6 +713,11 @@ fn publish(machine: &mut Machine) -> IResult {
     Ok(None)
 }
 
+fn fail(machine: &mut Machine) -> IResult {
+    machine.set_fail(true);
+    Ok(None)
+}
+
 fn execute_instruction(machine: &mut Machine, instruction: Instruction) -> MResult {
     let nextp = match instruction {
         Instruction::PutStructure(functor, register) => put_structure(machine, functor, register),
@@ -730,6 +735,7 @@ fn execute_instruction(machine: &mut Machine, instruction: Instruction) -> MResu
         Instruction::Allocate(depth) => allocate(machine, depth),
         Instruction::Deallocate => deallocate(machine),
         Instruction::Publish => publish(machine),
+        Instruction::Fail => fail(machine),
     }?;
     machine.set_p(nextp.unwrap_or(machine.get_p() + instruction.size()));
     Ok(())

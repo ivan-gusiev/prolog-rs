@@ -22,6 +22,7 @@ pub enum Instruction {
     Allocate(StackDepth),
     Deallocate,
     Publish,
+    Fail,
 }
 
 impl Display for Instruction {
@@ -46,6 +47,7 @@ impl Display for Instruction {
             Instruction::Allocate(d) => write!(f, "allocate {d}"),
             Instruction::Deallocate => write!(f, "deallocate"),
             Instruction::Publish => write!(f, "publish"),
+            Instruction::Fail => write!(f, "fail"),
         }
     }
 }

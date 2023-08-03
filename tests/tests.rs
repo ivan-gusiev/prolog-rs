@@ -279,4 +279,22 @@ mod tests {
         assert_eq!(allocates.len(), 0);
         assert_eq!(deallocates.len(), 0);
     }
+
+    #[test]
+    fn fail() {
+        const FAIL: &str = r#"
+            fail
+            "#;
+
+        let mut symbol_table = SymbolTable::new();
+        let mut assembly = Assembly::new();
+        compile_asm_to_assembly(FAIL, &mut assembly, &mut symbol_table).unwrap();
+
+        let mut machine = Machine::new();
+        machine.load_assembly(&assembly);
+
+        machine.execute().run().unwrap();
+
+        assert_eq!(machine.get_fail(), true);
+    }
 }

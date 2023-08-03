@@ -54,9 +54,10 @@ p/3:get_structure f/1, A1
     proceed
     "#;
 
-    const GOTO_START: &str = r#"
+    const GOTO_START_NOT_FAIL: &str = r#"
 x/0:proceed
     call x/0
+    fail
     "#;
 
     const FORWARD_REF: &str = r#"
@@ -116,7 +117,7 @@ r/2: proceed
         QUERY_L0,
         QUERY_L1,
         PROGRAM_L1,
-        GOTO_START,
+        GOTO_START_NOT_FAIL,
         FORWARD_REF,
         UNBOUND_LABEL,
         SUPER_BROKEN,

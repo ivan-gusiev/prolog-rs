@@ -5,8 +5,10 @@ expression: "case(input, output)"
 
 x/0:proceed
     call x/0
+    fail
     
 -----
 000	x/0: proceed
 001	call @0
+002	fail
 
