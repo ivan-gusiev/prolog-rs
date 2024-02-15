@@ -1,5 +1,5 @@
-## We don't use Make, this machinery just forwards everything to just
-## See justfile for more information
+## Prolog-rsw uses `just` instead of `Make` for  build scripts
+## This makefile just forwards everything to the equivalent `just` command
 
 # Use everything as arguments for wildcard
 RUN_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))

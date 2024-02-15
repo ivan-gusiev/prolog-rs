@@ -9,4 +9,5 @@ unused(X, Warn) :- h(X).
 002	get_variable X4, X2	// X4=Warn, X2=X
 003	put_variable X2, X1	// X2=X
 004	call @130
+005	proceed
 

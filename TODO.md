@@ -24,6 +24,8 @@
     * this will result in `A->X1, B->Y1, C->X3, D->Y2, E->X5`
     * we want `A->X1, B->Y1, C->X2, D->Y2, E->X3`
 - [ ] tests: file-based test cases
+- [ ] build: ensure that `just` is installed in the makefile
+- [ ] build: ensure that all the cargo dependencies are installed (e.g. insta)
 
 ### Bugs
 - [x] Type `?- X` then `X`. It cannot figure out the unification. 

@@ -8,4 +8,5 @@ unused(X, _Nowarn) :- h(X).
 001	get_variable X4, X2	// X4=_Nowarn, X2=X
 002	put_variable X2, X1	// X2=X
 003	call @130
+004	proceed
 
